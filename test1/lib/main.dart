@@ -1,0 +1,3581 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:uuid/uuid.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final app = AppState(prefs);
+  await app.load();
+  runApp(
+    ChangeNotifierProvider.value(value: app, child: const AliceApp()),
+  );
+}
+
+/* ============================ ЛОКАЛИЗАЦИЯ ============================ */
+
+const Map<String, Map<String, String>> _i18n = {
+  'ru': {
+    'appName': 'Alice AI',
+    'howCanIHelp': 'Чем могу помочь?',
+    'subtitle':
+        'Приватный ИИ для письма, планирования, кода и повседневных вопросов.',
+    'askAnything': 'Спросите что угодно',
+    'summarize': 'Кратко',
+    'rewrite': 'Переписать',
+    'fixGrammar': 'Грамматика',
+    'thinking': 'Думаю…',
+    'downloadedModels': 'Доступные модели',
+    'manageModels': 'Управление моделями',
+    'newChat': 'Новый чат',
+    'createImage': 'Создать изображение',
+    'createImageHint':
+        'Создание изображения — отправьте запрос модели изображений',
+    'loadingModels': 'Загрузка моделей…',
+    'noModelsFound': 'Модели не найдены',
+    'refreshModels': 'Обновить список моделей',
+    'mute': 'Выкл. микрофон',
+    'unmute': 'Вкл. микрофон',
+    'listening': 'Внимательно слушаю…',
+    'muted': 'Микрофон выключен',
+    'speakNaturally':
+        'Говорите свободно. Alice ответит, как только вы сделаете паузу.',
+    'conversations': 'Беседы',
+    'chats': 'Чаты',
+    'chatsDesc':
+        'Здесь хранятся ваши недавние диалоги, готовые продолжиться в любой момент.',
+    'chatsLabel': 'ЧАТЫ',
+    'pinnedLabel': 'ЗАКРЕПЛЁННЫЕ',
+    'latestLabel': 'ПОСЛЕДНИЙ',
+    'noChatsYet': 'Чатов пока нет',
+    'startFresh': 'Начните новый пустой диалог.',
+    'recent': 'Недавние',
+    'noChatsDesc':
+        'Как только вы начнёте общение, история диалогов появится здесь.',
+    'startNewChat': 'Начать новый чат',
+    'searchChats': 'Поиск по чатам и сообщениям',
+    'messages': 'сообщений',
+    'pin': 'Закрепить',
+    'unpin': 'Открепить',
+    'delete': 'Удалить',
+    'justNow': 'только что',
+    'minAgo': 'мин назад',
+    'hAgo': 'ч назад',
+    'dAgo': 'дн назад',
+    'settings': 'Настройки',
+    'settingsDesc':
+        'Настройте Alice AI, управляйте поведением приложения и просматривайте сведения в одном месте.',
+    'sectionApp': 'Приложение',
+    'sectionTheme': 'Оформление',
+    'manageModelsItem': 'Управление моделями',
+    'personalization': 'Персонализация',
+    'memory': 'Память',
+    'language': 'Язык',
+    'serverAddress': 'Адрес сервера',
+    'showKeyboard': 'Клавиатура при запуске',
+    'haptics': 'Виброотклик',
+    'themeMode': 'Тема',
+    'themeSystem': 'Системная',
+    'themeLight': 'Светлая',
+    'themeDark': 'Тёмная',
+    'showChips': 'Показывать подсказки',
+    'fontSize': 'Размер шрифта',
+    'deleteHistory': 'Удалить историю диалогов',
+    'terms': 'Условия использования',
+    'privacy': 'Политика конфиденциальности',
+    'licenses': 'Лицензии',
+    'cantUndo': 'Это действие нельзя отменить.',
+    'cancel': 'Отмена',
+    'save': 'Сохранить',
+    'done': 'Готово',
+    'reset': 'Сбросить',
+    'serverDialogTitle': 'Подключение к нейросети',
+    'serverUrlLabel': 'Адрес (IP:порт или https://...)',
+    'serverUrlHint': 'например 192.168.1.100:11434 или https://api.site.com',
+    'apiKeyOptional': 'API-ключ (необязательно)',
+    'languageDialogTitle': 'Выбор языка',
+    'russian': 'Русский',
+    'english': 'English',
+    'addModelHint': 'Добавьте модель вручную',
+    'attachImage': 'Прикрепить изображение',
+    'attachFile': 'Прикрепить файл',
+    'fileAttached': 'Файл прикреплён',
+    'imageAttached': 'Изображение прикреплено',
+    'serverError': 'Ошибка сервера',
+    'unreachable': 'Не удалось подключиться к серверу',
+    'checkAddress': 'Проверьте адрес в настройках.',
+    'pers': 'Персонализация',
+    'persDesc':
+        'Настройте личность, поведение и контекст ассистента под себя.',
+    'persPersona': 'Личность и стиль общения',
+    'persPreset': 'Готовая персона',
+    'preset_friend': 'Лучший друг',
+    'preset_mentor': 'Наставник / Коуч',
+    'preset_expert': 'Эксперт',
+    'preset_creative': 'Креативный партнёр',
+    'preset_custom': 'Свой стиль',
+    'slidersTitle': 'Черты характера',
+    'sl_formality': 'Формальность',
+    'sl_empathy': 'Эмпатия',
+    'sl_verbosity': 'Детализация',
+    'sl_humor': 'Юмор',
+    'sl_creativity': 'Креативность',
+    'speechStyle': 'Стиль речи',
+    'emojiUsage': 'Эмодзи',
+    'emoji_never': 'Никогда',
+    'emoji_sometimes': 'Иногда',
+    'emoji_always': 'Всегда',
+    'answerFormat': 'Формат ответов',
+    'fmt_plain': 'Обычный текст',
+    'fmt_lists': 'Списки',
+    'fmt_tables': 'Таблицы где можно',
+    'persBehavior': 'Функциональность и поведение',
+    'defaultLength': 'Длина ответа по умолчанию',
+    'len_short': 'Короткая',
+    'len_normal': 'Стандартная',
+    'len_long': 'Развёрнутая',
+    'proactivity': 'Проактивность',
+    'pro_answer': 'Только отвечать',
+    'pro_clarify': 'Задавать уточнения',
+    'pro_suggest': 'Предлагать темы',
+    'useMarkdown': 'Использовать markdown-разметку',
+    'memorySection': 'Память и контекст',
+    'longMemory': 'Долговременная память',
+    'memoryNote': 'Запомни обо мне, что…',
+    'persProfile': 'О вас',
+    'name': 'Имя',
+    'pronouns': 'Местоимения',
+    'profession': 'Профессия',
+    'interests': 'Интересы и хобби',
+    'goals': 'Цели',
+    'useMyData': 'Использовать мои данные для ответов',
+    'knowledgeLevel': 'Уровень знаний',
+    'kl_beginner': 'Новичок',
+    'kl_student': 'Студент',
+    'kl_expert': 'Эксперт',
+    'location': 'Местоположение (город / часовой пояс)',
+    'persSafety': 'Безопасность и границы',
+    'avoidTopics': 'Темы для избегания',
+    'contentFilter': 'Фильтр контента',
+    'cf_strict': 'Строгий',
+    'cf_balanced': 'Сбалансированный',
+    'cf_off': 'Без фильтра',
+    'warnUncertain': 'Предупреждать о неуверенности и чувствительных темах',
+    'persAdvanced': 'Продвинутые настройки',
+    'reasoning': 'Стиль мышления',
+    'rs_fast': 'Быстрый и интуитивный',
+    'rs_step': 'Пошаговое рассуждение',
+    'toneTitle': 'Тон в тексте',
+    'tone_neutral': 'Нейтральный',
+    'tone_sarcastic': 'Саркастичный',
+    'tone_melancholic': 'Меланхоличный',
+    'tone_excited': 'Восторженный',
+    'customPrompt': 'Свой системный промпт',
+    'customPromptHint': 'Прямая инструкция ассистенту…',
+  },
+  'en': {
+    'appName': 'Alice AI',
+    'howCanIHelp': 'How can I help?',
+    'subtitle':
+        'Private AI for writing, planning, coding, and everyday questions.',
+    'askAnything': 'Ask anything',
+    'summarize': 'Summarize',
+    'rewrite': 'Rewrite',
+    'fixGrammar': 'Fix Grammar',
+    'thinking': 'Thinking…',
+    'downloadedModels': 'Downloaded Models',
+    'manageModels': 'Manage Models',
+    'newChat': 'New Chat',
+    'createImage': 'Create Image',
+    'createImageHint': 'Create Image — send a request to an image model',
+    'loadingModels': 'Loading models…',
+    'noModelsFound': 'No models found',
+    'refreshModels': 'Refresh model list',
+    'mute': 'Mute',
+    'unmute': 'Unmute',
+    'listening': 'Listening carefully…',
+    'muted': 'Muted',
+    'speakNaturally':
+        'Speak naturally. Alice will respond as soon as you pause.',
+    'conversations': 'Conversations',
+    'chats': 'Chats',
+    'chatsDesc':
+        'Your recent work lives here, ready to resume whenever you are.',
+    'chatsLabel': 'CHATS',
+    'pinnedLabel': 'PINNED',
+    'latestLabel': 'LATEST',
+    'noChatsYet': 'No chats yet',
+    'startFresh': 'Start fresh with an empty thread.',
+    'recent': 'Recent',
+    'noChatsDesc':
+        'Once you start chatting, your local conversation history will show up here.',
+    'startNewChat': 'Start New Chat',
+    'searchChats': 'Search chats and messages',
+    'messages': 'messages',
+    'pin': 'Pin',
+    'unpin': 'Unpin',
+    'delete': 'Delete',
+    'justNow': 'just now',
+    'minAgo': 'm ago',
+    'hAgo': 'h ago',
+    'dAgo': 'd ago',
+    'settings': 'Settings',
+    'settingsDesc':
+        'Personalize Alice AI, manage device behavior, and review the app details in one place.',
+    'sectionApp': 'App',
+    'sectionTheme': 'Theme',
+    'manageModelsItem': 'Manage models',
+    'personalization': 'Personalization',
+    'memory': 'Memory',
+    'language': 'Language',
+    'serverAddress': 'Server address',
+    'showKeyboard': 'Show keyboard on launch',
+    'haptics': 'Haptics',
+    'themeMode': 'Theme',
+    'themeSystem': 'System',
+    'themeLight': 'Light',
+    'themeDark': 'Dark',
+    'showChips': 'Show prompt chips',
+    'fontSize': 'Font size',
+    'deleteHistory': 'Delete conversation history',
+    'terms': 'Terms & Conditions',
+    'privacy': 'Privacy Policy',
+    'licenses': 'Licenses',
+    'cantUndo': 'This cannot be undone.',
+    'cancel': 'Cancel',
+    'save': 'Save',
+    'done': 'Done',
+    'reset': 'Reset',
+    'serverDialogTitle': 'AI connection',
+    'serverUrlLabel': 'Address (IP:port or https://...)',
+    'serverUrlHint': 'e.g. 192.168.1.100:11434 or https://api.site.com',
+    'apiKeyOptional': 'API key (optional)',
+    'languageDialogTitle': 'Select language',
+    'russian': 'Русский',
+    'english': 'English',
+    'addModelHint': 'Add model manually',
+    'attachImage': 'Attach image',
+    'attachFile': 'Attach file',
+    'fileAttached': 'File attached',
+    'imageAttached': 'Image attached',
+    'serverError': 'Server error',
+    'unreachable': 'Could not reach the server',
+    'checkAddress': 'Check the address in Settings.',
+    'pers': 'Personalization',
+    'persDesc': "Tailor the assistant's personality, behavior and context.",
+    'persPersona': 'Character & vibe',
+    'persPreset': 'Persona preset',
+    'preset_friend': 'Best friend',
+    'preset_mentor': 'Mentor / Coach',
+    'preset_expert': 'Expert',
+    'preset_creative': 'Creative partner',
+    'preset_custom': 'Custom',
+    'slidersTitle': 'Character traits',
+    'sl_formality': 'Formality',
+    'sl_empathy': 'Empathy',
+    'sl_verbosity': 'Detail',
+    'sl_humor': 'Humor',
+    'sl_creativity': 'Creativity',
+    'speechStyle': 'Speech style',
+    'emojiUsage': 'Emoji',
+    'emoji_never': 'Never',
+    'emoji_sometimes': 'Sometimes',
+    'emoji_always': 'Always',
+    'answerFormat': 'Answer format',
+    'fmt_plain': 'Plain text',
+    'fmt_lists': 'Lists',
+    'fmt_tables': 'Tables when possible',
+    'persBehavior': 'Functionality & behavior',
+    'defaultLength': 'Default answer length',
+    'len_short': 'Short',
+    'len_normal': 'Standard',
+    'len_long': 'Detailed',
+    'proactivity': 'Proactivity',
+    'pro_answer': 'Answer only',
+    'pro_clarify': 'Ask clarifying questions',
+    'pro_suggest': 'Suggest related topics',
+    'useMarkdown': 'Use markdown formatting',
+    'memorySection': 'Memory & context',
+    'longMemory': 'Long-term memory',
+    'memoryNote': 'Remember about me that…',
+    'persProfile': 'About you',
+    'name': 'Name',
+    'pronouns': 'Pronouns',
+    'profession': 'Profession',
+    'interests': 'Interests & hobbies',
+    'goals': 'Goals',
+    'useMyData': 'Use my data to improve answers',
+    'knowledgeLevel': 'Knowledge level',
+    'kl_beginner': 'Beginner',
+    'kl_student': 'Student',
+    'kl_expert': 'Expert',
+    'location': 'Location (city / timezone)',
+    'persSafety': 'Safety & limits',
+    'avoidTopics': 'Topics to avoid',
+    'contentFilter': 'Content filter',
+    'cf_strict': 'Strict',
+    'cf_balanced': 'Balanced',
+    'cf_off': 'No filter',
+    'warnUncertain': 'Warn on uncertainty and sensitive topics',
+    'persAdvanced': 'Advanced',
+    'reasoning': 'Reasoning style',
+    'rs_fast': 'Fast & intuitive',
+    'rs_step': 'Step-by-step reasoning',
+    'toneTitle': 'Text tone',
+    'tone_neutral': 'Neutral',
+    'tone_sarcastic': 'Sarcastic',
+    'tone_melancholic': 'Melancholic',
+    'tone_excited': 'Excited',
+    'customPrompt': 'Custom system prompt',
+    'customPromptHint': 'Direct instruction to the assistant…',
+  },
+};
+
+/* ============================ МОДЕЛИ ДАННЫХ ============================ */
+
+class ChatMessage {
+  final String role;
+  final String content;
+  final DateTime time;
+  final List<String> attachments;
+  ChatMessage({
+    required this.role,
+    required this.content,
+    DateTime? time,
+    List<String>? attachments,
+  })  : time = time ?? DateTime.now(),
+        attachments = attachments ?? [];
+
+  Map<String, dynamic> toJson() => {
+        'role': role,
+        'content': content,
+        'time': time.toIso8601String(),
+        'attachments': attachments,
+      };
+  factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
+        role: j['role'] as String? ?? 'user',
+        content: j['content'] as String? ?? '',
+        time: DateTime.tryParse(j['time'] as String? ?? '') ?? DateTime.now(),
+        attachments: (j['attachments'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [],
+      );
+}
+
+class Conversation {
+  final String id;
+  String title;
+  bool pinned;
+  DateTime updatedAt;
+  List<ChatMessage> messages;
+
+  Conversation({
+    required this.id,
+    required this.title,
+    this.pinned = false,
+    DateTime? updatedAt,
+    List<ChatMessage>? messages,
+  })  : updatedAt = updatedAt ?? DateTime.now(),
+        messages = messages ?? [];
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'pinned': pinned,
+        'updatedAt': updatedAt.toIso8601String(),
+        'messages': messages.map((m) => m.toJson()).toList(),
+      };
+  factory Conversation.fromJson(Map<String, dynamic> j) => Conversation(
+        id: j['id'] as String? ?? '',
+        title: j['title'] as String? ?? '',
+        pinned: j['pinned'] as bool? ?? false,
+        updatedAt:
+            DateTime.tryParse(j['updatedAt'] as String? ?? '') ?? DateTime.now(),
+        messages: (j['messages'] as List<dynamic>?)
+                ?.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+      );
+}
+
+class Personalization {
+  Personalization();
+
+  String preset = 'preset_custom';
+  double formality = 0.5;
+  double empathy = 0.5;
+  double verbosity = 0.5;
+  double humor = 0.3;
+  double creativity = 0.5;
+  String emoji = 'emoji_sometimes';
+  String answerFormat = 'fmt_plain';
+  String defaultLength = 'len_normal';
+  String proactivity = 'pro_clarify';
+  bool useMarkdown = true;
+  bool longMemory = true;
+  String memoryNote = '';
+  String name = '';
+  String pronouns = '';
+  String profession = '';
+  String interests = '';
+  String goals = '';
+  bool useMyData = true;
+  String knowledgeLevel = 'kl_student';
+  String location = '';
+  String avoidTopics = '';
+  String contentFilter = 'cf_balanced';
+  bool warnUncertain = true;
+  String reasoning = 'rs_fast';
+  String tone = 'tone_neutral';
+  String customPrompt = '';
+
+  Map<String, dynamic> toJson() => {
+        'preset': preset,
+        'formality': formality,
+        'empathy': empathy,
+        'verbosity': verbosity,
+        'humor': humor,
+        'creativity': creativity,
+        'emoji': emoji,
+        'answerFormat': answerFormat,
+        'defaultLength': defaultLength,
+        'proactivity': proactivity,
+        'useMarkdown': useMarkdown,
+        'longMemory': longMemory,
+        'memoryNote': memoryNote,
+        'name': name,
+        'pronouns': pronouns,
+        'profession': profession,
+        'interests': interests,
+        'goals': goals,
+        'useMyData': useMyData,
+        'knowledgeLevel': knowledgeLevel,
+        'location': location,
+        'avoidTopics': avoidTopics,
+        'contentFilter': contentFilter,
+        'warnUncertain': warnUncertain,
+        'reasoning': reasoning,
+        'tone': tone,
+        'customPrompt': customPrompt,
+      };
+
+  factory Personalization.fromJson(Map<String, dynamic> j) {
+    final p = Personalization();
+    p.preset = (j['preset'] as String?) ?? p.preset;
+    p.formality = (j['formality'] as num?)?.toDouble() ?? p.formality;
+    p.empathy = (j['empathy'] as num?)?.toDouble() ?? p.empathy;
+    p.verbosity = (j['verbosity'] as num?)?.toDouble() ?? p.verbosity;
+    p.humor = (j['humor'] as num?)?.toDouble() ?? p.humor;
+    p.creativity = (j['creativity'] as num?)?.toDouble() ?? p.creativity;
+    p.emoji = (j['emoji'] as String?) ?? p.emoji;
+    p.answerFormat = (j['answerFormat'] as String?) ?? p.answerFormat;
+    p.defaultLength = (j['defaultLength'] as String?) ?? p.defaultLength;
+    p.proactivity = (j['proactivity'] as String?) ?? p.proactivity;
+    p.useMarkdown = (j['useMarkdown'] as bool?) ?? p.useMarkdown;
+    p.longMemory = (j['longMemory'] as bool?) ?? p.longMemory;
+    p.memoryNote = (j['memoryNote'] as String?) ?? p.memoryNote;
+    p.name = (j['name'] as String?) ?? p.name;
+    p.pronouns = (j['pronouns'] as String?) ?? p.pronouns;
+    p.profession = (j['profession'] as String?) ?? p.profession;
+    p.interests = (j['interests'] as String?) ?? p.interests;
+    p.goals = (j['goals'] as String?) ?? p.goals;
+    p.useMyData = (j['useMyData'] as bool?) ?? p.useMyData;
+    p.knowledgeLevel = (j['knowledgeLevel'] as String?) ?? p.knowledgeLevel;
+    p.location = (j['location'] as String?) ?? p.location;
+    p.avoidTopics = (j['avoidTopics'] as String?) ?? p.avoidTopics;
+    p.contentFilter = (j['contentFilter'] as String?) ?? p.contentFilter;
+    p.warnUncertain = (j['warnUncertain'] as bool?) ?? p.warnUncertain;
+    p.reasoning = (j['reasoning'] as String?) ?? p.reasoning;
+    p.tone = (j['tone'] as String?) ?? p.tone;
+    p.customPrompt = (j['customPrompt'] as String?) ?? p.customPrompt;
+    return p;
+  }
+
+  Personalization clone() => Personalization.fromJson(toJson());
+
+  void applyPreset(String preset) {
+    this.preset = preset;
+    switch (preset) {
+      case 'preset_friend':
+        formality = 0.15;
+        empathy = 0.8;
+        verbosity = 0.4;
+        humor = 0.8;
+        creativity = 0.6;
+        emoji = 'emoji_always';
+        tone = 'tone_excited';
+        break;
+      case 'preset_mentor':
+        formality = 0.5;
+        empathy = 0.7;
+        verbosity = 0.6;
+        humor = 0.3;
+        creativity = 0.5;
+        emoji = 'emoji_sometimes';
+        proactivity = 'pro_clarify';
+        tone = 'tone_neutral';
+        break;
+      case 'preset_expert':
+        formality = 0.9;
+        empathy = 0.2;
+        verbosity = 0.7;
+        humor = 0.05;
+        creativity = 0.2;
+        emoji = 'emoji_never';
+        answerFormat = 'fmt_lists';
+        tone = 'tone_neutral';
+        break;
+      case 'preset_creative':
+        formality = 0.3;
+        empathy = 0.6;
+        verbosity = 0.6;
+        humor = 0.7;
+        creativity = 0.95;
+        emoji = 'emoji_sometimes';
+        tone = 'tone_excited';
+        break;
+    }
+  }
+
+  String buildSystemPrompt() {
+    final b = StringBuffer();
+    b.writeln('You are Alice, a helpful AI assistant.');
+
+    String lvl(double v) =>
+        v < 0.33 ? 'low' : (v < 0.66 ? 'medium' : 'high');
+    b.writeln(
+        'Style: formality ${lvl(formality)}, empathy ${lvl(empathy)}, '
+        'verbosity ${lvl(verbosity)}, humor ${lvl(humor)}, creativity ${lvl(creativity)}.');
+
+    b.writeln(emoji == 'emoji_never'
+        ? 'Never use emoji.'
+        : emoji == 'emoji_always'
+            ? 'Use emoji frequently.'
+            : 'Use emoji occasionally.');
+
+    if (answerFormat == 'fmt_lists') {
+      b.writeln('Prefer structured bullet lists.');
+    } else if (answerFormat == 'fmt_tables') {
+      b.writeln('Use tables whenever data fits a table.');
+    }
+
+    b.writeln(defaultLength == 'len_short'
+        ? 'Keep answers very short (max 2 sentences).'
+        : defaultLength == 'len_long'
+            ? 'Give detailed, thorough answers.'
+            : 'Give standard-length answers.');
+
+    if (proactivity == 'pro_clarify') {
+      b.writeln('Ask clarifying questions when the task is unclear.');
+    } else if (proactivity == 'pro_suggest') {
+      b.writeln('Proactively suggest interesting related topics.');
+    } else {
+      b.writeln('Only answer what is asked.');
+    }
+
+    if (useMarkdown) b.writeln('Use markdown formatting.');
+
+    b.writeln(
+        'Reasoning: ${reasoning == 'rs_step' ? 'think step by step and show your reasoning' : 'answer directly and intuitively'}.');
+
+    if (tone != 'tone_neutral') {
+      b.writeln('Overall tone of text: ${tone.replaceFirst('tone_', '')}.');
+    }
+
+    if (useMyData) {
+      final prof = <String>[];
+      if (name.isNotEmpty) prof.add('name: $name');
+      if (pronouns.isNotEmpty) prof.add('pronouns: $pronouns');
+      if (profession.isNotEmpty) prof.add('profession: $profession');
+      if (interests.isNotEmpty) prof.add('interests: $interests');
+      if (goals.isNotEmpty) prof.add('goals: $goals');
+      if (location.isNotEmpty) prof.add('location: $location');
+      if (prof.isNotEmpty) {
+        b.writeln('User profile (use it naturally): ${prof.join('; ')}.');
+      }
+      b.writeln(
+          'Explain things at a ${knowledgeLevel.replaceFirst('kl_', '')} level.');
+    }
+
+    if (longMemory && memoryNote.isNotEmpty) {
+      b.writeln('Remember about the user: $memoryNote');
+    }
+
+    if (avoidTopics.isNotEmpty) {
+      b.writeln('Avoid these topics: $avoidTopics.');
+    }
+    b.writeln(contentFilter == 'cf_strict'
+        ? 'Apply a strict safety filter; block adult and violent content.'
+        : contentFilter == 'cf_off'
+            ? 'Minimal content filtering for an adult, private conversation.'
+            : 'Apply a balanced content filter.');
+    if (warnUncertain) {
+      b.writeln(
+          'Warn the user when you are uncertain or the topic is sensitive (medical, financial, legal).');
+    }
+
+    if (customPrompt.trim().isNotEmpty) {
+      b.writeln('Additional user instruction: ${customPrompt.trim()}');
+    }
+    return b.toString();
+  }
+}
+
+/* ============================ СОСТОЯНИЕ ============================ */
+
+enum AppThemeMode { system, light, dark }
+
+class AppState extends ChangeNotifier {
+  final SharedPreferences prefs;
+  AppState(this.prefs);
+
+  final _uuid = const Uuid();
+
+  String lang = 'ru';
+  String t(String key) => _i18n[lang]?[key] ?? _i18n['en']?[key] ?? key;
+
+  AppThemeMode themeMode = AppThemeMode.system;
+  bool haptics = true;
+  bool showKeyboardOnLaunch = false;
+  bool showPromptChips = true;
+  double fontSize = 1.0;
+
+  String serverUrl = '192.168.1.100:11434';
+  String apiKey = '';
+  List<String> models = ['Alice Nano'];
+  String selectedModel = 'Alice Nano';
+  bool loadingModels = false;
+  String? modelsError;
+
+  Personalization persona = Personalization();
+
+  List<Conversation> conversations = [];
+  Conversation? current;
+
+  String get baseUrl {
+    var u = serverUrl.trim();
+    if (u.isEmpty) return 'http://localhost:11434';
+    if (!u.startsWith('http://') && !u.startsWith('https://')) {
+      u = 'http://$u';
+    }
+    if (u.endsWith('/')) u = u.substring(0, u.length - 1);
+    return u;
+  }
+
+  bool get isDarkMode {
+    switch (themeMode) {
+      case AppThemeMode.dark:
+        return true;
+      case AppThemeMode.light:
+        return false;
+      case AppThemeMode.system:
+        final brightness =
+            WidgetsBinding.instance.platformDispatcher.platformBrightness;
+        return brightness == Brightness.dark;
+    }
+  }
+
+  Future<void> load() async {
+    lang = prefs.getString('lang') ?? 'ru';
+    final tm = prefs.getString('themeMode') ?? 'system';
+    themeMode = AppThemeMode.values.firstWhere(
+      (e) => e.name == tm,
+      orElse: () => AppThemeMode.system,
+    );
+    haptics = prefs.getBool('haptics') ?? true;
+    showKeyboardOnLaunch = prefs.getBool('showKeyboardOnLaunch') ?? false;
+    showPromptChips = prefs.getBool('showPromptChips') ?? true;
+    fontSize = prefs.getDouble('fontSize') ?? 1.0;
+    serverUrl = prefs.getString('serverUrl') ?? '192.168.1.100:11434';
+    apiKey = prefs.getString('apiKey') ?? '';
+    models = prefs.getStringList('models') ?? ['Alice Nano'];
+    selectedModel = prefs.getString('selectedModel') ??
+        (models.isNotEmpty ? models.first : '');
+
+    final pj = prefs.getString('persona');
+    if (pj != null) {
+      try {
+        final decoded = jsonDecode(pj);
+        if (decoded is Map<String, dynamic>) {
+          persona = Personalization.fromJson(decoded);
+        }
+      } catch (_) {}
+    }
+
+    final raw = prefs.getString('conversations');
+    if (raw != null) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          conversations = decoded
+              .map((e) => Conversation.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+      } catch (_) {
+        conversations = [];
+      }
+    }
+    notifyListeners();
+    fetchModels();
+  }
+
+  Future<void> _save() async {
+    await prefs.setString('lang', lang);
+    await prefs.setString('themeMode', themeMode.name);
+    await prefs.setBool('haptics', haptics);
+    await prefs.setBool('showKeyboardOnLaunch', showKeyboardOnLaunch);
+    await prefs.setBool('showPromptChips', showPromptChips);
+    await prefs.setDouble('fontSize', fontSize);
+    await prefs.setString('serverUrl', serverUrl);
+    await prefs.setString('apiKey', apiKey);
+    await prefs.setStringList('models', models);
+    await prefs.setString('selectedModel', selectedModel);
+    await prefs.setString('persona', jsonEncode(persona.toJson()));
+    await prefs.setString(
+      'conversations',
+      jsonEncode(conversations.map((c) => c.toJson()).toList()),
+    );
+  }
+
+  void buzz() {
+    if (haptics) HapticFeedback.lightImpact();
+  }
+
+  void setLang(String l) {
+    lang = l;
+    _save();
+    notifyListeners();
+  }
+
+  void setThemeMode(AppThemeMode v) {
+    themeMode = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setHaptics(bool v) {
+    haptics = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setShowKeyboard(bool v) {
+    showKeyboardOnLaunch = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setShowChips(bool v) {
+    showPromptChips = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setFontSize(double v) {
+    fontSize = v;
+    _save();
+    notifyListeners();
+  }
+
+  void savePersona(Personalization p) {
+    persona = p;
+    _save();
+    notifyListeners();
+  }
+
+  void setServer(String url, String key) {
+    serverUrl = url;
+    apiKey = key;
+    _save();
+    notifyListeners();
+    fetchModels();
+  }
+
+  Future<void> fetchModels() async {
+    if (serverUrl.trim().isEmpty) return;
+    loadingModels = true;
+    modelsError = null;
+    notifyListeners();
+    try {
+      final headers = <String, String>{};
+      if (apiKey.isNotEmpty) headers['Authorization'] = 'Bearer $apiKey';
+
+      List<String> found = [];
+
+      try {
+        final res = await http
+            .get(Uri.parse('$baseUrl/api/tags'), headers: headers)
+            .timeout(const Duration(seconds: 12));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          if (data is Map<String, dynamic> && data['models'] is List) {
+            final list = data['models'] as List;
+            found = list.map((e) => e['name'].toString()).toList();
+          }
+        }
+      } catch (_) {}
+
+      if (found.isEmpty) {
+        try {
+          final res = await http
+              .get(Uri.parse('$baseUrl/v1/models'), headers: headers)
+              .timeout(const Duration(seconds: 12));
+          if (res.statusCode == 200) {
+            final data = jsonDecode(res.body);
+            if (data is Map<String, dynamic> && data['data'] is List) {
+              final list = data['data'] as List;
+              found = list.map((e) => e['id'].toString()).toList();
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (found.isNotEmpty) {
+        models = found;
+        if (!models.contains(selectedModel)) selectedModel = models.first;
+        modelsError = null;
+      } else {
+        modelsError = t('noModelsFound');
+      }
+    } catch (e) {
+      modelsError = t('unreachable');
+    } finally {
+      loadingModels = false;
+      _save();
+      notifyListeners();
+    }
+  }
+
+  void selectModel(String m) {
+    selectedModel = m;
+    _save();
+    notifyListeners();
+  }
+
+  void addModel(String m) {
+    if (m.trim().isEmpty || models.contains(m)) return;
+    models.add(m.trim());
+    _save();
+    notifyListeners();
+  }
+
+  void removeModel(String m) {
+    models.remove(m);
+    if (selectedModel == m && models.isNotEmpty) selectedModel = models.first;
+    _save();
+    notifyListeners();
+  }
+
+  int get chatCount => conversations.length;
+  int get pinnedCount => conversations.where((c) => c.pinned).length;
+  Conversation? get latest {
+    if (conversations.isEmpty) return null;
+    final sorted = [...conversations]
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return sorted.first;
+  }
+
+  void newChat() {
+    final c = Conversation(id: _uuid.v4(), title: t('newChat'));
+    conversations.insert(0, c);
+    current = c;
+    _save();
+    notifyListeners();
+  }
+
+  void openChat(Conversation c) {
+    current = c;
+    notifyListeners();
+  }
+
+  void togglePin(Conversation c) {
+    c.pinned = !c.pinned;
+    _save();
+    notifyListeners();
+  }
+
+  void deleteChat(Conversation c) {
+    conversations.remove(c);
+    if (current == c) current = null;
+    _save();
+    notifyListeners();
+  }
+
+  void deleteAll() {
+    conversations.clear();
+    current = null;
+    _save();
+    notifyListeners();
+  }
+
+  String? _extractContent(Map<String, dynamic> data) {
+    if (data['message'] is Map && data['message']['content'] != null) {
+      return data['message']['content'].toString();
+    }
+    if (data['response'] != null) {
+      return data['response'].toString();
+    }
+    if (data['choices'] is List && (data['choices'] as List).isNotEmpty) {
+      final choices = data['choices'] as List;
+      if (choices[0] is Map &&
+          choices[0]['message'] is Map &&
+          choices[0]['message']['content'] != null) {
+        return choices[0]['message']['content'].toString();
+      }
+    }
+    return null;
+  }
+
+  Future<String> sendMessage(String text, {List<String> attachments = const []}) async {
+    current ??= () {
+      final c = Conversation(id: _uuid.v4(), title: t('newChat'));
+      conversations.insert(0, c);
+      return c;
+    }();
+    final conv = current!;
+
+    conv.messages.add(ChatMessage(
+      role: 'user',
+      content: text,
+      attachments: attachments,
+    ));
+    if (conv.title == t('newChat') || conv.title == 'New Chat') {
+      conv.title = text.isNotEmpty
+          ? (text.length > 32 ? '${text.substring(0, 32)}…' : text)
+          : conv.title;
+    }
+    conv.updatedAt = DateTime.now();
+    notifyListeners();
+
+    String reply;
+    try {
+      final headers = {'Content-Type': 'application/json'};
+      if (apiKey.isNotEmpty) headers['Authorization'] = 'Bearer $apiKey';
+
+      final msgs = <Map<String, dynamic>>[
+        {'role': 'system', 'content': persona.buildSystemPrompt()},
+        ...conv.messages.map((m) => {
+              'role': m.role,
+              'content': m.content.isNotEmpty ? m.content : '[Attached files: ${m.attachments.join(', ')}]',
+            }),
+      ];
+
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/chat'),
+            headers: headers,
+            body: jsonEncode({
+              'model': selectedModel,
+              'stream': false,
+              'messages': msgs,
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
+
+      if (res.statusCode == 200) {
+        try {
+          final data = jsonDecode(res.body);
+          if (data is Map<String, dynamic>) {
+            reply = _extractContent(data) ?? '—';
+          } else {
+            reply = '—';
+          }
+        } catch (_) {
+          reply = '—';
+        }
+      } else {
+        reply = '${t('serverError')} ${res.statusCode}: ${res.body}';
+      }
+    } catch (e) {
+      reply = '${t('unreachable')} $baseUrl.\n($e)\n\n${t('checkAddress')}';
+    }
+
+    conv.messages.add(ChatMessage(role: 'assistant', content: reply.trim()));
+    conv.updatedAt = DateTime.now();
+    _save();
+    notifyListeners();
+    return reply;
+  }
+}
+
+/* ============================ ТЕМА / ПРИЛОЖЕНИЕ ============================ */
+
+class AliceApp extends StatelessWidget {
+  const AliceApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Alice AI',
+      theme: _buildTheme(false),
+      darkTheme: _buildTheme(true),
+      themeMode: _getThemeMode(app.themeMode),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(app.fontSize),
+          ),
+          child: child!,
+        );
+      },
+      home: const ChatScreen(),
+    );
+  }
+
+  ThemeMode _getThemeMode(AppThemeMode mode) {
+    switch (mode) {
+      case AppThemeMode.light:
+        return ThemeMode.light;
+      case AppThemeMode.dark:
+        return ThemeMode.dark;
+      case AppThemeMode.system:
+        return ThemeMode.system;
+    }
+  }
+
+  ThemeData _buildTheme(bool dark) {
+    final scheme = dark
+        ? const ColorScheme.dark(
+            primary: Color(0xFF7C8CF8), surface: Color(0xFF15151E))
+        : const ColorScheme.light(
+            primary: Color(0xFF2F6BFF), surface: Color(0xFFF2F3F7));
+    final bg = dark ? const Color(0xFF0E0E15) : const Color(0xFFFFFFFF);
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: bg,
+      fontFamily: 'Roboto',
+    );
+  }
+}
+
+Color _bg(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? const Color(0xFF0E0E15)
+    : Colors.white;
+Color _card(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? const Color(0xFF1C1C26)
+    : const Color(0xFFEDEEF3);
+Color _txt(BuildContext c) =>
+    Theme.of(c).brightness == Brightness.dark ? Colors.white : Colors.black;
+Color _sub(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? const Color(0xFF8A8A95)
+    : const Color(0xFF6B6B72);
+
+/* ============================ СФЕРА ИЗ ЧАСТИЦ ============================ */
+
+class ParticleSphere extends StatefulWidget {
+  final double size;
+  final Color color;
+  final bool dense;
+  final bool active;
+  const ParticleSphere({
+    super.key,
+    this.size = 220,
+    this.color = Colors.white,
+    this.dense = false,
+    this.active = false,
+  });
+
+  @override
+  State<ParticleSphere> createState() => _ParticleSphereState();
+}
+
+class _ParticleSphereState extends State<ParticleSphere>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final List<_P> _points;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 20))
+      ..repeat();
+    final rnd = math.Random(7);
+    final count = widget.dense ? 360 : 170;
+    _points = List.generate(count, (_) {
+      final u = rnd.nextDouble();
+      final v = rnd.nextDouble();
+      final theta = 2 * math.pi * u;
+      final phi = math.acos(2 * v - 1);
+      return _P(theta, phi, 0.6 + rnd.nextDouble() * 1.8, rnd.nextDouble());
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (_, __) => CustomPaint(
+          painter:
+              _SpherePainter(_points, _ctrl.value, widget.color, widget.active),
+        ),
+      ),
+    );
+  }
+}
+
+class _P {
+  final double theta, phi, radius, seed;
+  _P(this.theta, this.phi, this.radius, this.seed);
+}
+
+class _SpherePainter extends CustomPainter {
+  final List<_P> points;
+  final double t;
+  final Color color;
+  final bool active;
+  _SpherePainter(this.points, this.t, this.color, this.active);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final R = size.width / 2 * 0.92;
+    final rotY = t * 2 * math.pi;
+    final pulse = active ? (0.92 + 0.08 * math.sin(t * 2 * math.pi * 3)) : 1.0;
+
+    final glow = Paint()
+      ..shader = RadialGradient(
+        colors: [color.withValues(alpha: 0.18), Colors.transparent],
+      ).createShader(Rect.fromCircle(center: center, radius: R));
+    canvas.drawCircle(center, R, glow);
+
+    final paint = Paint();
+    for (final p in points) {
+      double x = math.sin(p.phi) * math.cos(p.theta);
+      double y = math.sin(p.phi) * math.sin(p.theta);
+      double z = math.cos(p.phi);
+
+      final cx = x * math.cos(rotY) + z * math.sin(rotY);
+      final cz = -x * math.sin(rotY) + z * math.cos(rotY);
+      x = cx;
+      z = cz;
+
+      final scale = (z + 1.5) / 2.5;
+      final px = center.dx + x * R * pulse;
+      final py = center.dy + y * R * pulse;
+
+      final opacity = (0.25 + 0.75 * scale).clamp(0.0, 1.0);
+      paint.color = color.withValues(alpha: opacity);
+      canvas.drawCircle(Offset(px, py), p.radius * scale, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpherePainter old) => true;
+}
+
+/* ============================ АНИМИРОВАННАЯ ОБВОДКА (УЛУЧШЕННАЯ) ============================ */
+
+class GradientBorderPainter extends CustomPainter {
+  final Animation<double> animation;
+  final double radius;
+  final double strokeWidth;
+  final bool highQuality;
+  final bool enabled;
+
+  GradientBorderPainter({
+    required this.animation,
+    this.radius = 30,
+    this.strokeWidth = 2,
+    this.highQuality = false,
+    this.enabled = true,
+  }) : super(repaint: animation);
+
+  static const _baseColors = [
+    Color(0xFF7C8CF8),
+    Color(0xFF2FE0C8),
+    Color(0xFF5B8DEF),
+    Color(0xFFB39DFF),
+    Color(0xFF2FE0A8),
+    Color(0xFF7C8CF8),
+  ];
+
+  static const _hqColors = [
+    Color(0xFF7C8CF8),
+    Color(0xFF6B7DE8),
+    Color(0xFF2FE0C8),
+    Color(0xFF3FD0B8),
+    Color(0xFF5B8DEF),
+    Color(0xFF4B7DDF),
+    Color(0xFFB39DFF),
+    Color(0xFFA38DEF),
+    Color(0xFF2FE0A8),
+    Color(0xFF3FD098),
+    Color(0xFF7C8CF8),
+    Color(0xFF6B7DE8),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty || !enabled) return;
+    final rect = Offset.zero & size;
+
+    final colors = highQuality ? _hqColors : _baseColors;
+    final stops = highQuality
+        ? [0.0, 0.08, 0.16, 0.25, 0.33, 0.42, 0.5, 0.58, 0.66, 0.75, 0.83, 0.92]
+        : null;
+
+    final sweep = SweepGradient(
+      colors: colors,
+      stops: stops,
+      transform: GradientRotation(animation.value * 2 * math.pi),
+    );
+
+    if (highQuality) {
+      // Внешнее свечение
+      final outerGlow = Paint()
+        ..shader = sweep.createShader(rect)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth * 2.5
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..isAntiAlias = true
+        ..filterQuality = FilterQuality.high
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, strokeWidth * 1.2);
+
+      final rrect = RRect.fromRectAndRadius(rect.deflate(strokeWidth / 2), Radius.circular(radius));
+      canvas.drawRRect(rrect, outerGlow);
+    }
+
+    // Основная линия
+    final mainPaint = Paint()
+      ..shader = sweep.createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = true
+      ..filterQuality = highQuality ? FilterQuality.high : FilterQuality.medium;
+
+    final rrect = RRect.fromRectAndRadius(rect.deflate(strokeWidth / 2), Radius.circular(radius));
+    canvas.drawRRect(rrect, mainPaint);
+
+    if (highQuality) {
+      // Внутреннее свечение
+      final innerGlow = Paint()
+        ..shader = sweep.createShader(rect)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth * 0.4
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..isAntiAlias = true
+        ..filterQuality = FilterQuality.high
+        ..maskFilter = const MaskFilter.blur(BlurStyle.inner, 0.8);
+
+      canvas.drawRRect(rrect, innerGlow);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant GradientBorderPainter oldDelegate) => true;
+}
+
+class AnimatedBorder extends StatefulWidget {
+  final Widget child;
+  final double radius;
+  final double strokeWidth;
+  final bool highQuality;
+  final bool enabled;
+
+  const AnimatedBorder({
+    super.key,
+    required this.child,
+    this.radius = 28,
+    this.strokeWidth = 2,
+    this.highQuality = false,
+    this.enabled = true,
+  });
+
+  @override
+  State<AnimatedBorder> createState() => _AnimatedBorderState();
+}
+
+class _AnimatedBorderState extends State<AnimatedBorder>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) {
+      return Container(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: _sub(context).withValues(alpha: 0.3),
+            width: widget.strokeWidth,
+          ),
+          borderRadius: BorderRadius.circular(widget.radius),
+        ),
+        child: widget.child,
+      );
+    }
+    return RepaintBoundary(
+      child: CustomPaint(
+        painter: GradientBorderPainter(
+          animation: _ctrl,
+          radius: widget.radius,
+          strokeWidth: widget.strokeWidth,
+          highQuality: widget.highQuality,
+          enabled: widget.enabled,
+        ),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/* ============================ ГЛАВНЫЙ ЭКРАН ============================ */
+
+class ChatScreen extends StatefulWidget {
+  const ChatScreen({super.key});
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final _controller = TextEditingController();
+  final _scroll = ScrollController();
+  final _inputFocus = FocusNode();
+  bool _sending = false;
+  final List<String> _pendingAttachments = [];
+  final _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (context.read<AppState>().showKeyboardOnLaunch) {
+        _inputFocus.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scroll.dispose();
+    _inputFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFile() async {
+    final result = await FilePicker.pickFiles();
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.first;
+      if (file.path != null) {
+        setState(() => _pendingAttachments.add(file.path!));
+        if (mounted) {
+          final app = context.read<AppState>();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(app.t('fileAttached'))),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final file = await _picker.pickImage(source: ImageSource.gallery);
+    if (file != null) {
+      setState(() => _pendingAttachments.add(file.path));
+      if (mounted) {
+        final app = context.read<AppState>();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(app.t('imageAttached'))),
+        );
+      }
+    }
+  }
+
+  Future<void> _send([String? preset]) async {
+    if (!mounted) return;
+    final app = context.read<AppState>();
+    final text = (preset ?? _controller.text).trim();
+    if ((text.isEmpty && _pendingAttachments.isEmpty) || _sending) return;
+    app.buzz();
+    _controller.clear();
+    final attachments = List<String>.from(_pendingAttachments);
+    setState(() {
+      _sending = true;
+      _pendingAttachments.clear();
+    });
+    await app.sendMessage(text, attachments: attachments);
+    if (!mounted) return;
+    setState(() => _sending = false);
+    _scrollDown();
+  }
+
+  void _scrollDown() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _openModelMenu() {
+    if (!mounted) return;
+    final app = context.read<AppState>();
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => _ModelMenu(
+        onManage: () {
+          Navigator.pop(context);
+          _openSettings();
+        },
+        onNewChat: () {
+          Navigator.pop(context);
+          app.newChat();
+          if (mounted) setState(() {});
+        },
+        onCreateImage: () {
+          Navigator.pop(context);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(app.t('createImageHint'))),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openSettings() {
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const SettingsSheet(),
+    );
+  }
+
+  void _openConversations() {
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const ConversationsSheet(),
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _openVoice() async {
+    if (!mounted) return;
+    final text = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const VoiceScreen()),
+    );
+    if (!mounted) return;
+    if (text != null && text.trim().isNotEmpty) {
+      _controller.text = text;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final conv = app.current;
+    final hasMessages = conv != null && conv.messages.isNotEmpty;
+
+    return Scaffold(
+      backgroundColor: _bg(context),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _topBar(app),
+            Expanded(
+                child: hasMessages ? _messageList(conv) : _emptyState(app)),
+            if (app.showPromptChips && !hasMessages) _promptChips(app),
+            if (_pendingAttachments.isNotEmpty) _attachmentBar(app),
+            _inputBar(app),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _topBar(AppState app) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Row(
+        children: [
+          _circleBtn(Icons.settings_outlined, _openSettings),
+          const Spacer(),
+          Flexible(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                app.buzz();
+                _openModelMenu();
+              },
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (app.loadingModels) ...[
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          app.t('loadingModels'),
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: _sub(context),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ] else ...[
+                      Flexible(
+                        child: Text(
+                          app.selectedModel,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: _txt(context),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.keyboard_arrow_down, color: _txt(context)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          _circleBtn(Icons.chat_bubble_outline, _openConversations),
+        ],
+      ),
+    );
+  }
+
+  Widget _circleBtn(IconData icon, VoidCallback onTap) {
+    return InkResponse(
+      onTap: () {
+        if (!mounted) return;
+        context.read<AppState>().buzz();
+        onTap();
+      },
+      radius: 28,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: _sub(context).withValues(alpha: 0.3)),
+          color: _card(context).withValues(alpha: 0.4),
+        ),
+        child: Icon(icon, color: _txt(context), size: 22),
+      ),
+    );
+  }
+
+  Widget _emptyState(AppState app) {
+    return Center(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 20),
+            ParticleSphere(
+              size: 200,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white
+                  : const Color(0xFF2F6BFF),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              app.t('howCanIHelp'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _txt(context),
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Text(
+                app.t('subtitle'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _sub(context),
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _messageList(Conversation conv) {
+    final app = context.read<AppState>();
+    return ListView.builder(
+      controller: _scroll,
+      padding: const EdgeInsets.all(16),
+      itemCount: conv.messages.length + (_sending ? 1 : 0),
+      itemBuilder: (_, i) {
+        if (i >= conv.messages.length) {
+          return _bubble(
+              ChatMessage(role: 'assistant', content: app.t('thinking')));
+        }
+        return _bubble(conv.messages[i]);
+      },
+    );
+  }
+
+  Widget _bubble(ChatMessage m) {
+    final isUser = m.role == 'user';
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.78),
+        decoration: BoxDecoration(
+          color:
+              isUser ? Theme.of(context).colorScheme.primary : _card(context),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (m.attachments.isNotEmpty)
+              ...m.attachments.map((a) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.attach_file,
+                            size: 14,
+                            color: isUser ? Colors.white70 : _sub(context)),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            a.split('/').last,
+                            style: TextStyle(
+                              color: isUser ? Colors.white70 : _sub(context),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+            if (m.content.isNotEmpty)
+              Text(
+                m.content,
+                style: TextStyle(
+                  color: isUser ? Colors.white : _txt(context),
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _promptChips(AppState app) {
+    final chips = [
+      (app.t('summarize'), Icons.edit_outlined),
+      (app.t('rewrite'), Icons.auto_awesome),
+      (app.t('fixGrammar'), Icons.spellcheck),
+    ];
+    return SizedBox(
+      height: 56,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          for (final c in chips)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: ActionChip(
+                onPressed: () => _send('${c.$1}: '),
+                backgroundColor: _card(context).withValues(alpha: 0.6),
+                side: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+                avatar: Icon(c.$2, size: 18, color: _txt(context)),
+                label: Text(c.$1,
+                    style: TextStyle(
+                        color: _txt(context), fontWeight: FontWeight.w700)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _attachmentBar(AppState app) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: _pendingAttachments.map((a) {
+          return Chip(
+            avatar: const Icon(Icons.attach_file, size: 16),
+            label: Text(a.split('/').last,
+                style: TextStyle(fontSize: 12, color: _txt(context))),
+            onDeleted: () =>
+                setState(() => _pendingAttachments.remove(a)),
+            backgroundColor: _card(context),
+            side: BorderSide(color: _sub(context).withValues(alpha: 0.3)),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _inputBar(AppState app) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 10, 8, 16),
+      child: AnimatedBorder(
+        radius: 20,
+        strokeWidth: 2.2,
+        highQuality: true,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _card(context),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Row(
+            children: [
+              // Кнопка добавления с анимированной обводкой
+              _buildAnimatedBtn(
+                onTap: () {
+                  app.buzz();
+                  showModalBottomSheet(
+                    context: context,
+                    backgroundColor: _card(context),
+                    builder: (_) => _attachMenu(app),
+                  );
+                },
+                icon: Icons.add,
+              ),
+              const SizedBox(width: 4),
+              // Поле ввода
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _inputFocus,
+                  style: TextStyle(color: _txt(context), fontSize: 16),
+                  minLines: 1,
+                  maxLines: 5,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _send(),
+                  decoration: InputDecoration(
+                    hintText: app.t('askAnything'),
+                    hintStyle: TextStyle(color: _sub(context), fontSize: 16),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                ),
+              ),
+              // Кнопка голосового ввода с анимированной обводкой
+              _buildAnimatedBtn(
+                onTap: _openVoice,
+                icon: Icons.graphic_eq,
+              ),
+              const SizedBox(width: 4),
+              // Кнопка отправки
+              _sending
+                  ? const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.25),
+                      ),
+                      child: IconButton(
+                        onPressed: () => _send(),
+                        icon: Icon(Icons.arrow_upward, color: _txt(context)),
+                        iconSize: 18,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedBtn({required VoidCallback onTap, required IconData icon}) {
+    return AnimatedBorder(
+      radius: 20,
+      strokeWidth: 2,
+      highQuality: false,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: _card(context),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: _txt(context), size: 18),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _attachMenu(AppState app) {
+    return SafeArea(
+      child: Wrap(
+        children: [
+          ListTile(
+            leading: Icon(Icons.add_photo_alternate_outlined,
+                color: _txt(context)),
+            title: Text(app.t('attachImage'),
+                style: TextStyle(color: _txt(context))),
+            onTap: () {
+              Navigator.pop(context);
+              _pickImage();
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.attach_file, color: _txt(context)),
+            title: Text(app.t('attachFile'),
+                style: TextStyle(color: _txt(context))),
+            onTap: () {
+              Navigator.pop(context);
+              _pickFile();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/* ============================ МЕНЮ ВЫБОРА МОДЕЛИ ============================ */
+
+class _ModelMenu extends StatelessWidget {
+  final VoidCallback onManage;
+  final VoidCallback onNewChat;
+  final VoidCallback onCreateImage;
+  const _ModelMenu({
+    required this.onManage,
+    required this.onNewChat,
+    required this.onCreateImage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return Stack(
+      children: [
+        Positioned(
+          top: 70,
+          left: MediaQuery.of(context).size.width * 0.14,
+          right: MediaQuery.of(context).size.width * 0.14,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C26),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white12),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          app.t('downloadedModels'),
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 14),
+                        ),
+                        const Spacer(),
+                        if (app.loadingModels)
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white54),
+                          )
+                        else
+                          InkWell(
+                            onTap: () {
+                              app.buzz();
+                              app.fetchModels();
+                            },
+                            child: const Icon(Icons.refresh,
+                                color: Colors.white54, size: 18),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (app.models.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 10),
+                              child: Text(
+                                app.modelsError ?? app.t('noModelsFound'),
+                                style: const TextStyle(
+                                    color: Colors.white38, fontSize: 15),
+                              ),
+                            ),
+                          for (final m in app.models)
+                            InkWell(
+                              onTap: () {
+                                app.buzz();
+                                app.selectModel(m);
+                                Navigator.pop(context);
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 10),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      app.selectedModel == m
+                                          ? Icons.check
+                                          : Icons.circle_outlined,
+                                      color: app.selectedModel == m
+                                          ? Colors.white
+                                          : Colors.white24,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Text(m,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 18)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Divider(
+                      color: Colors.white12, indent: 20, endIndent: 20),
+                  _menuItem(Icons.inventory_2_outlined, app.t('manageModels'),
+                      onManage),
+                  _menuItem(Icons.edit_outlined, app.t('newChat'), onNewChat),
+                  _menuItem(null, app.t('createImage'), onCreateImage),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _menuItem(IconData? icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, color: Colors.white, size: 20),
+              const SizedBox(width: 14),
+            ] else
+              const SizedBox(width: 34),
+            Text(label,
+                style: const TextStyle(color: Colors.white, fontSize: 18)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* ============================ ГОЛОСОВОЙ ЭКРАН ============================ */
+
+class VoiceScreen extends StatefulWidget {
+  const VoiceScreen({super.key});
+  @override
+  State<VoiceScreen> createState() => _VoiceScreenState();
+}
+
+class _VoiceScreenState extends State<VoiceScreen> {
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _muted = false;
+  bool _available = false;
+  String _recognized = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    _available = await _speech.initialize(
+      onStatus: (s) {
+        if (mounted) setState(() {});
+      },
+      onError: (e) {
+        if (mounted) setState(() {});
+      },
+    );
+    if (_available && !_muted) _listen();
+    if (mounted) setState(() {});
+  }
+
+  void _listen() {
+    if (!mounted) return;
+    final app = context.read<AppState>();
+    _speech.listen(
+      onResult: (r) {
+        if (mounted) setState(() => _recognized = r.recognizedWords);
+      },
+      listenOptions: stt.SpeechListenOptions(
+        listenMode: stt.ListenMode.dictation,
+        pauseFor: const Duration(seconds: 3),
+        localeId: app.lang == 'ru' ? 'ru_RU' : 'en_US',
+      ),
+    );
+  }
+
+  void _toggleMute() {
+    setState(() => _muted = !_muted);
+    if (_muted) {
+      _speech.stop();
+    } else {
+      _listen();
+    }
+  }
+
+  @override
+  void dispose() {
+    _speech.stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            radius: 1.1,
+            colors: [Color(0xFF0B3B3F), Color(0xFF02161A)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: _toggleMute,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.black38,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(_muted ? Icons.mic_off : Icons.mic,
+                                color: Colors.white, size: 20),
+                            const SizedBox(width: 8),
+                            Text(_muted ? app.t('unmute') : app.t('mute'),
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 16)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.black38,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: const Icon(Icons.tune, color: Colors.white),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context, _recognized),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black38,
+                        ),
+                        child: const Icon(Icons.close, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              ParticleSphere(
+                size: 280,
+                color: const Color(0xFF2FE0C8),
+                dense: true,
+                active: !_muted,
+              ),
+              const SizedBox(height: 40),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.black38,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.mic, color: Color(0xFF2FE0C8)),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        _recognized.isEmpty
+                            ? (_muted ? app.t('muted') : app.t('listening'))
+                            : _recognized,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(40, 0, 40, 30),
+                child: Text(
+                  app.t('speakNaturally'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white54, fontSize: 16),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/* ============================ ЭКРАН БЕСЕД ============================ */
+
+class ConversationsSheet extends StatefulWidget {
+  const ConversationsSheet({super.key});
+  @override
+  State<ConversationsSheet> createState() => _ConversationsSheetState();
+}
+
+class _ConversationsSheetState extends State<ConversationsSheet> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final filtered = app.conversations
+        .where((c) =>
+            c.title.toLowerCase().contains(_query.toLowerCase()) ||
+            c.messages.any(
+                (m) => m.content.toLowerCase().contains(_query.toLowerCase())))
+        .toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.92,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, scrollCtrl) => Container(
+        decoration: BoxDecoration(
+          color: _bg(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: _sub(context),
+                    borderRadius: BorderRadius.circular(2))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Row(
+                children: [
+                  const Spacer(),
+                  Text(app.t('conversations'),
+                      style: TextStyle(
+                          color: _txt(context),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Icon(Icons.close, color: _txt(context)),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Text(app.t('chats'),
+                      style: TextStyle(
+                          color: _txt(context),
+                          fontSize: 38,
+                          fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  Text(app.t('chatsDesc'),
+                      style: TextStyle(
+                          color: _sub(context), fontSize: 16, height: 1.4)),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      _stat('${app.chatCount}', app.t('chatsLabel'),
+                          Icons.chat_bubble_outline, const Color(0xFF2FE0A8)),
+                      const SizedBox(width: 12),
+                      _stat('${app.pinnedCount}', app.t('pinnedLabel'),
+                          Icons.push_pin, const Color(0xFF5B8DEF)),
+                      const SizedBox(width: 12),
+                      _stat(
+                        app.latest == null
+                            ? app.t('noChatsYet')
+                            : _ago(app, app.latest!.updatedAt),
+                        app.t('latestLabel'),
+                        Icons.schedule,
+                        const Color(0xFF9B8CFF),
+                        small: true,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _newChatBanner(app),
+                  const SizedBox(height: 24),
+                  Text(app.t('recent'),
+                      style: TextStyle(
+                          color: _sub(context),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 12),
+                  if (filtered.isEmpty)
+                    _emptyRecent(app)
+                  else
+                    ...filtered.map((c) => _chatTile(c, app)),
+                  const SizedBox(height: 16),
+                  _searchField(app),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stat(String value, String label, IconData icon, Color color,
+      {bool small = false}) {
+    return Expanded(
+      child: Container(
+        height: 150,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _card(context).withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const Spacer(),
+            Text(value,
+                style: TextStyle(
+                    color: _txt(context),
+                    fontSize: small ? 16 : 26,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(label,
+                style: TextStyle(
+                    color: _sub(context), fontSize: 12, letterSpacing: 1)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _newChatBanner(AppState app) {
+    return GestureDetector(
+      onTap: () {
+        app.buzz();
+        app.newChat();
+        Navigator.pop(context);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [Color(0xFF2F8DFF), Color(0xFF2F6BFF)]),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.edit_outlined, color: Colors.white),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(app.t('newChat'),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800)),
+                  Text(app.t('startFresh'),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 15)),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward, color: Colors.white),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyRecent(AppState app) {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: _card(context).withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+                color: _sub(context).withValues(alpha: 0.15),
+                shape: BoxShape.circle),
+            child: Icon(Icons.chat_bubble_outline,
+                color: _sub(context), size: 36),
+          ),
+          const SizedBox(height: 16),
+          Text(app.t('noChatsYet'),
+              style: TextStyle(
+                  color: _txt(context),
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(app.t('noChatsDesc'),
+              textAlign: TextAlign.center,
+              style:
+                  TextStyle(color: _sub(context), fontSize: 15, height: 1.4)),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2F6BFF),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24)),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            ),
+            onPressed: () {
+              app.buzz();
+              app.newChat();
+              Navigator.pop(context);
+            },
+            child: Text(app.t('startNewChat'),
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chatTile(Conversation c, AppState app) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: _card(context).withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ListTile(
+        onTap: () {
+          app.openChat(c);
+          Navigator.pop(context);
+        },
+        leading: Icon(c.pinned ? Icons.push_pin : Icons.chat_bubble_outline,
+            color: _txt(context)),
+        title: Text(c.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style:
+                TextStyle(color: _txt(context), fontWeight: FontWeight.w700)),
+        subtitle: Text(
+            '${c.messages.length} ${app.t('messages')} · ${_ago(app, c.updatedAt)}',
+            style: TextStyle(color: _sub(context))),
+        trailing: PopupMenuButton<String>(
+          color: _card(context),
+          icon: Icon(Icons.more_vert, color: _sub(context)),
+          onSelected: (v) {
+            if (v == 'pin') app.togglePin(c);
+            if (v == 'delete') app.deleteChat(c);
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+                value: 'pin',
+                child: Text(c.pinned ? app.t('unpin') : app.t('pin'),
+                    style: TextStyle(color: _txt(context)))),
+            PopupMenuItem(
+                value: 'delete',
+                child: Text(app.t('delete'),
+                    style: TextStyle(color: _txt(context)))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _searchField(AppState app) {
+    return TextField(
+      style: TextStyle(color: _txt(context)),
+      onChanged: (v) => setState(() => _query = v),
+      decoration: InputDecoration(
+        hintText: app.t('searchChats'),
+        hintStyle: TextStyle(color: _sub(context)),
+        prefixIcon: Icon(Icons.search, color: _sub(context)),
+        filled: true,
+        fillColor: _card(context).withValues(alpha: 0.4),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(28),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  String _ago(AppState app, DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return app.t('justNow');
+    if (d.inMinutes < 60) return '${d.inMinutes} ${app.t('minAgo')}';
+    if (d.inHours < 24) return '${d.inHours} ${app.t('hAgo')}';
+    return '${d.inDays} ${app.t('dAgo')}';
+  }
+}
+
+/* ============================ ЭКРАН НАСТРОЕК ============================ */
+
+class SettingsSheet extends StatelessWidget {
+  const SettingsSheet({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return DraggableScrollableSheet(
+      initialChildSize: 0.92,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, scrollCtrl) => Container(
+        decoration: BoxDecoration(
+          color: _bg(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: _sub(context),
+                    borderRadius: BorderRadius.circular(2))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Row(
+                children: [
+                  const Spacer(),
+                  Text(app.t('settings'),
+                      style: TextStyle(
+                          color: _txt(context),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Icon(Icons.close, color: _txt(context))),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Text(app.t('settings'),
+                      style: TextStyle(
+                          color: _txt(context),
+                          fontSize: 40,
+                          fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  Text(app.t('settingsDesc'),
+                      style: TextStyle(
+                          color: _sub(context), fontSize: 16, height: 1.4)),
+                  const SizedBox(height: 24),
+                  _sectionLabel(app.t('sectionApp')),
+                  _group([
+                    _nav(context, Icons.inventory_2_outlined,
+                        app.t('manageModelsItem'),
+                        trailing: _badge('${app.models.length}'),
+                        onTap: () => _openManageModels(context)),
+                    _nav(context, Icons.language, app.t('language'),
+                        trailing: Text(
+                            app.lang == 'ru'
+                                ? app.t('russian')
+                                : app.t('english'),
+                            style: TextStyle(color: _sub(context))),
+                        onTap: () => _openLanguage(context)),
+                    _nav(context, Icons.dns_outlined, app.t('serverAddress'),
+                        onTap: () => _openServerSettings(context)),
+                    _nav(context, Icons.person_outline,
+                        app.t('personalization'),
+                        onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    const PersonalizationScreen()))),
+                    _nav(context, Icons.psychology_outlined, app.t('memory'),
+                        onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const MemoryScreen()))),
+                    _nav(context, Icons.text_fields, app.t('fontSize'),
+                        trailing: Text('${app.fontSize.toStringAsFixed(1)}x',
+                            style: TextStyle(color: _sub(context))),
+                        onTap: () => _openFontSizeDialog(context)),
+                  ]),
+                  const SizedBox(height: 24),
+                  _sectionLabel(app.t('sectionTheme')),
+                  _group([
+                    _nav(context, Icons.palette_outlined, app.t('themeMode'),
+                        trailing: Text(
+                            app.themeMode == AppThemeMode.system
+                                ? app.t('themeSystem')
+                                : app.themeMode == AppThemeMode.light
+                                    ? app.t('themeLight')
+                                    : app.t('themeDark'),
+                            style: TextStyle(color: _sub(context))),
+                        onTap: () => _openThemeDialog(context)),
+                    _switch(context, Icons.vibration, app.t('haptics'),
+                        app.haptics, (v) => app.setHaptics(v)),
+                    _switch(context, Icons.keyboard_alt_outlined,
+                        app.t('showKeyboard'), app.showKeyboardOnLaunch,
+                        (v) => app.setShowKeyboard(v)),
+                    _switch(context, Icons.auto_awesome, app.t('showChips'),
+                        app.showPromptChips, (v) => app.setShowChips(v)),
+                    _danger(context, app),
+                  ]),
+                  const SizedBox(height: 30),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String s) => Builder(
+        builder: (context) => Padding(
+          padding: const EdgeInsets.only(bottom: 10, left: 4),
+          child: Text(s,
+              style: TextStyle(
+                  color: _sub(context),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700)),
+        ),
+      );
+
+  Widget _group(List<Widget> children) => Builder(
+        builder: (context) => Container(
+          decoration: BoxDecoration(
+            color: _card(context).withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(children: children),
+        ),
+      );
+
+  Widget _badge(String s) => Container(
+        padding: const EdgeInsets.all(8),
+        decoration:
+            const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+        child: Text(s, style: const TextStyle(color: Colors.white)),
+      );
+
+  Widget _nav(BuildContext c, IconData icon, String label,
+      {Widget? trailing, VoidCallback? onTap}) {
+    return ListTile(
+      onTap: onTap,
+      leading: Icon(icon, color: _txt(c)),
+      title: Text(label, style: TextStyle(color: _txt(c), fontSize: 18)),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (trailing != null) trailing,
+        const SizedBox(width: 8),
+        Icon(Icons.chevron_right, color: _sub(c)),
+      ]),
+    );
+  }
+
+  Widget _switch(BuildContext c, IconData icon, String label, bool value,
+      ValueChanged<bool> onChanged) {
+    return SwitchListTile(
+      value: value,
+      activeThumbColor: Colors.white,
+      activeTrackColor: const Color(0xFF34C759),
+      onChanged: (v) {
+        c.read<AppState>().buzz();
+        onChanged(v);
+      },
+      secondary: Icon(icon, color: _txt(c)),
+      title: Text(label, style: TextStyle(color: _txt(c), fontSize: 18)),
+    );
+  }
+
+  Widget _danger(BuildContext c, AppState app) {
+    return ListTile(
+      onTap: () => showDialog(
+        context: c,
+        builder: (_) => AlertDialog(
+          backgroundColor: _card(c),
+          title: Text(app.t('deleteHistory'),
+              style: TextStyle(color: _txt(c))),
+          content:
+              Text(app.t('cantUndo'), style: TextStyle(color: _sub(c))),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: Text(app.t('cancel'))),
+            TextButton(
+              onPressed: () {
+                app.deleteAll();
+                Navigator.pop(c);
+              },
+              child: Text(app.t('delete'),
+                  style: const TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      ),
+      leading: const Icon(Icons.delete_outline, color: Colors.red),
+      title: Text(app.t('deleteHistory'),
+          style: const TextStyle(color: Colors.red, fontSize: 18)),
+    );
+  }
+
+  void _openFontSizeDialog(BuildContext context) {
+    final app = context.read<AppState>();
+    double tempSize = app.fontSize;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _card(context),
+        title: Text(app.t('fontSize'),
+            style: TextStyle(color: _txt(context))),
+        content: StatefulBuilder(
+          builder: (ctx, setDialogState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${tempSize.toStringAsFixed(1)}x',
+                  style: TextStyle(
+                      color: _txt(context),
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700)),
+              Slider(
+                value: tempSize,
+                min: 0.7,
+                max: 1.5,
+                divisions: 16,
+                activeColor: const Color(0xFF2F8DFF),
+                label: '${tempSize.toStringAsFixed(1)}x',
+                onChanged: (v) =>
+                    setDialogState(() => tempSize = v),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('A',
+                      style:
+                          TextStyle(color: _sub(context), fontSize: 12)),
+                  Text('A',
+                      style:
+                          TextStyle(color: _sub(context), fontSize: 20)),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(app.t('cancel'))),
+          TextButton(
+            onPressed: () {
+              app.setFontSize(tempSize);
+              Navigator.pop(context);
+            },
+            child: Text(app.t('save')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openThemeDialog(BuildContext context) {
+    final app = context.read<AppState>();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _card(context),
+        title: Text(app.t('themeMode'),
+            style: TextStyle(color: _txt(context))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final entry in [
+              (AppThemeMode.system, app.t('themeSystem')),
+              (AppThemeMode.light, app.t('themeLight')),
+              (AppThemeMode.dark, app.t('themeDark')),
+            ])
+              RadioListTile<AppThemeMode>(
+                value: entry.$1,
+                groupValue: app.themeMode,
+                activeColor: const Color(0xFF2F8DFF),
+                title: Text(entry.$2,
+                    style: TextStyle(color: _txt(context))),
+                onChanged: (v) {
+                  if (v != null) {
+                    app.setThemeMode(v);
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openLanguage(BuildContext context) {
+    final app = context.read<AppState>();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _card(context),
+        title: Text(app.t('languageDialogTitle'),
+            style: TextStyle(color: _txt(context))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final l in [
+              ['ru', app.t('russian')],
+              ['en', app.t('english')]
+            ])
+              RadioListTile<String>(
+                value: l[0],
+                groupValue: app.lang,
+                activeColor: const Color(0xFF2F8DFF),
+                title: Text(l[1], style: TextStyle(color: _txt(context))),
+                onChanged: (v) {
+                  if (v != null) {
+                    app.setLang(v);
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openServerSettings(BuildContext context) {
+    final app = context.read<AppState>();
+    final urlCtrl = TextEditingController(text: app.serverUrl);
+    final keyCtrl = TextEditingController(text: app.apiKey);
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _card(context),
+        title: Text(app.t('serverDialogTitle'),
+            style: TextStyle(color: _txt(context))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: urlCtrl,
+              style: TextStyle(color: _txt(context)),
+              decoration: InputDecoration(
+                labelText: app.t('serverUrlLabel'),
+                hintText: app.t('serverUrlHint'),
+                hintStyle: TextStyle(color: _sub(context), fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: keyCtrl,
+              style: TextStyle(color: _txt(context)),
+              obscureText: true,
+              decoration:
+                  InputDecoration(labelText: app.t('apiKeyOptional')),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(app.t('cancel'))),
+          TextButton(
+            onPressed: () {
+              app.setServer(urlCtrl.text.trim(), keyCtrl.text.trim());
+              Navigator.pop(context);
+            },
+            child: Text(app.t('save')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openManageModels(BuildContext context) {
+    final ctrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _card(context),
+      isScrollControlled: true,
+      builder: (_) => Consumer<AppState>(
+        builder: (ctx, app, child) => Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              left: 20,
+              right: 20,
+              top: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(app.t('manageModelsItem'),
+                      style: TextStyle(
+                          color: _txt(ctx),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800)),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () {
+                      app.fetchModels();
+                    },
+                    icon: Icon(Icons.refresh, color: _txt(ctx)),
+                    tooltip: app.t('refreshModels'),
+                  ),
+                ],
+              ),
+              if (app.loadingModels)
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: LinearProgressIndicator(),
+                ),
+              ...app.models.map((m) => ListTile(
+                    leading: Icon(Icons.inventory_2_outlined,
+                        color: _txt(ctx)),
+                    title:
+                        Text(m, style: TextStyle(color: _txt(ctx))),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          color: Colors.red),
+                      onPressed: () {
+                        app.removeModel(m);
+                      },
+                    ),
+                  )),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: ctrl,
+                      style: TextStyle(color: _txt(ctx)),
+                      decoration: InputDecoration(
+                          hintText: app.t('addModelHint')),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.add, color: _txt(ctx)),
+                    onPressed: () {
+                      app.addModel(ctrl.text);
+                      ctrl.clear();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/* ============================ ЭКРАН ПАМЯТИ ============================ */
+
+class MemoryScreen extends StatefulWidget {
+  const MemoryScreen({super.key});
+  @override
+  State<MemoryScreen> createState() => _MemoryScreenState();
+}
+
+class _MemoryScreenState extends State<MemoryScreen> {
+  late Personalization p;
+  late final TextEditingController _memory;
+  late final TextEditingController _name;
+  late final TextEditingController _pronouns;
+  late final TextEditingController _profession;
+  late final TextEditingController _interests;
+  late final TextEditingController _goals;
+  late final TextEditingController _location;
+  late final TextEditingController _avoid;
+
+  @override
+  void initState() {
+    super.initState();
+    p = context.read<AppState>().persona.clone();
+    _memory = TextEditingController(text: p.memoryNote);
+    _name = TextEditingController(text: p.name);
+    _pronouns = TextEditingController(text: p.pronouns);
+    _profession = TextEditingController(text: p.profession);
+    _interests = TextEditingController(text: p.interests);
+    _goals = TextEditingController(text: p.goals);
+    _location = TextEditingController(text: p.location);
+    _avoid = TextEditingController(text: p.avoidTopics);
+  }
+
+  @override
+  void dispose() {
+    _memory.dispose();
+    _name.dispose();
+    _pronouns.dispose();
+    _profession.dispose();
+    _interests.dispose();
+    _goals.dispose();
+    _location.dispose();
+    _avoid.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    p.memoryNote = _memory.text;
+    p.name = _name.text;
+    p.pronouns = _pronouns.text;
+    p.profession = _profession.text;
+    p.interests = _interests.text;
+    p.goals = _goals.text;
+    p.location = _location.text;
+    p.avoidTopics = _avoid.text;
+    context.read<AppState>().savePersona(p);
+    Navigator.pop(context);
+  }
+
+  String tr(String k) => context.read<AppState>().t(k);
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return Scaffold(
+      backgroundColor: _bg(context),
+      appBar: AppBar(
+        backgroundColor: _bg(context),
+        elevation: 0,
+        foregroundColor: _txt(context),
+        title: Text(app.t('memory'),
+            style: TextStyle(
+                color: _txt(context), fontWeight: FontWeight.w700)),
+        actions: [
+          TextButton(
+            onPressed: _save,
+            child: Text(app.t('done'),
+                style: const TextStyle(
+                    color: Color(0xFF2F8DFF),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16)),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          _section(app.t('memorySection')),
+          _card2(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _switchRow(app.t('longMemory'), p.longMemory,
+                  (v) => setState(() => p.longMemory = v)),
+              const SizedBox(height: 8),
+              _field(_memory, app.t('memoryNote'), maxLines: 3),
+            ],
+          )),
+          const SizedBox(height: 20),
+          _section(app.t('persProfile')),
+          _card2(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _field(_name, app.t('name')),
+              _field(_pronouns, app.t('pronouns')),
+              _field(_profession, app.t('profession')),
+              _field(_interests, app.t('interests')),
+              _field(_goals, app.t('goals')),
+              _field(_location, app.t('location')),
+              const SizedBox(height: 4),
+              _switchRow(app.t('useMyData'), p.useMyData,
+                  (v) => setState(() => p.useMyData = v)),
+              const SizedBox(height: 8),
+              _label(app.t('knowledgeLevel')),
+              _chipsSelect(
+                options: const ['kl_beginner', 'kl_student', 'kl_expert'],
+                value: p.knowledgeLevel,
+                onSelect: (v) => setState(() => p.knowledgeLevel = v),
+              ),
+            ],
+          )),
+          const SizedBox(height: 20),
+          _section(app.t('persSafety')),
+          _card2(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _field(_avoid, app.t('avoidTopics'), maxLines: 2),
+              const SizedBox(height: 8),
+              _label(app.t('contentFilter')),
+              _chipsSelect(
+                options: const ['cf_strict', 'cf_balanced', 'cf_off'],
+                value: p.contentFilter,
+                onSelect: (v) => setState(() => p.contentFilter = v),
+              ),
+              const SizedBox(height: 4),
+              _switchRow(app.t('warnUncertain'), p.warnUncertain,
+                  (v) => setState(() => p.warnUncertain = v)),
+            ],
+          )),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(String s) => Padding(
+        padding: const EdgeInsets.only(bottom: 10, left: 4),
+        child: Text(s,
+            style: TextStyle(
+                color: _txt(context),
+                fontSize: 18,
+                fontWeight: FontWeight.w800)),
+      );
+
+  Widget _card2({required Widget child}) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _card(context).withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: child,
+      );
+
+  Widget _label(String s) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(s,
+            style: TextStyle(
+                color: _sub(context),
+                fontSize: 14,
+                fontWeight: FontWeight.w600)),
+      );
+
+  Widget _switchRow(String label, bool value, ValueChanged<bool> onChanged) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label,
+              style: TextStyle(color: _txt(context), fontSize: 16)),
+        ),
+        Switch(
+          value: value,
+          activeThumbColor: Colors.white,
+          activeTrackColor: const Color(0xFF34C759),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _field(TextEditingController c, String hint, {int maxLines = 1}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: TextField(
+        controller: c,
+        maxLines: maxLines,
+        style: TextStyle(color: _txt(context)),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: _sub(context)),
+          filled: true,
+          fillColor: _bg(context).withValues(alpha: 0.4),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _chipsSelect({
+    required List<String> options,
+    required String value,
+    required ValueChanged<String> onSelect,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final o in options)
+          ChoiceChip(
+            label: Text(tr(o)),
+            selected: value == o,
+            labelStyle: TextStyle(
+              color: value == o ? Colors.white : _txt(context),
+              fontWeight: FontWeight.w600,
+            ),
+            selectedColor: const Color(0xFF2F8DFF),
+            backgroundColor: _bg(context).withValues(alpha: 0.4),
+            side:
+                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+            onSelected: (_) => onSelect(o),
+          ),
+      ],
+    );
+  }
+}
+
+/* ============================ ЭКРАН ПЕРСОНАЛИЗАЦИИ ============================ */
+
+class PersonalizationScreen extends StatefulWidget {
+  const PersonalizationScreen({super.key});
+  @override
+  State<PersonalizationScreen> createState() => _PersonalizationScreenState();
+}
+
+class _PersonalizationScreenState extends State<PersonalizationScreen> {
+  late Personalization p;
+  late final TextEditingController _custom;
+
+  @override
+  void initState() {
+    super.initState();
+    p = context.read<AppState>().persona.clone();
+    _custom = TextEditingController(text: p.customPrompt);
+  }
+
+  @override
+  void dispose() {
+    _custom.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    p.customPrompt = _custom.text;
+    context.read<AppState>().savePersona(p);
+    Navigator.pop(context);
+  }
+
+  String tr(String k) => context.read<AppState>().t(k);
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return Scaffold(
+      backgroundColor: _bg(context),
+      appBar: AppBar(
+        backgroundColor: _bg(context),
+        elevation: 0,
+        foregroundColor: _txt(context),
+        title: Text(app.t('pers'),
+            style: TextStyle(
+                color: _txt(context), fontWeight: FontWeight.w700)),
+        actions: [
+          TextButton(
+            onPressed: _save,
+            child: Text(app.t('done'),
+                style: const TextStyle(
+                    color: Color(0xFF2F8DFF),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16)),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text(app.t('persDesc'),
+              style: TextStyle(
+                  color: _sub(context), fontSize: 15, height: 1.4)),
+          const SizedBox(height: 20),
+
+          _section(app.t('persPersona')),
+          _card2(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label(app.t('persPreset')),
+              _chipsSelect(
+                options: const [
+                  'preset_friend',
+                  'preset_mentor',
+                  'preset_expert',
+                  'preset_creative',
+                  'preset_custom'
+                ],
+                value: p.preset,
+                onSelect: (v) => setState(() {
+                  if (v == 'preset_custom') {
+                    p.preset = v;
+                  } else {
+                    p.applyPreset(v);
+                  }
+                }),
+              ),
+            ],
+          )),
+          const SizedBox(height: 12),
+          _card2(child: Column(
+            children: [
+              _slider(app.t('sl_formality'), p.formality,
+                  (v) => setState(() { p.formality = v; p.preset = 'preset_custom'; })),
+              _slider(app.t('sl_empathy'), p.empathy,
+                  (v) => setState(() { p.empathy = v; p.preset = 'preset_custom'; })),
+              _slider(app.t('sl_verbosity'), p.verbosity,
+                  (v) => setState(() { p.verbosity = v; p.preset = 'preset_custom'; })),
+              _slider(app.t('sl_humor'), p.humor,
+                  (v) => setState(() { p.humor = v; p.preset = 'preset_custom'; })),
+              _slider(app.t('sl_creativity'), p.creativity,
+                  (v) => setState(() { p.creativity = v; p.preset = 'preset_custom'; })),
+            ],
+          )),
+          const SizedBox(height: 12),
+          _card2(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label(app.t('emojiUsage')),
+              _chipsSelect(
+                options: const ['emoji_never', 'emoji_sometimes', 'emoji_always'],
+                value: p.emoji,
+                onSelect: (v) => setState(() => p.emoji = v),
+              ),
+              const SizedBox(height: 12),
+              _label(app.t('answerFormat')),
+              _chipsSelect(
+                options: const ['fmt_plain', 'fmt_lists', 'fmt_tables'],
+                value: p.answerFormat,
+                onSelect: (v) => setState(() => p.answerFormat = v),
+              ),
+            ],
+          )),
+          const SizedBox(height: 20),
+
+          _section(app.t('persBehavior')),
+          _card2(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label(app.t('defaultLength')),
+              _chipsSelect(
+                options: const ['len_short', 'len_normal', 'len_long'],
+                value: p.defaultLength,
+                onSelect: (v) => setState(() => p.defaultLength = v),
+              ),
+              const SizedBox(height: 12),
+              _label(app.t('proactivity')),
+              _chipsSelect(
+                options: const ['pro_answer', 'pro_clarify', 'pro_suggest'],
+                value: p.proactivity,
+                onSelect: (v) => setState(() => p.proactivity = v),
+              ),
+            ],
+          )),
+          const SizedBox(height: 12),
+          _card2(child: Column(children: [
+            _switchRow(app.t('useMarkdown'), p.useMarkdown,
+                (v) => setState(() => p.useMarkdown = v)),
+          ])),
+          const SizedBox(height: 20),
+
+          _section(app.t('persAdvanced')),
+          _card2(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label(app.t('reasoning')),
+              _chipsSelect(
+                options: const ['rs_fast', 'rs_step'],
+                value: p.reasoning,
+                onSelect: (v) => setState(() => p.reasoning = v),
+              ),
+              const SizedBox(height: 12),
+              _label(app.t('toneTitle')),
+              _chipsSelect(
+                options: const [
+                  'tone_neutral',
+                  'tone_sarcastic',
+                  'tone_melancholic',
+                  'tone_excited'
+                ],
+                value: p.tone,
+                onSelect: (v) => setState(() => p.tone = v),
+              ),
+              const SizedBox(height: 12),
+              _label(app.t('customPrompt')),
+              _field(_custom, app.t('customPromptHint'), maxLines: 4),
+            ],
+          )),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(String s) => Padding(
+        padding: const EdgeInsets.only(bottom: 10, left: 4),
+        child: Text(s,
+            style: TextStyle(
+                color: _txt(context),
+                fontSize: 18,
+                fontWeight: FontWeight.w800)),
+      );
+
+  Widget _card2({required Widget child}) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _card(context).withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: child,
+      );
+
+  Widget _label(String s) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(s,
+            style: TextStyle(
+                color: _sub(context),
+                fontSize: 14,
+                fontWeight: FontWeight.w600)),
+      );
+
+  Widget _slider(String label, double value, ValueChanged<double> onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: _txt(context), fontSize: 15)),
+        Slider(
+          value: value,
+          activeColor: const Color(0xFF2F8DFF),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _switchRow(String label, bool value, ValueChanged<bool> onChanged) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label,
+              style: TextStyle(color: _txt(context), fontSize: 16)),
+        ),
+        Switch(
+          value: value,
+          activeThumbColor: Colors.white,
+          activeTrackColor: const Color(0xFF34C759),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _field(TextEditingController c, String hint, {int maxLines = 1}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: TextField(
+        controller: c,
+        maxLines: maxLines,
+        style: TextStyle(color: _txt(context)),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: _sub(context)),
+          filled: true,
+          fillColor: _bg(context).withValues(alpha: 0.4),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _chipsSelect({
+    required List<String> options,
+    required String value,
+    required ValueChanged<String> onSelect,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final o in options)
+          ChoiceChip(
+            label: Text(tr(o)),
+            selected: value == o,
+            labelStyle: TextStyle(
+              color: value == o ? Colors.white : _txt(context),
+              fontWeight: FontWeight.w600,
+            ),
+            selectedColor: const Color(0xFF2F8DFF),
+            backgroundColor: _bg(context).withValues(alpha: 0.4),
+            side:
+                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+            onSelected: (_) => onSelect(o),
+          ),
+      ],
+    );
+  }
+}
