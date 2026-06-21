@@ -47,6 +47,7 @@ const Map<String, Map<String, String>> _i18n = {
     'mute': 'Выкл. микрофон',
     'unmute': 'Вкл. микрофон',
     'listening': 'Внимательно слушаю…',
+    'preparingMic': 'Подключение микрофона…',
     'muted': 'Микрофон выключен',
     'speakNaturally':
         'Говорите свободно. Alice ответит, как только вы сделаете паузу.',
@@ -204,6 +205,7 @@ const Map<String, Map<String, String>> _i18n = {
     'mute': 'Mute',
     'unmute': 'Unmute',
     'listening': 'Listening carefully…',
+    'preparingMic': 'Connecting microphone…',
     'muted': 'Muted',
     'speakNaturally':
         'Speak naturally. Alice will respond as soon as you pause.',
@@ -1508,11 +1510,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _openVoice() async {
     if (!mounted) return;
-    final text = await Navigator.of(context).push<String>(
+    final result = await Navigator.of(context).push<(String, bool)>(
       MaterialPageRoute(builder: (_) => const VoiceScreen()),
     );
-    if (!mounted) return;
-    if (text != null && text.trim().isNotEmpty) {
+    if (!mounted || result == null) return;
+    final (text, autoSend) = result;
+    if (text.trim().isEmpty) return;
+    if (autoSend) {
+      _send(text);
+    } else {
       _controller.text = text;
     }
   }
@@ -2093,7 +2099,13 @@ class _VoiceScreenState extends State<VoiceScreen> {
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _muted = false;
   bool _available = false;
+  bool _listening = false;
+  bool _manualStop = false;
   String _recognized = '';
+  Timer? _autoSendTimer;
+  Timer? _listenWatchdog;
+  int _listenRetries = 0;
+  static const _maxListenRetries = 3;
 
   @override
   void initState() {
@@ -2101,45 +2113,103 @@ class _VoiceScreenState extends State<VoiceScreen> {
     _init();
   }
 
+  void _onSpeechError(dynamic e) {
+    if (mounted) setState(() => _listening = false);
+  }
+
   Future<void> _init() async {
     _available = await _speech.initialize(
-      onStatus: (s) {
-        if (mounted) setState(() {});
-      },
-      onError: (e) {
-        if (mounted) setState(() {});
-      },
+      onStatus: _onStatus,
+      onError: _onSpeechError,
     );
+    // SpeechToText() is a process-wide singleton: initialize() short-circuits
+    // and returns the cached result without touching its listeners once it
+    // has already succeeded once in this app run, so every VoiceScreen
+    // opened after the first would otherwise never get status/error
+    // callbacks at all. Rebind explicitly so this screen's callbacks are
+    // always the ones actually wired up, regardless of which one initialized
+    // the engine.
+    _speech.statusListener = _onStatus;
+    _speech.errorListener = _onSpeechError;
     if (_available && !_muted) _listen();
     if (mounted) setState(() {});
+  }
+
+  void _onStatus(String status) {
+    if (!mounted) return;
+    final wasListening = _listening;
+    setState(() => _listening = status == 'listening');
+    if (_listening) {
+      _listenWatchdog?.cancel();
+      _listenRetries = 0;
+    }
+    final stoppedNaturally = wasListening && !_listening && !_manualStop;
+    _manualStop = false;
+    if (stoppedNaturally && _recognized.trim().isNotEmpty) {
+      _scheduleAutoSend();
+    }
+  }
+
+  // Recognition already waited out `pauseFor` of silence before stopping;
+  // this extra beat just lets the user see the final transcript before we navigate away.
+  void _scheduleAutoSend() {
+    _autoSendTimer?.cancel();
+    _autoSendTimer = Timer(const Duration(milliseconds: 900), () {
+      if (mounted) Navigator.pop(context, (_recognized, true));
+    });
   }
 
   void _listen() {
     if (!mounted) return;
     final app = context.read<AppState>();
-    _speech.listen(
-      onResult: (r) {
-        if (mounted) setState(() => _recognized = r.recognizedWords);
-      },
-      listenOptions: stt.SpeechListenOptions(
-        listenMode: stt.ListenMode.dictation,
-        pauseFor: const Duration(seconds: 3),
-        localeId: app.lang == 'ru' ? 'ru_RU' : 'en_US',
-      ),
-    );
+    _autoSendTimer?.cancel();
+    _speech
+        .listen(
+          onResult: (r) {
+            if (mounted) setState(() => _recognized = r.recognizedWords);
+          },
+          listenOptions: stt.SpeechListenOptions(
+            listenMode: stt.ListenMode.dictation,
+            pauseFor: const Duration(seconds: 3),
+            localeId: app.lang == 'ru' ? 'ru_RU' : 'en_US',
+          ),
+        )
+        // On web, calling start() while the browser hasn't fully torn down a
+        // previous recognition session yet throws; let the watchdog below
+        // retry instead of leaving an unhandled rejection.
+        .catchError((_) {});
+    // The engine sometimes ignores the very first listen() call right after
+    // initialize() and never reports a 'listening' status. Restarting it
+    // (the same recovery a manual mute/unmute toggle does) reliably kicks it
+    // into gear, so do that automatically instead of making the user notice.
+    _listenWatchdog?.cancel();
+    _listenWatchdog = Timer(const Duration(milliseconds: 1200), () {
+      if (!mounted || _muted || _listening) return;
+      if (_listenRetries >= _maxListenRetries) return;
+      _listenRetries++;
+      _speech.stop().then((_) {
+        if (mounted && !_muted) _listen();
+      });
+    });
   }
 
   void _toggleMute() {
+    _autoSendTimer?.cancel();
+    _listenWatchdog?.cancel();
     setState(() => _muted = !_muted);
     if (_muted) {
+      _manualStop = true;
       _speech.stop();
     } else {
+      _listenRetries = 0;
       _listen();
     }
   }
 
   @override
   void dispose() {
+    _autoSendTimer?.cancel();
+    _listenWatchdog?.cancel();
     _speech.stop();
     super.dispose();
   }
@@ -2194,7 +2264,8 @@ class _VoiceScreenState extends State<VoiceScreen> {
                     ),
                     const Spacer(),
                     GestureDetector(
-                      onTap: () => Navigator.pop(context, _recognized),
+                      onTap: () =>
+                          Navigator.pop(context, (_recognized, false)),
                       child: Container(
                         padding: const EdgeInsets.all(10),
                         decoration: const BoxDecoration(
@@ -2212,7 +2283,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                 size: 280,
                 color: const Color(0xFF2FE0C8),
                 dense: true,
-                active: !_muted,
+                active: _listening,
               ),
               const SizedBox(height: 40),
               Container(
@@ -2230,7 +2301,11 @@ class _VoiceScreenState extends State<VoiceScreen> {
                     Flexible(
                       child: Text(
                         _recognized.isEmpty
-                            ? (_muted ? app.t('muted') : app.t('listening'))
+                            ? (_muted
+                                ? app.t('muted')
+                                : (_listening
+                                    ? app.t('listening')
+                                    : app.t('preparingMic')))
                             : _recognized,
                         style: const TextStyle(
                             color: Colors.white,
@@ -2512,42 +2587,46 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
   Widget _chatTile(Conversation c, AppState app) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _card(context).withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: ListTile(
-        onTap: () {
-          app.openChat(c);
-          Navigator.pop(context);
-        },
-        leading: Icon(c.pinned ? Icons.push_pin : Icons.chat_bubble_outline,
-            color: _txt(context)),
-        title: Text(c.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style:
-                TextStyle(color: _txt(context), fontWeight: FontWeight.w700)),
-        subtitle: Text(
-            '${c.messages.length} ${app.t('messages')} · ${_ago(app, c.updatedAt)}',
-            style: TextStyle(color: _sub(context))),
-        trailing: PopupMenuButton<String>(
-          color: _card(context),
-          icon: Icon(Icons.more_vert, color: _sub(context)),
-          onSelected: (v) {
-            if (v == 'pin') app.togglePin(c);
-            if (v == 'delete') app.deleteChat(c);
+      child: Material(
+        color: _card(context).withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(16),
+        child: ListTile(
+          onTap: () {
+            app.openChat(c);
+            Navigator.pop(context);
           },
-          itemBuilder: (_) => [
-            PopupMenuItem(
-                value: 'pin',
-                child: Text(c.pinned ? app.t('unpin') : app.t('pin'),
-                    style: TextStyle(color: _txt(context)))),
-            PopupMenuItem(
-                value: 'delete',
-                child: Text(app.t('delete'),
-                    style: TextStyle(color: _txt(context)))),
-          ],
+          leading: Icon(c.pinned ? Icons.push_pin : Icons.chat_bubble_outline,
+              color: _txt(context)),
+          title: Text(c.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  color: _txt(context), fontWeight: FontWeight.w700)),
+          subtitle: Text(
+              '${c.messages.length} ${app.t('messages')} · ${_ago(app, c.updatedAt)}',
+              style: TextStyle(color: _sub(context))),
+          trailing: PopupMenuButton<String>(
+            color: _card(context),
+            icon: Icon(Icons.more_vert, color: _sub(context)),
+            onSelected: (v) {
+              if (v == 'pin') app.togglePin(c);
+              if (v == 'delete') app.deleteChat(c);
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                  value: 'pin',
+                  child: Text(c.pinned ? app.t('unpin') : app.t('pin'),
+                      style: TextStyle(color: _txt(context)))),
+              PopupMenuItem(
+                  value: 'delete',
+                  child: Text(app.t('delete'),
+                      style: TextStyle(color: _txt(context)))),
+            ],
+          ),
         ),
       ),
     );
@@ -2712,11 +2791,15 @@ class SettingsSheet extends StatelessWidget {
 
   Widget _group(List<Widget> children) => Builder(
         builder: (context) => Container(
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: _card(context).withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Column(children: children),
+          child: Material(
+            color: _card(context).withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(20),
+            child: Column(children: children),
+          ),
         ),
       );
 
