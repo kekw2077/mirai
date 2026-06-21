@@ -2853,28 +2853,30 @@ class SettingsSheet extends StatelessWidget {
         backgroundColor: _card(context),
         title: Text(app.t('themeMode'),
             style: TextStyle(color: _txt(context))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final entry in [
-              (AppThemeMode.system, app.t('themeSystem')),
-              (AppThemeMode.light, app.t('themeLight')),
-              (AppThemeMode.dark, app.t('themeDark')),
-            ])
-              RadioListTile<AppThemeMode>(
-                value: entry.$1,
-                groupValue: app.themeMode,
-                activeColor: const Color(0xFF2F8DFF),
-                title: Text(entry.$2,
-                    style: TextStyle(color: _txt(context))),
-                onChanged: (v) {
-                  if (v != null) {
-                    app.setThemeMode(v);
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-          ],
+        content: RadioGroup<AppThemeMode>(
+          groupValue: app.themeMode,
+          onChanged: (v) {
+            if (v != null) {
+              app.setThemeMode(v);
+              Navigator.pop(context);
+            }
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final entry in [
+                (AppThemeMode.system, app.t('themeSystem')),
+                (AppThemeMode.light, app.t('themeLight')),
+                (AppThemeMode.dark, app.t('themeDark')),
+              ])
+                RadioListTile<AppThemeMode>(
+                  value: entry.$1,
+                  activeColor: const Color(0xFF2F8DFF),
+                  title: Text(entry.$2,
+                      style: TextStyle(color: _txt(context))),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -2888,26 +2890,28 @@ class SettingsSheet extends StatelessWidget {
         backgroundColor: _card(context),
         title: Text(app.t('languageDialogTitle'),
             style: TextStyle(color: _txt(context))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final l in [
-              ['ru', app.t('russian')],
-              ['en', app.t('english')]
-            ])
-              RadioListTile<String>(
-                value: l[0],
-                groupValue: app.lang,
-                activeColor: const Color(0xFF2F8DFF),
-                title: Text(l[1], style: TextStyle(color: _txt(context))),
-                onChanged: (v) {
-                  if (v != null) {
-                    app.setLang(v);
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-          ],
+        content: RadioGroup<String>(
+          groupValue: app.lang,
+          onChanged: (v) {
+            if (v != null) {
+              app.setLang(v);
+              Navigator.pop(context);
+            }
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final l in [
+                ['ru', app.t('russian')],
+                ['en', app.t('english')]
+              ])
+                RadioListTile<String>(
+                  value: l[0],
+                  activeColor: const Color(0xFF2F8DFF),
+                  title: Text(l[1], style: TextStyle(color: _txt(context))),
+                ),
+            ],
+          ),
         ),
       ),
     );
