@@ -1195,100 +1195,38 @@ class GradientBorderPainter extends CustomPainter {
   final Animation<double> animation;
   final double radius;
   final double strokeWidth;
-  final bool highQuality;
   final bool enabled;
 
   GradientBorderPainter({
     required this.animation,
     this.radius = 30,
     this.strokeWidth = 2,
-    this.highQuality = false,
     this.enabled = true,
   }) : super(repaint: animation);
-
-  static const _baseColors = [
-    Color(0xFF7C8CF8),
-    Color(0xFF2FE0C8),
-    Color(0xFF5B8DEF),
-    Color(0xFFB39DFF),
-    Color(0xFF2FE0A8),
-    Color(0xFF7C8CF8),
-  ];
-
-  static const _hqColors = [
-    Color(0xFF7C8CF8),
-    Color(0xFF6B7DE8),
-    Color(0xFF2FE0C8),
-    Color(0xFF3FD0B8),
-    Color(0xFF5B8DEF),
-    Color(0xFF4B7DDF),
-    Color(0xFFB39DFF),
-    Color(0xFFA38DEF),
-    Color(0xFF2FE0A8),
-    Color(0xFF3FD098),
-    Color(0xFF7C8CF8),
-    Color(0xFF6B7DE8),
-  ];
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty || !enabled) return;
     final rect = Offset.zero & size;
 
-    final colors = highQuality ? _hqColors : _baseColors;
-    final stops = highQuality
-        ? [0.0, 0.08, 0.16, 0.25, 0.33, 0.42, 0.5, 0.58, 0.66, 0.75, 0.83, 0.92]
-        : null;
-
-    final sweep = SweepGradient(
-      colors: colors,
-      stops: stops,
-      transform: GradientRotation(animation.value * 2 * math.pi),
-    );
-
-    if (highQuality) {
-      // Внешнее свечение
-      final outerGlow = Paint()
-        ..shader = sweep.createShader(rect)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth * 2.5
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..isAntiAlias = true
-        ..filterQuality = FilterQuality.high
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, strokeWidth * 1.2);
-
-      final rrect = RRect.fromRectAndRadius(rect.deflate(strokeWidth / 2), Radius.circular(radius));
-      canvas.drawRRect(rrect, outerGlow);
-    }
-
-    // Основная линия
-    final mainPaint = Paint()
-      ..shader = sweep.createShader(rect)
+    final paint = Paint()
+      ..shader = SweepGradient(
+        colors: [
+          Colors.blue.withValues(alpha: 0.8),
+          Colors.purple.withValues(alpha: 0.8),
+          Colors.blue.withValues(alpha: 0.8),
+        ],
+        transform: GradientRotation(animation.value * 2 * math.pi),
+      ).createShader(rect)
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..isAntiAlias = true
-      ..filterQuality = highQuality ? FilterQuality.high : FilterQuality.medium;
+      ..isAntiAlias = true;
 
-    final rrect = RRect.fromRectAndRadius(rect.deflate(strokeWidth / 2), Radius.circular(radius));
-    canvas.drawRRect(rrect, mainPaint);
-
-    if (highQuality) {
-      // Внутреннее свечение
-      final innerGlow = Paint()
-        ..shader = sweep.createShader(rect)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth * 0.4
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..isAntiAlias = true
-        ..filterQuality = FilterQuality.high
-        ..maskFilter = const MaskFilter.blur(BlurStyle.inner, 0.8);
-
-      canvas.drawRRect(rrect, innerGlow);
-    }
+    // Stroke is centered on the full bounds (not inset), so half of it
+    // bleeds outside the canvas where the opaque child can't cover it —
+    // that's the only part of the ring that ends up visible.
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+    canvas.drawRRect(rrect, paint);
   }
 
   @override
@@ -1299,7 +1237,6 @@ class AnimatedBorder extends StatefulWidget {
   final Widget child;
   final double radius;
   final double strokeWidth;
-  final bool highQuality;
   final bool enabled;
 
   const AnimatedBorder({
@@ -1307,7 +1244,6 @@ class AnimatedBorder extends StatefulWidget {
     required this.child,
     this.radius = 28,
     this.strokeWidth = 2,
-    this.highQuality = false,
     this.enabled = true,
   });
 
@@ -1349,15 +1285,19 @@ class _AnimatedBorderState extends State<AnimatedBorder>
       );
     }
     return RepaintBoundary(
-      child: CustomPaint(
-        painter: GradientBorderPainter(
-          animation: _ctrl,
-          radius: widget.radius,
-          strokeWidth: widget.strokeWidth,
-          highQuality: widget.highQuality,
-          enabled: widget.enabled,
+      child: Padding(
+        // Reserves room for the half of the stroke that bleeds outside the
+        // painted bounds (see GradientBorderPainter) so it isn't clipped.
+        padding: EdgeInsets.all(widget.strokeWidth / 2),
+        child: CustomPaint(
+          painter: GradientBorderPainter(
+            animation: _ctrl,
+            radius: widget.radius,
+            strokeWidth: widget.strokeWidth,
+            enabled: widget.enabled,
+          ),
+          child: widget.child,
         ),
-        child: widget.child,
       ),
     );
   }
@@ -1801,8 +1741,7 @@ class _ChatScreenState extends State<ChatScreen> {
       padding: const EdgeInsets.fromLTRB(8, 10, 8, 16),
       child: AnimatedBorder(
         radius: 20,
-        strokeWidth: 2.2,
-        highQuality: true,
+        strokeWidth: 2,
         child: Container(
           decoration: BoxDecoration(
             color: _card(context),
@@ -1862,15 +1801,12 @@ class _ChatScreenState extends State<ChatScreen> {
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.25),
+                        color: _txt(context).withValues(alpha: 0.1),
                       ),
                       child: IconButton(
                         onPressed: () => _send(),
                         icon: Icon(Icons.arrow_upward, color: _txt(context)),
-                        iconSize: 18,
+                        iconSize: 20,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
@@ -1886,7 +1822,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return AnimatedBorder(
       radius: 20,
       strokeWidth: 2,
-      highQuality: false,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1898,7 +1833,7 @@ class _ChatScreenState extends State<ChatScreen> {
               color: _card(context),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: _txt(context), size: 18),
+            child: Icon(icon, color: _txt(context), size: 20),
           ),
         ),
       ),
