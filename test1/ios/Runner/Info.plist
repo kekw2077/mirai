@@ -26,6 +26,10 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Mirai использует микрофон для голосового ввода сообщений.</string>
+		<key>NSSpeechRecognitionUsageDescription</key>
+		<string>Mirai распознаёт речь, чтобы превращать голосовые сообщения в текст.</string>
 		<key>UIApplicationSceneManifest</key>
 		<dict>
 			<key>UIApplicationSupportsMultipleScenes</key>

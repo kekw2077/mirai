@@ -1,0 +1,32 @@
+{
+  "name": "Mirai",
+  "identifier": "com.example.mirai.altsource",
+  "apps": [
+    {
+      "name": "Mirai",
+      "bundleIdentifier": "com.example.mirai",
+      "developerName": "kekw2077",
+      "localizedDescription": "Mirai — чат-клиент для LLM с поддержкой удалённых серверов (Ollama/OpenAI-совместимый API) и локального инференса прямо на устройстве, без интернета.",
+      "iconURL": "https://raw.githubusercontent.com/kekw2077/mirai/main/test1/assets/icon/icon.png",
+      "versions": [
+        {
+          "version": "2.7.3",
+          "buildVersion": "26",
+          "date": "2026-06-23T00:00:00Z",
+          "localizedDescription": "См. CHANGELOG.md в репозитории.",
+          "downloadURL": "https://github.com/kekw2077/mirai/releases/download/ios-v2.7.3/Mirai.ipa",
+          "size": 0,
+          "minOSVersion": "13.0"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSMicrophoneUsageDescription": "Mirai использует микрофон для голосового ввода сообщений.",
+          "NSSpeechRecognitionUsageDescription": "Mirai распознаёт речь, чтобы превращать голосовые сообщения в текст."
+        }
+      }
+    }
+  ],
+  "news": []
+}
