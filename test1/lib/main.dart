@@ -46,7 +46,6 @@ const Map<String, Map<String, String>> _i18n = {
     'summarize': 'Кратко',
     'rewrite': 'Переписать',
     'fixGrammar': 'Грамматика',
-    'thinking': 'Думаю…',
     'downloadedModels': 'Доступные модели',
     'manageModels': 'Управление моделями',
     'newChat': 'Новый чат',
@@ -253,7 +252,6 @@ const Map<String, Map<String, String>> _i18n = {
     'summarize': 'Summarize',
     'rewrite': 'Rewrite',
     'fixGrammar': 'Fix Grammar',
-    'thinking': 'Thinking…',
     'downloadedModels': 'Downloaded Models',
     'manageModels': 'Manage Models',
     'newChat': 'New Chat',
@@ -929,6 +927,9 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.7.2', [
+    'Пока нейросеть генерирует ответ, вместо «Думаю…» — зацикленная анимация из трёх волнообразно подпрыгивающих точек.',
+  ]),
   ChangelogEntry('2.7.1', [
     'Пузыри сообщений нейросети в чате окрашены тем же синим градиентом, что и акцентные кнопки.',
   ]),
@@ -2492,7 +2493,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _messageList(Conversation conv) {
-    final app = context.read<AppState>();
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.all(16),
@@ -2500,7 +2500,8 @@ class _ChatScreenState extends State<ChatScreen> {
       itemBuilder: (_, i) {
         if (i >= conv.messages.length) {
           return _bubble(
-            ChatMessage(role: 'assistant', content: app.t('thinking')),
+            ChatMessage(role: 'assistant', content: ''),
+            thinking: true,
           );
         }
         return _bubble(conv.messages[i]);
@@ -2508,7 +2509,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _bubble(ChatMessage m) {
+  Widget _bubble(ChatMessage m, {bool thinking = false}) {
     final isUser = m.role == 'user';
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -2558,7 +2559,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               ),
-            if (m.content.isNotEmpty)
+            if (thinking)
+              const _ThinkingDots()
+            else if (m.content.isNotEmpty)
               Text(
                 m.content,
                 style: const TextStyle(
@@ -2770,6 +2773,70 @@ class _ChatScreenState extends State<ChatScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Three dots bouncing in a left-to-right wave, replacing a static "thinking…"
+// label in the assistant's placeholder bubble while a reply is generating.
+class _ThinkingDots extends StatefulWidget {
+  const _ThinkingDots();
+
+  @override
+  State<_ThinkingDots> createState() => _ThinkingDotsState();
+}
+
+class _ThinkingDotsState extends State<_ThinkingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 16,
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (_, __) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) {
+              // Stagger each dot's phase so they crest one after another
+              // instead of all bobbing in lockstep.
+              final phase = (_ctrl.value + i * 0.18) % 1.0;
+              final lift = math.sin(phase * math.pi).clamp(0.0, 1.0);
+              return Padding(
+                padding: EdgeInsets.only(right: i == 2 ? 0 : 6),
+                child: Transform.translate(
+                  offset: Offset(0, -6 * lift),
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.6 + 0.4 * lift),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          );
+        },
       ),
     );
   }
