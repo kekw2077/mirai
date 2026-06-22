@@ -778,15 +778,6 @@ const List<LocalModelSpec> kLocalModels = [
     tier: LocalModelTier.light,
   ),
   LocalModelSpec(
-    id: 'tinyllama-1.1b',
-    displayName: 'TinyLlama 1.1B Chat',
-    sizeBytes: 668788096,
-    url:
-        'https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf?download=true',
-    fileName: 'tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf',
-    tier: LocalModelTier.light,
-  ),
-  LocalModelSpec(
     id: 'llama-3.2-1b',
     displayName: 'Llama 3.2 1B Instruct',
     sizeBytes: 807694464,
@@ -803,6 +794,15 @@ const List<LocalModelSpec> kLocalModels = [
     url:
         'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf?download=true',
     fileName: 'qwen2.5-1.5b-instruct-q4_k_m.gguf',
+    tier: LocalModelTier.mid,
+  ),
+  LocalModelSpec(
+    id: 'gemma2-2b',
+    displayName: 'Gemma 2 2B Instruct',
+    sizeBytes: 1708582752,
+    url:
+        'https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf?download=true',
+    fileName: 'gemma-2-2b-it-Q4_K_M.gguf',
     tier: LocalModelTier.mid,
   ),
   LocalModelSpec(
@@ -871,6 +871,11 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.2.0', [
+    'Убрана модель TinyLlama 1.1B Chat из каталога локальных моделей — слишком слабая, не справлялась с системным промптом и выдавала бессвязные ответы.',
+    'Добавлена Gemma 2 2B Instruct (средний тир) — известна хорошим качеством именно обычного диалога при небольшом размере.',
+    'Исправлен визуальный баг: пункт «Создать изображение» в меню выбора модели мог выходить за границы меню на узких экранах вместо аккуратной обрезки текста.',
+  ]),
   ChangelogEntry('2.1.0', [
     'Сфера на экране голосового ввода теперь реагирует на громкость с микрофона в реальном времени: пульсирует сильнее, ярче светится и быстрее дрожит при громком звуке, и успокаивается в тишине.',
     'На Windows-сборке эффект не виден — нативный SAPI-плагин речи не передаёт уровень громкости; полноценно работает на Android (и должно — на iOS).',
@@ -2835,9 +2840,12 @@ class _ModelMenu extends StatelessWidget {
               const SizedBox(width: 14),
             ] else
               const SizedBox(width: 34),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
+            Expanded(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+              ),
             ),
           ],
         ),
