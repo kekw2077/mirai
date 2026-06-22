@@ -874,7 +874,7 @@ class AppState extends ChangeNotifier {
   bool micAutoSend = true;
   int micPauseSeconds = 3;
 
-  String serverUrl = '192.168.1.100:11434';
+  String serverUrl = '';
   String apiKey = '';
   List<String> models = [];
   String selectedModel = '';
@@ -932,12 +932,20 @@ class AppState extends ChangeNotifier {
     fontSize = prefs.getDouble('fontSize') ?? 1.0;
     micAutoSend = prefs.getBool('micAutoSend') ?? true;
     micPauseSeconds = prefs.getInt('micPauseSeconds') ?? 3;
-    serverUrl = prefs.getString('serverUrl') ?? '192.168.1.100:11434';
+    serverUrl = prefs.getString('serverUrl') ?? '';
+    // Migrate away placeholder values that earlier versions persisted as if
+    // they were real user data.
+    if (serverUrl == '192.168.1.100:11434') serverUrl = '';
     apiKey = prefs.getString('apiKey') ?? '';
-    models = prefs.getStringList('models') ?? [];
+    models = (prefs.getStringList('models') ?? [])
+        .where((m) => m != 'Alice Nano')
+        .toList();
     selectedModel =
         prefs.getString('selectedModel') ??
         (models.isNotEmpty ? models.first : '');
+    if (selectedModel == 'Alice Nano') {
+      selectedModel = models.isNotEmpty ? models.first : '';
+    }
     downloadedLocalModelIds =
         (prefs.getStringList('downloadedLocalModelIds') ?? []).toSet();
 
