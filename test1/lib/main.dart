@@ -2688,7 +2688,8 @@ class VoiceScreen extends StatefulWidget {
   State<VoiceScreen> createState() => _VoiceScreenState();
 }
 
-class _VoiceScreenState extends State<VoiceScreen> {
+class _VoiceScreenState extends State<VoiceScreen>
+    with SingleTickerProviderStateMixin {
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _muted = false;
   bool _available = false;
@@ -2699,10 +2700,15 @@ class _VoiceScreenState extends State<VoiceScreen> {
   Timer? _listenWatchdog;
   int _listenRetries = 0;
   static const _maxListenRetries = 5;
+  late final AnimationController _borderCtrl;
 
   @override
   void initState() {
     super.initState();
+    _borderCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
     _init();
   }
 
@@ -2814,7 +2820,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
       barrierColor: Colors.black54,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => Dialog(
-          backgroundColor: const Color(0xFF0E2C2F),
+          backgroundColor: const Color(0xFF1A1640),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -2826,7 +2832,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.tune, color: Color(0xFF2FE0C8)),
+                    const Icon(Icons.tune, color: Color(0xFF7C83FD)),
                     const SizedBox(width: 10),
                     Text(
                       app.t('micSettingsTitle'),
@@ -2842,7 +2848,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: app.micAutoSend,
-                  activeThumbColor: const Color(0xFF2FE0C8),
+                  activeThumbColor: const Color(0xFF7C83FD),
                   title: Text(
                     app.t('micAutoSend'),
                     style: const TextStyle(color: Colors.white),
@@ -2869,7 +2875,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                     return ChoiceChip(
                       label: Text('${s}s'),
                       selected: selected,
-                      selectedColor: const Color(0xFF2FE0C8),
+                      selectedColor: const Color(0xFF7C83FD),
                       backgroundColor: Colors.white10,
                       labelStyle: TextStyle(
                         color: selected ? Colors.black : Colors.white70,
@@ -2892,7 +2898,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                     onPressed: () => Navigator.pop(dialogContext),
                     child: Text(
                       app.t('done'),
-                      style: const TextStyle(color: Color(0xFF2FE0C8)),
+                      style: const TextStyle(color: Color(0xFF7C83FD)),
                     ),
                   ),
                 ),
@@ -2908,6 +2914,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
   void dispose() {
     _autoSendTimer?.cancel();
     _listenWatchdog?.cancel();
+    _borderCtrl.dispose();
     _speech.stop();
     super.dispose();
   }
@@ -2916,14 +2923,16 @@ class _VoiceScreenState extends State<VoiceScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            radius: 1.1,
-            colors: [Color(0xFF0B3B3F), Color(0xFF02161A)],
-          ),
-        ),
-        child: SafeArea(
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                radius: 1.1,
+                colors: [Color(0xFF1B1640), Color(0xFF0A0818)],
+              ),
+            ),
+            child: SafeArea(
           child: Column(
             children: [
               Padding(
@@ -2990,7 +2999,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
               const Spacer(),
               ParticleSphere(
                 size: 280,
-                color: const Color(0xFF2FE0C8),
+                color: const Color(0xFF7C83FD),
                 dense: true,
                 active: _listening,
               ),
@@ -3007,7 +3016,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.mic, color: Color(0xFF2FE0C8)),
+                    const Icon(Icons.mic, color: Color(0xFF7C83FD)),
                     const SizedBox(width: 10),
                     Flexible(
                       child: Text(
@@ -3052,7 +3061,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                         borderRadius: BorderRadius.circular(28),
                         color: _recognized.trim().isEmpty
                             ? Colors.black38
-                            : const Color(0xFF2FE0C8),
+                            : const Color(0xFF7C83FD),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -3083,6 +3092,22 @@ class _VoiceScreenState extends State<VoiceScreen> {
             ],
           ),
         ),
+      ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Padding(
+                padding: const EdgeInsets.all(1.5),
+                child: CustomPaint(
+                  painter: GradientBorderPainter(
+                    animation: _borderCtrl,
+                    radius: 36,
+                    strokeWidth: 3,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
