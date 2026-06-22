@@ -164,6 +164,7 @@ const Map<String, Map<String, String>> _i18n = {
     'unreachable': 'Не удалось подключиться к серверу',
     'checkAddress': 'Проверьте адрес в настройках.',
     'pers': 'Персонализация',
+    'chatPers': 'Настройки этого чата',
     'persDesc': 'Настройте личность, поведение и контекст ассистента под себя.',
     'persPersona': 'Личность и стиль общения',
     'persPreset': 'Готовая персона',
@@ -356,6 +357,7 @@ const Map<String, Map<String, String>> _i18n = {
     'unreachable': 'Could not reach the server',
     'checkAddress': 'Check the address in Settings.',
     'pers': 'Personalization',
+    'chatPers': 'This chat\'s settings',
     'persDesc': "Tailor the assistant's personality, behavior and context.",
     'persPersona': 'Character & vibe',
     'persPreset': 'Persona preset',
@@ -464,6 +466,7 @@ class Conversation {
   bool pinned;
   DateTime updatedAt;
   List<ChatMessage> messages;
+  Personalization? persona;
 
   Conversation({
     required this.id,
@@ -471,6 +474,7 @@ class Conversation {
     this.pinned = false,
     DateTime? updatedAt,
     List<ChatMessage>? messages,
+    this.persona,
   }) : updatedAt = updatedAt ?? DateTime.now(),
        messages = messages ?? [];
 
@@ -480,6 +484,7 @@ class Conversation {
     'pinned': pinned,
     'updatedAt': updatedAt.toIso8601String(),
     'messages': messages.map((m) => m.toJson()).toList(),
+    'persona': persona?.toJson(),
   };
   factory Conversation.fromJson(Map<String, dynamic> j) => Conversation(
     id: j['id'] as String? ?? '',
@@ -492,6 +497,9 @@ class Conversation {
             ?.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
             .toList() ??
         [],
+    persona: j['persona'] is Map<String, dynamic>
+        ? Personalization.fromJson(j['persona'] as Map<String, dynamic>)
+        : null,
   );
 }
 
@@ -1042,6 +1050,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void saveConversationPersona(Conversation conv, Personalization p) {
+    conv.persona = p;
+    _save();
+    notifyListeners();
+  }
+
   void setServer(String url, String key) {
     serverUrl = url;
     apiKey = key;
@@ -1340,7 +1354,7 @@ class AppState extends ChangeNotifier {
     if (!await localModelFileExists(modelPath)) return t('localModelMissing');
 
     final messages = <Message>[
-      Message(Role.system, persona.buildSystemPrompt()),
+      Message(Role.system, (conv.persona ?? persona).buildSystemPrompt()),
       ...conv.messages.map(
         (m) => Message(
           m.role == 'user' ? Role.user : Role.assistant,
@@ -1406,7 +1420,10 @@ class AppState extends ChangeNotifier {
         if (apiKey.isNotEmpty) headers['Authorization'] = 'Bearer $apiKey';
 
         final msgs = <Map<String, dynamic>>[
-          {'role': 'system', 'content': persona.buildSystemPrompt()},
+          {
+            'role': 'system',
+            'content': (conv.persona ?? persona).buildSystemPrompt(),
+          },
           ...conv.messages.map(
             (m) => {
               'role': m.role,
@@ -1949,6 +1966,17 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _openChatPersonalization() {
+    if (!mounted) return;
+    final app = context.read<AppState>();
+    if (app.current == null) app.newChat();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PersonalizationScreen(conversation: app.current),
+      ),
+    );
+  }
+
   void _openVoice() async {
     if (!mounted) return;
     final result = await Navigator.of(context).push<(String, bool)>(
@@ -2048,6 +2076,8 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           const Spacer(),
+          _circleBtn(Icons.manage_accounts_outlined, _openChatPersonalization),
+          const SizedBox(width: 8),
           _circleBtn(Icons.chat_bubble_outline, _openConversations),
         ],
       ),
@@ -4472,7 +4502,8 @@ class _MemoryScreenState extends State<MemoryScreen> {
 /* ============================ ЭКРАН ПЕРСОНАЛИЗАЦИИ ============================ */
 
 class PersonalizationScreen extends StatefulWidget {
-  const PersonalizationScreen({super.key});
+  final Conversation? conversation;
+  const PersonalizationScreen({super.key, this.conversation});
   @override
   State<PersonalizationScreen> createState() => _PersonalizationScreenState();
 }
@@ -4484,7 +4515,8 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
   @override
   void initState() {
     super.initState();
-    p = context.read<AppState>().persona.clone();
+    final app = context.read<AppState>();
+    p = (widget.conversation?.persona ?? app.persona).clone();
     _custom = TextEditingController(text: p.customPrompt);
   }
 
@@ -4496,7 +4528,12 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
 
   void _save() {
     p.customPrompt = _custom.text;
-    context.read<AppState>().savePersona(p);
+    final app = context.read<AppState>();
+    if (widget.conversation != null) {
+      app.saveConversationPersona(widget.conversation!, p);
+    } else {
+      app.savePersona(p);
+    }
     Navigator.pop(context);
   }
 
@@ -4512,7 +4549,9 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
         elevation: 0,
         foregroundColor: _txt(context),
         title: Text(
-          app.t('pers'),
+          widget.conversation != null
+              ? app.t('chatPers')
+              : app.t('pers'),
           style: TextStyle(color: _txt(context), fontWeight: FontWeight.w700),
         ),
         actions: [
