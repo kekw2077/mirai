@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
 Future<String> localModelsDirPath() async {
@@ -8,6 +9,18 @@ Future<String> localModelsDirPath() async {
   final modelsDir = Directory('${dir.path}/local_models');
   if (!await modelsDir.exists()) await modelsDir.create(recursive: true);
   return modelsDir.path;
+}
+
+Future<String> updateDownloadPath(String fileName) async {
+  final dir = await getApplicationSupportDirectory();
+  return '${dir.path}/$fileName';
+}
+
+Future<void> installApk(String path) async {
+  final result = await OpenFilex.open(path);
+  if (result.type != ResultType.done) {
+    throw Exception(result.message);
+  }
 }
 
 Future<bool> localModelFileExists(String path) => File(path).exists();

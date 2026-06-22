@@ -1,7 +1,7 @@
 name: alice_ai
 description: Alice AI — local & remote AI chat client
 publish_to: "none"
-version: 1.3.0+4
+version: 1.4.0+5
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
@@ -24,6 +24,8 @@ dependencies:
       url: https://github.com/Telosnex/fllama.git
       ref: 3b1351a957920bf2a0df3709cce1e3a7195c479e
   path_provider: ^2.1.6
+  package_info_plus: ^8.1.0
+  open_filex: ^4.5.0
 
 dev_dependencies:
   flutter_lints: ^4.0.0

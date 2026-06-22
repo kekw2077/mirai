@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:fllama/fllama.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'local_model_stub.dart' if (dart.library.io) 'local_model_io.dart';
 
@@ -29,9 +30,7 @@ void main() async {
     await Future.delayed(_minSplashDuration - elapsed);
   }
 
-  runApp(
-    ChangeNotifierProvider.value(value: app, child: const AliceApp()),
-  );
+  runApp(ChangeNotifierProvider.value(value: app, child: const AliceApp()));
 }
 
 /* ============================ ЛОКАЛИЗАЦИЯ ============================ */
@@ -63,8 +62,7 @@ const Map<String, Map<String, String>> _i18n = {
     'muted': 'Микрофон выключен',
     'micSettingsTitle': 'Настройки микрофона',
     'micAutoSend': 'Автоотправка после паузы',
-    'micAutoSendDesc':
-        'Сообщение отправится само, как только вы замолчите',
+    'micAutoSendDesc': 'Сообщение отправится само, как только вы замолчите',
     'micPauseDuration': 'Длительность паузы перед отправкой',
     'send': 'Отправить',
     'speakNaturally':
@@ -96,6 +94,13 @@ const Map<String, Map<String, String>> _i18n = {
         'Настройте Alice AI, управляйте поведением приложения и просматривайте сведения в одном месте.',
     'sectionApp': 'Приложение',
     'sectionTheme': 'Оформление',
+    'sectionAbout': 'О приложении',
+    'checkForUpdates': 'Проверить обновления',
+    'downloadingUpdate': 'Скачивание обновления…',
+    'updateAvailable': 'Доступно обновление',
+    'upToDate': 'У вас последняя версия',
+    'updateCheckFailed': 'Не удалось проверить обновления',
+    'updateDownloadFailed': 'Не удалось скачать обновление',
     'manageModelsItem': 'Управление моделями',
     'localModelsItem': 'Локальные модели',
     'localModelsTitle': 'Локальные модели',
@@ -104,9 +109,11 @@ const Map<String, Map<String, String>> _i18n = {
     'tierLight': 'Лёгкие',
     'tierLightDesc': 'Для слабых/старых телефонов (32-бит ARM, мало ОЗУ)',
     'tierMid': 'Средние',
-    'tierMidDesc': 'Для современных смартфонов среднего класса (например, Honor 70)',
+    'tierMidDesc':
+        'Для современных смартфонов среднего класса (например, Honor 70)',
     'tierHigh': 'Мощные',
-    'tierHighDesc': 'Для флагманов с большим запасом ОЗУ (например, iPhone 15 Pro Max)',
+    'tierHighDesc':
+        'Для флагманов с большим запасом ОЗУ (например, iPhone 15 Pro Max)',
     'onDevice': 'на устройстве',
     'downloadModel': 'Скачать',
     'downloadingModel': 'Загрузка…',
@@ -156,8 +163,7 @@ const Map<String, Map<String, String>> _i18n = {
     'unreachable': 'Не удалось подключиться к серверу',
     'checkAddress': 'Проверьте адрес в настройках.',
     'pers': 'Персонализация',
-    'persDesc':
-        'Настройте личность, поведение и контекст ассистента под себя.',
+    'persDesc': 'Настройте личность, поведение и контекст ассистента под себя.',
     'persPersona': 'Личность и стиль общения',
     'persPreset': 'Готовая персона',
     'preset_friend': 'Лучший друг',
@@ -281,6 +287,13 @@ const Map<String, Map<String, String>> _i18n = {
         'Personalize Alice AI, manage device behavior, and review the app details in one place.',
     'sectionApp': 'App',
     'sectionTheme': 'Theme',
+    'sectionAbout': 'About',
+    'checkForUpdates': 'Check for updates',
+    'downloadingUpdate': 'Downloading update…',
+    'updateAvailable': 'Update available',
+    'upToDate': 'You have the latest version',
+    'updateCheckFailed': 'Failed to check for updates',
+    'updateDownloadFailed': 'Failed to download update',
     'manageModelsItem': 'Manage models',
     'localModelsItem': 'Local models',
     'localModelsTitle': 'Local models',
@@ -422,24 +435,25 @@ class ChatMessage {
     required this.content,
     DateTime? time,
     List<String>? attachments,
-  })  : time = time ?? DateTime.now(),
-        attachments = attachments ?? [];
+  }) : time = time ?? DateTime.now(),
+       attachments = attachments ?? [];
 
   Map<String, dynamic> toJson() => {
-        'role': role,
-        'content': content,
-        'time': time.toIso8601String(),
-        'attachments': attachments,
-      };
+    'role': role,
+    'content': content,
+    'time': time.toIso8601String(),
+    'attachments': attachments,
+  };
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
-        role: j['role'] as String? ?? 'user',
-        content: j['content'] as String? ?? '',
-        time: DateTime.tryParse(j['time'] as String? ?? '') ?? DateTime.now(),
-        attachments: (j['attachments'] as List<dynamic>?)
-                ?.map((e) => e.toString())
-                .toList() ??
-            [],
-      );
+    role: j['role'] as String? ?? 'user',
+    content: j['content'] as String? ?? '',
+    time: DateTime.tryParse(j['time'] as String? ?? '') ?? DateTime.now(),
+    attachments:
+        (j['attachments'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [],
+  );
 }
 
 class Conversation {
@@ -455,27 +469,28 @@ class Conversation {
     this.pinned = false,
     DateTime? updatedAt,
     List<ChatMessage>? messages,
-  })  : updatedAt = updatedAt ?? DateTime.now(),
-        messages = messages ?? [];
+  }) : updatedAt = updatedAt ?? DateTime.now(),
+       messages = messages ?? [];
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'pinned': pinned,
-        'updatedAt': updatedAt.toIso8601String(),
-        'messages': messages.map((m) => m.toJson()).toList(),
-      };
+    'id': id,
+    'title': title,
+    'pinned': pinned,
+    'updatedAt': updatedAt.toIso8601String(),
+    'messages': messages.map((m) => m.toJson()).toList(),
+  };
   factory Conversation.fromJson(Map<String, dynamic> j) => Conversation(
-        id: j['id'] as String? ?? '',
-        title: j['title'] as String? ?? '',
-        pinned: j['pinned'] as bool? ?? false,
-        updatedAt:
-            DateTime.tryParse(j['updatedAt'] as String? ?? '') ?? DateTime.now(),
-        messages: (j['messages'] as List<dynamic>?)
-                ?.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [],
-      );
+    id: j['id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    pinned: j['pinned'] as bool? ?? false,
+    updatedAt:
+        DateTime.tryParse(j['updatedAt'] as String? ?? '') ?? DateTime.now(),
+    messages:
+        (j['messages'] as List<dynamic>?)
+            ?.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [],
+  );
 }
 
 class Personalization {
@@ -510,34 +525,34 @@ class Personalization {
   String customPrompt = '';
 
   Map<String, dynamic> toJson() => {
-        'preset': preset,
-        'formality': formality,
-        'empathy': empathy,
-        'verbosity': verbosity,
-        'humor': humor,
-        'creativity': creativity,
-        'emoji': emoji,
-        'answerFormat': answerFormat,
-        'defaultLength': defaultLength,
-        'proactivity': proactivity,
-        'useMarkdown': useMarkdown,
-        'longMemory': longMemory,
-        'memoryNote': memoryNote,
-        'name': name,
-        'pronouns': pronouns,
-        'profession': profession,
-        'interests': interests,
-        'goals': goals,
-        'useMyData': useMyData,
-        'knowledgeLevel': knowledgeLevel,
-        'location': location,
-        'avoidTopics': avoidTopics,
-        'contentFilter': contentFilter,
-        'warnUncertain': warnUncertain,
-        'reasoning': reasoning,
-        'tone': tone,
-        'customPrompt': customPrompt,
-      };
+    'preset': preset,
+    'formality': formality,
+    'empathy': empathy,
+    'verbosity': verbosity,
+    'humor': humor,
+    'creativity': creativity,
+    'emoji': emoji,
+    'answerFormat': answerFormat,
+    'defaultLength': defaultLength,
+    'proactivity': proactivity,
+    'useMarkdown': useMarkdown,
+    'longMemory': longMemory,
+    'memoryNote': memoryNote,
+    'name': name,
+    'pronouns': pronouns,
+    'profession': profession,
+    'interests': interests,
+    'goals': goals,
+    'useMyData': useMyData,
+    'knowledgeLevel': knowledgeLevel,
+    'location': location,
+    'avoidTopics': avoidTopics,
+    'contentFilter': contentFilter,
+    'warnUncertain': warnUncertain,
+    'reasoning': reasoning,
+    'tone': tone,
+    'customPrompt': customPrompt,
+  };
 
   factory Personalization.fromJson(Map<String, dynamic> j) {
     final p = Personalization();
@@ -621,17 +636,19 @@ class Personalization {
     final b = StringBuffer();
     b.writeln('You are Alice, a helpful AI assistant.');
 
-    String lvl(double v) =>
-        v < 0.33 ? 'low' : (v < 0.66 ? 'medium' : 'high');
+    String lvl(double v) => v < 0.33 ? 'low' : (v < 0.66 ? 'medium' : 'high');
     b.writeln(
-        'Style: formality ${lvl(formality)}, empathy ${lvl(empathy)}, '
-        'verbosity ${lvl(verbosity)}, humor ${lvl(humor)}, creativity ${lvl(creativity)}.');
+      'Style: formality ${lvl(formality)}, empathy ${lvl(empathy)}, '
+      'verbosity ${lvl(verbosity)}, humor ${lvl(humor)}, creativity ${lvl(creativity)}.',
+    );
 
-    b.writeln(emoji == 'emoji_never'
-        ? 'Never use emoji.'
-        : emoji == 'emoji_always'
-            ? 'Use emoji frequently.'
-            : 'Use emoji occasionally.');
+    b.writeln(
+      emoji == 'emoji_never'
+          ? 'Never use emoji.'
+          : emoji == 'emoji_always'
+          ? 'Use emoji frequently.'
+          : 'Use emoji occasionally.',
+    );
 
     if (answerFormat == 'fmt_lists') {
       b.writeln('Prefer structured bullet lists.');
@@ -639,11 +656,13 @@ class Personalization {
       b.writeln('Use tables whenever data fits a table.');
     }
 
-    b.writeln(defaultLength == 'len_short'
-        ? 'Keep answers very short (max 2 sentences).'
-        : defaultLength == 'len_long'
-            ? 'Give detailed, thorough answers.'
-            : 'Give standard-length answers.');
+    b.writeln(
+      defaultLength == 'len_short'
+          ? 'Keep answers very short (max 2 sentences).'
+          : defaultLength == 'len_long'
+          ? 'Give detailed, thorough answers.'
+          : 'Give standard-length answers.',
+    );
 
     if (proactivity == 'pro_clarify') {
       b.writeln('Ask clarifying questions when the task is unclear.');
@@ -656,7 +675,8 @@ class Personalization {
     if (useMarkdown) b.writeln('Use markdown formatting.');
 
     b.writeln(
-        'Reasoning: ${reasoning == 'rs_step' ? 'think step by step and show your reasoning' : 'answer directly and intuitively'}.');
+      'Reasoning: ${reasoning == 'rs_step' ? 'think step by step and show your reasoning' : 'answer directly and intuitively'}.',
+    );
 
     if (tone != 'tone_neutral') {
       b.writeln('Overall tone of text: ${tone.replaceFirst('tone_', '')}.');
@@ -674,7 +694,8 @@ class Personalization {
         b.writeln('User profile (use it naturally): ${prof.join('; ')}.');
       }
       b.writeln(
-          'Explain things at a ${knowledgeLevel.replaceFirst('kl_', '')} level.');
+        'Explain things at a ${knowledgeLevel.replaceFirst('kl_', '')} level.',
+      );
     }
 
     if (longMemory && memoryNote.isNotEmpty) {
@@ -684,14 +705,17 @@ class Personalization {
     if (avoidTopics.isNotEmpty) {
       b.writeln('Avoid these topics: $avoidTopics.');
     }
-    b.writeln(contentFilter == 'cf_strict'
-        ? 'Apply a strict safety filter; block adult and violent content.'
-        : contentFilter == 'cf_off'
-            ? 'Minimal content filtering for an adult, private conversation.'
-            : 'Apply a balanced content filter.');
+    b.writeln(
+      contentFilter == 'cf_strict'
+          ? 'Apply a strict safety filter; block adult and violent content.'
+          : contentFilter == 'cf_off'
+          ? 'Minimal content filtering for an adult, private conversation.'
+          : 'Apply a balanced content filter.',
+    );
     if (warnUncertain) {
       b.writeln(
-          'Warn the user when you are uncertain or the topic is sensitive (medical, financial, legal).');
+        'Warn the user when you are uncertain or the topic is sensitive (medical, financial, legal).',
+      );
     }
 
     if (customPrompt.trim().isNotEmpty) {
@@ -851,6 +875,12 @@ class AppState extends ChangeNotifier {
   final Map<String, double> localDownloadProgress = {};
   final Set<String> _cancelledLocalDownloads = {};
 
+  bool checkingForUpdate = false;
+  String? updateCheckError;
+  String? updateAvailableVersion;
+  String? _updateApkUrl;
+  double? updateDownloadProgress;
+
   Personalization persona = Personalization();
 
   List<Conversation> conversations = [];
@@ -895,7 +925,8 @@ class AppState extends ChangeNotifier {
     serverUrl = prefs.getString('serverUrl') ?? '192.168.1.100:11434';
     apiKey = prefs.getString('apiKey') ?? '';
     models = prefs.getStringList('models') ?? ['Alice Nano'];
-    selectedModel = prefs.getString('selectedModel') ??
+    selectedModel =
+        prefs.getString('selectedModel') ??
         (models.isNotEmpty ? models.first : '');
     downloadedLocalModelIds =
         (prefs.getStringList('downloadedLocalModelIds') ?? []).toSet();
@@ -941,7 +972,9 @@ class AppState extends ChangeNotifier {
     await prefs.setStringList('models', models);
     await prefs.setString('selectedModel', selectedModel);
     await prefs.setStringList(
-        'downloadedLocalModelIds', downloadedLocalModelIds.toList());
+      'downloadedLocalModelIds',
+      downloadedLocalModelIds.toList(),
+    );
     await prefs.setString('persona', jsonEncode(persona.toJson()));
     await prefs.setString(
       'conversations',
@@ -1116,16 +1149,10 @@ class AppState extends ChangeNotifier {
     try {
       final dir = await localModelsDirPath();
       final destPath = '$dir/${spec.fileName}';
-      await downloadFileWithProgress(
-        spec.url,
-        destPath,
-        (received, total) {
-          localDownloadProgress[spec.id] =
-              total > 0 ? received / total : 0;
-          notifyListeners();
-        },
-        () => _cancelledLocalDownloads.contains(spec.id),
-      );
+      await downloadFileWithProgress(spec.url, destPath, (received, total) {
+        localDownloadProgress[spec.id] = total > 0 ? received / total : 0;
+        notifyListeners();
+      }, () => _cancelledLocalDownloads.contains(spec.id));
       downloadedLocalModelIds.add(spec.id);
       addModel(spec.modelKey);
     } catch (_) {
@@ -1149,6 +1176,95 @@ class AppState extends ChangeNotifier {
     removeModel(spec.modelKey);
     _save();
     notifyListeners();
+  }
+
+  static const _updateRepo = 'kekw2077/test-v0.1';
+
+  bool _isNewerVersion(String remote, String local) {
+    List<int> parse(String v) => v
+        .split('+')
+        .first
+        .split('.')
+        .map((s) => int.tryParse(s) ?? 0)
+        .toList();
+    final r = parse(remote);
+    final l = parse(local);
+    for (var i = 0; i < 3; i++) {
+      final rv = i < r.length ? r[i] : 0;
+      final lv = i < l.length ? l[i] : 0;
+      if (rv != lv) return rv > lv;
+    }
+    return false;
+  }
+
+  Future<void> checkForUpdates() async {
+    checkingForUpdate = true;
+    updateCheckError = null;
+    updateAvailableVersion = null;
+    _updateApkUrl = null;
+    notifyListeners();
+    try {
+      final res = await http.get(Uri.parse(
+          'https://api.github.com/repos/$_updateRepo/releases/latest'));
+      if (res.statusCode == 404) {
+        return; // no releases published yet — not an error
+      }
+      if (res.statusCode != 200) {
+        updateCheckError = t('updateCheckFailed');
+        return;
+      }
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final tag = (data['tag_name'] as String?) ?? '';
+      final remoteVersion = tag.startsWith('v') ? tag.substring(1) : tag;
+      final assets = (data['assets'] as List?) ?? [];
+      String? apkUrl;
+      for (final a in assets) {
+        final name = (a['name'] as String?) ?? '';
+        if (name.toLowerCase().endsWith('.apk')) {
+          apkUrl = a['browser_download_url'] as String?;
+          break;
+        }
+      }
+      final info = await PackageInfo.fromPlatform();
+      if (apkUrl != null &&
+          remoteVersion.isNotEmpty &&
+          _isNewerVersion(remoteVersion, info.version)) {
+        updateAvailableVersion = remoteVersion;
+        _updateApkUrl = apkUrl;
+      }
+    } catch (_) {
+      updateCheckError = t('updateCheckFailed');
+    } finally {
+      checkingForUpdate = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> downloadAndInstallUpdate() async {
+    final url = _updateApkUrl;
+    if (url == null) return;
+    updateDownloadProgress = 0;
+    updateCheckError = null;
+    notifyListeners();
+    try {
+      final path = await updateDownloadPath('alice_ai_update.apk');
+      await downloadFileWithProgress(
+        url,
+        path,
+        (received, total) {
+          updateDownloadProgress = total > 0 ? received / total : null;
+          notifyListeners();
+        },
+        () => false,
+      );
+      updateDownloadProgress = null;
+      notifyListeners();
+      await installApk(path);
+    } catch (_) {
+      updateCheckError = t('updateDownloadFailed');
+      updateDownloadProgress = null;
+      notifyListeners();
+    }
   }
 
   int get chatCount => conversations.length;
@@ -1220,12 +1336,14 @@ class AppState extends ChangeNotifier {
 
     final messages = <Message>[
       Message(Role.system, persona.buildSystemPrompt()),
-      ...conv.messages.map((m) => Message(
-            m.role == 'user' ? Role.user : Role.assistant,
-            m.content.isNotEmpty
-                ? m.content
-                : '[Attached files: ${m.attachments.join(', ')}]',
-          )),
+      ...conv.messages.map(
+        (m) => Message(
+          m.role == 'user' ? Role.user : Role.assistant,
+          m.content.isNotEmpty
+              ? m.content
+              : '[Attached files: ${m.attachments.join(', ')}]',
+        ),
+      ),
     ];
 
     final completer = Completer<String>();
@@ -1250,7 +1368,10 @@ class AppState extends ChangeNotifier {
     return completer.future;
   }
 
-  Future<String> sendMessage(String text, {List<String> attachments = const []}) async {
+  Future<String> sendMessage(
+    String text, {
+    List<String> attachments = const [],
+  }) async {
     current ??= () {
       final c = Conversation(id: _uuid.v4(), title: t('newChat'));
       conversations.insert(0, c);
@@ -1258,11 +1379,9 @@ class AppState extends ChangeNotifier {
     }();
     final conv = current!;
 
-    conv.messages.add(ChatMessage(
-      role: 'user',
-      content: text,
-      attachments: attachments,
-    ));
+    conv.messages.add(
+      ChatMessage(role: 'user', content: text, attachments: attachments),
+    );
     if (conv.title == t('newChat') || conv.title == 'New Chat') {
       conv.title = text.isNotEmpty
           ? (text.length > 32 ? '${text.substring(0, 32)}…' : text)
@@ -1281,10 +1400,14 @@ class AppState extends ChangeNotifier {
 
         final msgs = <Map<String, dynamic>>[
           {'role': 'system', 'content': persona.buildSystemPrompt()},
-          ...conv.messages.map((m) => {
-                'role': m.role,
-                'content': m.content.isNotEmpty ? m.content : '[Attached files: ${m.attachments.join(', ')}]',
-              }),
+          ...conv.messages.map(
+            (m) => {
+              'role': m.role,
+              'content': m.content.isNotEmpty
+                  ? m.content
+                  : '[Attached files: ${m.attachments.join(', ')}]',
+            },
+          ),
         ];
 
         final res = await http
@@ -1342,9 +1465,9 @@ class AliceApp extends StatelessWidget {
       themeMode: _getThemeMode(app.themeMode),
       builder: (context, child) {
         return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(app.fontSize),
-          ),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(app.fontSize)),
           child: child!,
         );
       },
@@ -1366,9 +1489,13 @@ class AliceApp extends StatelessWidget {
   ThemeData _buildTheme(bool dark) {
     final scheme = dark
         ? const ColorScheme.dark(
-            primary: Color(0xFF7C8CF8), surface: Color(0xFF15151E))
+            primary: Color(0xFF7C8CF8),
+            surface: Color(0xFF15151E),
+          )
         : const ColorScheme.light(
-            primary: Color(0xFF2F6BFF), surface: Color(0xFFF2F3F7));
+            primary: Color(0xFF2F6BFF),
+            surface: Color(0xFFF2F3F7),
+          );
     final bg = dark ? const Color(0xFF0E0E15) : const Color(0xFFFFFFFF);
     return ThemeData(
       useMaterial3: true,
@@ -1398,12 +1525,14 @@ class ParticleSphere extends StatefulWidget {
   final Color color;
   final bool dense;
   final bool active;
+  final bool scattered;
   const ParticleSphere({
     super.key,
     this.size = 220,
     this.color = Colors.white,
     this.dense = false,
     this.active = false,
+    this.scattered = false,
   });
 
   @override
@@ -1411,30 +1540,56 @@ class ParticleSphere extends StatefulWidget {
 }
 
 class _ParticleSphereState extends State<ParticleSphere>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _ctrl;
+  late final AnimationController _disperseCtrl;
   late final List<_P> _points;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 20))
-      ..repeat();
+      vsync: this,
+      duration: const Duration(seconds: 20),
+    )..repeat();
+    _disperseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+      value: widget.scattered ? 1.0 : 0.0,
+    );
     final rnd = math.Random(7);
-    final count = widget.dense ? 360 : 170;
+    final count = widget.dense ? 560 : 300;
     _points = List.generate(count, (_) {
       final u = rnd.nextDouble();
       final v = rnd.nextDouble();
       final theta = 2 * math.pi * u;
       final phi = math.acos(2 * v - 1);
-      return _P(theta, phi, 0.6 + rnd.nextDouble() * 1.8, rnd.nextDouble());
+      return _P(
+        theta,
+        phi,
+        0.6 + rnd.nextDouble() * 1.8,
+        rnd.nextDouble(),
+        0.25 + rnd.nextDouble() * 0.85,
+      );
     });
+  }
+
+  @override
+  void didUpdateWidget(ParticleSphere old) {
+    super.didUpdateWidget(old);
+    if (widget.scattered != old.scattered) {
+      if (widget.scattered) {
+        _disperseCtrl.forward();
+      } else {
+        _disperseCtrl.reverse();
+      }
+    }
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _disperseCtrl.dispose();
     super.dispose();
   }
 
@@ -1444,10 +1599,15 @@ class _ParticleSphereState extends State<ParticleSphere>
       width: widget.size,
       height: widget.size,
       child: AnimatedBuilder(
-        animation: _ctrl,
+        animation: Listenable.merge([_ctrl, _disperseCtrl]),
         builder: (_, __) => CustomPaint(
-          painter:
-              _SpherePainter(_points, _ctrl.value, widget.color, widget.active),
+          painter: _SpherePainter(
+            _points,
+            _ctrl.value,
+            widget.color,
+            widget.active,
+            Curves.easeOutCubic.transform(_disperseCtrl.value),
+          ),
         ),
       ),
     );
@@ -1455,8 +1615,8 @@ class _ParticleSphereState extends State<ParticleSphere>
 }
 
 class _P {
-  final double theta, phi, radius, seed;
-  _P(this.theta, this.phi, this.radius, this.seed);
+  final double theta, phi, radius, seed, brightness;
+  _P(this.theta, this.phi, this.radius, this.seed, this.brightness);
 }
 
 class _SpherePainter extends CustomPainter {
@@ -1464,7 +1624,8 @@ class _SpherePainter extends CustomPainter {
   final double t;
   final Color color;
   final bool active;
-  _SpherePainter(this.points, this.t, this.color, this.active);
+  final double disperse;
+  _SpherePainter(this.points, this.t, this.color, this.active, this.disperse);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1473,11 +1634,16 @@ class _SpherePainter extends CustomPainter {
     final rotY = t * 2 * math.pi;
     final pulse = active ? (0.92 + 0.08 * math.sin(t * 2 * math.pi * 3)) : 1.0;
 
-    final glow = Paint()
-      ..shader = RadialGradient(
-        colors: [color.withValues(alpha: 0.18), Colors.transparent],
-      ).createShader(Rect.fromCircle(center: center, radius: R));
-    canvas.drawCircle(center, R, glow);
+    if (disperse < 1.0) {
+      final glow = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: 0.18 * (1 - disperse)),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: center, radius: R));
+      canvas.drawCircle(center, R, glow);
+    }
 
     final paint = Paint();
     for (final p in points) {
@@ -1491,12 +1657,25 @@ class _SpherePainter extends CustomPainter {
       z = cz;
 
       final scale = (z + 1.5) / 2.5;
-      final px = center.dx + x * R * pulse;
-      final py = center.dy + y * R * pulse;
+      double px = center.dx + x * R * pulse;
+      double py = center.dy + y * R * pulse;
 
-      final opacity = (0.25 + 0.75 * scale).clamp(0.0, 1.0);
+      if (disperse > 0) {
+        final dirAngle = p.seed * 2 * math.pi * 5.3;
+        final dist = (0.5 + p.seed * 2.2) * R * disperse;
+        px += math.cos(dirAngle) * dist;
+        py += math.sin(dirAngle) * dist;
+      }
+
+      final opacity = ((0.25 + 0.75 * scale) * p.brightness * (1 - disperse))
+          .clamp(0.0, 1.0);
+      if (opacity <= 0.01) continue;
       paint.color = color.withValues(alpha: opacity);
-      canvas.drawCircle(Offset(px, py), p.radius * scale, paint);
+      canvas.drawCircle(
+        Offset(px, py),
+        p.radius * scale * (1 - disperse * 0.3),
+        paint,
+      );
     }
   }
 
@@ -1661,9 +1840,9 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _pendingAttachments.add(file.path!));
         if (mounted) {
           final app = context.read<AppState>();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(app.t('fileAttached'))),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(app.t('fileAttached'))));
         }
       }
     }
@@ -1675,9 +1854,9 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() => _pendingAttachments.add(file.path));
       if (mounted) {
         final app = context.read<AppState>();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(app.t('imageAttached'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(app.t('imageAttached'))));
       }
     }
   }
@@ -1733,9 +1912,9 @@ class _ChatScreenState extends State<ChatScreen> {
         onCreateImage: () {
           Navigator.pop(context);
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(app.t('createImageHint'))),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(app.t('createImageHint'))));
         },
       ),
     );
@@ -1791,7 +1970,8 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             _topBar(app),
             Expanded(
-                child: hasMessages ? _messageList(conv) : _emptyState(app)),
+              child: hasMessages ? _messageList(conv) : _emptyState(app),
+            ),
             if (app.showPromptChips && !hasMessages) _promptChips(app),
             if (_pendingAttachments.isNotEmpty) _attachmentBar(app),
             _inputBar(app),
@@ -1816,8 +1996,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 _openModelMenu();
               },
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1833,9 +2015,10 @@ class _ChatScreenState extends State<ChatScreen> {
                           app.t('loadingModels'),
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              color: _sub(context),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600),
+                            color: _sub(context),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ] else ...[
@@ -1886,6 +2069,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _emptyState(AppState app) {
+    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     return Center(
       child: SingleChildScrollView(
         child: Column(
@@ -1897,6 +2081,7 @@ class _ChatScreenState extends State<ChatScreen> {
               color: Theme.of(context).brightness == Brightness.dark
                   ? Colors.white
                   : const Color(0xFF2F6BFF),
+              scattered: keyboardOpen,
             ),
             const SizedBox(height: 20),
             Text(
@@ -1937,7 +2122,8 @@ class _ChatScreenState extends State<ChatScreen> {
       itemBuilder: (_, i) {
         if (i >= conv.messages.length) {
           return _bubble(
-              ChatMessage(role: 'assistant', content: app.t('thinking')));
+            ChatMessage(role: 'assistant', content: app.t('thinking')),
+          );
         }
         return _bubble(conv.messages[i]);
       },
@@ -1952,37 +2138,43 @@ class _ChatScreenState extends State<ChatScreen> {
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.78),
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
         decoration: BoxDecoration(
-          color:
-              isUser ? Theme.of(context).colorScheme.primary : _card(context),
+          color: isUser
+              ? Theme.of(context).colorScheme.primary
+              : _card(context),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (m.attachments.isNotEmpty)
-              ...m.attachments.map((a) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.attach_file,
-                            size: 14,
-                            color: isUser ? Colors.white70 : _sub(context)),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            a.split('/').last,
-                            style: TextStyle(
-                              color: isUser ? Colors.white70 : _sub(context),
-                              fontSize: 12,
-                            ),
+              ...m.attachments.map(
+                (a) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.attach_file,
+                        size: 14,
+                        color: isUser ? Colors.white70 : _sub(context),
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          a.split('/').last,
+                          style: TextStyle(
+                            color: isUser ? Colors.white70 : _sub(context),
+                            fontSize: 12,
                           ),
                         ),
-                      ],
-                    ),
-                  )),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (m.content.isNotEmpty)
               Text(
                 m.content,
@@ -2018,11 +2210,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 backgroundColor: _card(context).withValues(alpha: 0.6),
                 side: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
                 avatar: Icon(c.$2, size: 18, color: _txt(context)),
-                label: Text(c.$1,
-                    style: TextStyle(
-                        color: _txt(context), fontWeight: FontWeight.w700)),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                label: Text(
+                  c.$1,
+                  style: TextStyle(
+                    color: _txt(context),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
               ),
             ),
         ],
@@ -2039,10 +2237,11 @@ class _ChatScreenState extends State<ChatScreen> {
         children: _pendingAttachments.map((a) {
           return Chip(
             avatar: const Icon(Icons.attach_file, size: 16),
-            label: Text(a.split('/').last,
-                style: TextStyle(fontSize: 12, color: _txt(context))),
-            onDeleted: () =>
-                setState(() => _pendingAttachments.remove(a)),
+            label: Text(
+              a.split('/').last,
+              style: TextStyle(fontSize: 12, color: _txt(context)),
+            ),
+            onDeleted: () => setState(() => _pendingAttachments.remove(a)),
             backgroundColor: _card(context),
             side: BorderSide(color: _sub(context).withValues(alpha: 0.3)),
           );
@@ -2097,10 +2296,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               // Кнопка голосового ввода с анимированной обводкой
-              _buildAnimatedBtn(
-                onTap: _openVoice,
-                icon: Icons.graphic_eq,
-              ),
+              _buildAnimatedBtn(onTap: _openVoice, icon: Icons.graphic_eq),
               const SizedBox(width: 4),
               // Кнопка отправки
               _sending
@@ -2133,7 +2329,10 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildAnimatedBtn({required VoidCallback onTap, required IconData icon}) {
+  Widget _buildAnimatedBtn({
+    required VoidCallback onTap,
+    required IconData icon,
+  }) {
     return AnimatedBorder(
       radius: 20,
       strokeWidth: 2,
@@ -2160,10 +2359,14 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Wrap(
         children: [
           ListTile(
-            leading: Icon(Icons.add_photo_alternate_outlined,
-                color: _txt(context)),
-            title: Text(app.t('attachImage'),
-                style: TextStyle(color: _txt(context))),
+            leading: Icon(
+              Icons.add_photo_alternate_outlined,
+              color: _txt(context),
+            ),
+            title: Text(
+              app.t('attachImage'),
+              style: TextStyle(color: _txt(context)),
+            ),
             onTap: () {
               Navigator.pop(context);
               _pickImage();
@@ -2171,8 +2374,10 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           ListTile(
             leading: Icon(Icons.attach_file, color: _txt(context)),
-            title: Text(app.t('attachFile'),
-                style: TextStyle(color: _txt(context))),
+            title: Text(
+              app.t('attachFile'),
+              style: TextStyle(color: _txt(context)),
+            ),
             onTap: () {
               Navigator.pop(context);
               _pickFile();
@@ -2209,7 +2414,8 @@ class _ModelMenu extends StatelessWidget {
             color: Colors.transparent,
             child: Container(
               constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.6),
+                maxHeight: MediaQuery.of(context).size.height * 0.6,
+              ),
               decoration: BoxDecoration(
                 color: const Color(0xFF1C1C26),
                 borderRadius: BorderRadius.circular(20),
@@ -2227,7 +2433,9 @@ class _ModelMenu extends StatelessWidget {
                         Text(
                           app.t('downloadedModels'),
                           style: const TextStyle(
-                              color: Colors.white54, fontSize: 14),
+                            color: Colors.white54,
+                            fontSize: 14,
+                          ),
                         ),
                         const Spacer(),
                         if (app.loadingModels)
@@ -2235,7 +2443,9 @@ class _ModelMenu extends StatelessWidget {
                             width: 14,
                             height: 14,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white54),
+                              strokeWidth: 2,
+                              color: Colors.white54,
+                            ),
                           )
                         else
                           InkWell(
@@ -2243,8 +2453,11 @@ class _ModelMenu extends StatelessWidget {
                               app.buzz();
                               app.fetchModels();
                             },
-                            child: const Icon(Icons.refresh,
-                                color: Colors.white54, size: 18),
+                            child: const Icon(
+                              Icons.refresh,
+                              color: Colors.white54,
+                              size: 18,
+                            ),
                           ),
                       ],
                     ),
@@ -2257,11 +2470,15 @@ class _ModelMenu extends StatelessWidget {
                           if (app.models.isEmpty)
                             Padding(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 10),
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
                               child: Text(
                                 app.modelsError ?? app.t('noModelsFound'),
                                 style: const TextStyle(
-                                    color: Colors.white38, fontSize: 15),
+                                  color: Colors.white38,
+                                  fontSize: 15,
+                                ),
                               ),
                             ),
                           for (final m in app.models)
@@ -2273,7 +2490,9 @@ class _ModelMenu extends StatelessWidget {
                               },
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 10),
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
                                 child: Row(
                                   children: [
                                     Icon(
@@ -2287,11 +2506,14 @@ class _ModelMenu extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 14),
                                     Expanded(
-                                      child: Text(app.modelDisplayName(m),
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 18)),
+                                      child: Text(
+                                        app.modelDisplayName(m),
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -2302,9 +2524,15 @@ class _ModelMenu extends StatelessWidget {
                     ),
                   ),
                   const Divider(
-                      color: Colors.white12, indent: 20, endIndent: 20),
-                  _menuItem(Icons.inventory_2_outlined, app.t('manageModels'),
-                      onManage),
+                    color: Colors.white12,
+                    indent: 20,
+                    endIndent: 20,
+                  ),
+                  _menuItem(
+                    Icons.inventory_2_outlined,
+                    app.t('manageModels'),
+                    onManage,
+                  ),
                   _menuItem(Icons.edit_outlined, app.t('newChat'), onNewChat),
                   _menuItem(null, app.t('createImage'), onCreateImage),
                 ],
@@ -2328,8 +2556,10 @@ class _ModelMenu extends StatelessWidget {
               const SizedBox(width: 14),
             ] else
               const SizedBox(width: 34),
-            Text(label,
-                style: const TextStyle(color: Colors.white, fontSize: 18)),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+            ),
           ],
         ),
       ),
@@ -2472,8 +2702,9 @@ class _VoiceScreenState extends State<VoiceScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => Dialog(
           backgroundColor: const Color(0xFF0E2C2F),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -2484,11 +2715,14 @@ class _VoiceScreenState extends State<VoiceScreen> {
                   children: [
                     const Icon(Icons.tune, color: Color(0xFF2FE0C8)),
                     const SizedBox(width: 10),
-                    Text(app.t('micSettingsTitle'),
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700)),
+                    Text(
+                      app.t('micSettingsTitle'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -2496,19 +2730,24 @@ class _VoiceScreenState extends State<VoiceScreen> {
                   contentPadding: EdgeInsets.zero,
                   value: app.micAutoSend,
                   activeThumbColor: const Color(0xFF2FE0C8),
-                  title: Text(app.t('micAutoSend'),
-                      style: const TextStyle(color: Colors.white)),
-                  subtitle: Text(app.t('micAutoSendDesc'),
-                      style:
-                          const TextStyle(color: Colors.white54, fontSize: 12)),
+                  title: Text(
+                    app.t('micAutoSend'),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    app.t('micAutoSendDesc'),
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
                   onChanged: (v) {
                     app.setMicAutoSend(v);
                     setDialogState(() {});
                   },
                 ),
                 const SizedBox(height: 8),
-                Text(app.t('micPauseDuration'),
-                    style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                Text(
+                  app.t('micPauseDuration'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
@@ -2520,8 +2759,9 @@ class _VoiceScreenState extends State<VoiceScreen> {
                       selectedColor: const Color(0xFF2FE0C8),
                       backgroundColor: Colors.white10,
                       labelStyle: TextStyle(
-                          color: selected ? Colors.black : Colors.white70,
-                          fontWeight: FontWeight.w600),
+                        color: selected ? Colors.black : Colors.white70,
+                        fontWeight: FontWeight.w600,
+                      ),
                       onSelected: (_) {
                         app.setMicPauseSeconds(s);
                         if (_speech.isListening) {
@@ -2537,8 +2777,10 @@ class _VoiceScreenState extends State<VoiceScreen> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () => Navigator.pop(dialogContext),
-                    child: Text(app.t('done'),
-                        style: const TextStyle(color: Color(0xFF2FE0C8))),
+                    child: Text(
+                      app.t('done'),
+                      style: const TextStyle(color: Color(0xFF2FE0C8)),
+                    ),
                   ),
                 ),
               ],
@@ -2579,19 +2821,28 @@ class _VoiceScreenState extends State<VoiceScreen> {
                       onTap: _toggleMute,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black38,
                           borderRadius: BorderRadius.circular(24),
                         ),
                         child: Row(
                           children: [
-                            Icon(_muted ? Icons.mic_off : Icons.mic,
-                                color: Colors.white, size: 20),
+                            Icon(
+                              _muted ? Icons.mic_off : Icons.mic,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
-                            Text(_muted ? app.t('unmute') : app.t('mute'),
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 16)),
+                            Text(
+                              _muted ? app.t('unmute') : app.t('mute'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -2610,8 +2861,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                     ),
                     const Spacer(),
                     GestureDetector(
-                      onTap: () =>
-                          Navigator.pop(context, (_recognized, false)),
+                      onTap: () => Navigator.pop(context, (_recognized, false)),
                       child: Container(
                         padding: const EdgeInsets.all(10),
                         decoration: const BoxDecoration(
@@ -2633,8 +2883,10 @@ class _VoiceScreenState extends State<VoiceScreen> {
               ),
               const SizedBox(height: 40),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black38,
                   borderRadius: BorderRadius.circular(24),
@@ -2648,15 +2900,16 @@ class _VoiceScreenState extends State<VoiceScreen> {
                       child: Text(
                         _recognized.isEmpty
                             ? (_muted
-                                ? app.t('muted')
-                                : (_listening
-                                    ? app.t('listening')
-                                    : app.t('preparingMic')))
+                                  ? app.t('muted')
+                                  : (_listening
+                                        ? app.t('listening')
+                                        : app.t('preparingMic')))
                             : _recognized,
                         style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700),
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
@@ -2669,8 +2922,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                   child: Text(
                     app.t('speakNaturally'),
                     textAlign: TextAlign.center,
-                    style:
-                        const TextStyle(color: Colors.white54, fontSize: 16),
+                    style: const TextStyle(color: Colors.white54, fontSize: 16),
                   ),
                 )
               else
@@ -2679,8 +2931,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                   child: GestureDetector(
                     onTap: _recognized.trim().isEmpty
                         ? null
-                        : () =>
-                            Navigator.pop(context, (_recognized, true)),
+                        : () => Navigator.pop(context, (_recognized, true)),
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -2693,11 +2944,13 @@ class _VoiceScreenState extends State<VoiceScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.arrow_upward,
-                              color: _recognized.trim().isEmpty
-                                  ? Colors.white38
-                                  : Colors.black,
-                              size: 22),
+                          Icon(
+                            Icons.arrow_upward,
+                            color: _recognized.trim().isEmpty
+                                ? Colors.white38
+                                : Colors.black,
+                            size: 22,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             app.t('send'),
@@ -2736,13 +2989,18 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    final filtered = app.conversations
-        .where((c) =>
-            c.title.toLowerCase().contains(_query.toLowerCase()) ||
-            c.messages.any(
-                (m) => m.content.toLowerCase().contains(_query.toLowerCase())))
-        .toList()
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    final filtered =
+        app.conversations
+            .where(
+              (c) =>
+                  c.title.toLowerCase().contains(_query.toLowerCase()) ||
+                  c.messages.any(
+                    (m) =>
+                        m.content.toLowerCase().contains(_query.toLowerCase()),
+                  ),
+            )
+            .toList()
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
@@ -2757,21 +3015,26 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
           children: [
             const SizedBox(height: 10),
             Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: _sub(context),
-                    borderRadius: BorderRadius.circular(2))),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _sub(context),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
               child: Row(
                 children: [
                   const Spacer(),
-                  Text(app.t('conversations'),
-                      style: TextStyle(
-                          color: _txt(context),
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700)),
+                  Text(
+                    app.t('conversations'),
+                    style: TextStyle(
+                      color: _txt(context),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const Spacer(),
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
@@ -2785,23 +3048,39 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
                 controller: scrollCtrl,
                 padding: const EdgeInsets.all(20),
                 children: [
-                  Text(app.t('chats'),
-                      style: TextStyle(
-                          color: _txt(context),
-                          fontSize: 38,
-                          fontWeight: FontWeight.w800)),
+                  Text(
+                    app.t('chats'),
+                    style: TextStyle(
+                      color: _txt(context),
+                      fontSize: 38,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  Text(app.t('chatsDesc'),
-                      style: TextStyle(
-                          color: _sub(context), fontSize: 16, height: 1.4)),
+                  Text(
+                    app.t('chatsDesc'),
+                    style: TextStyle(
+                      color: _sub(context),
+                      fontSize: 16,
+                      height: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   Row(
                     children: [
-                      _stat('${app.chatCount}', app.t('chatsLabel'),
-                          Icons.chat_bubble_outline, const Color(0xFF2FE0A8)),
+                      _stat(
+                        '${app.chatCount}',
+                        app.t('chatsLabel'),
+                        Icons.chat_bubble_outline,
+                        const Color(0xFF2FE0A8),
+                      ),
                       const SizedBox(width: 12),
-                      _stat('${app.pinnedCount}', app.t('pinnedLabel'),
-                          Icons.push_pin, const Color(0xFF5B8DEF)),
+                      _stat(
+                        '${app.pinnedCount}',
+                        app.t('pinnedLabel'),
+                        Icons.push_pin,
+                        const Color(0xFF5B8DEF),
+                      ),
                       const SizedBox(width: 12),
                       _stat(
                         app.latest == null
@@ -2817,11 +3096,14 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
                   const SizedBox(height: 20),
                   _newChatBanner(app),
                   const SizedBox(height: 24),
-                  Text(app.t('recent'),
-                      style: TextStyle(
-                          color: _sub(context),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    app.t('recent'),
+                    style: TextStyle(
+                      color: _sub(context),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   if (filtered.isEmpty)
                     _emptyRecent(app)
@@ -2839,8 +3121,13 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
     );
   }
 
-  Widget _stat(String value, String label, IconData icon, Color color,
-      {bool small = false}) {
+  Widget _stat(
+    String value,
+    String label,
+    IconData icon,
+    Color color, {
+    bool small = false,
+  }) {
     return Expanded(
       child: Container(
         height: 150,
@@ -2861,15 +3148,23 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
               child: Icon(icon, color: color, size: 22),
             ),
             const Spacer(),
-            Text(value,
-                style: TextStyle(
-                    color: _txt(context),
-                    fontSize: small ? 16 : 26,
-                    fontWeight: FontWeight.w800)),
+            Text(
+              value,
+              style: TextStyle(
+                color: _txt(context),
+                fontSize: small ? 16 : 26,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(
-                    color: _sub(context), fontSize: 12, letterSpacing: 1)),
+            Text(
+              label,
+              style: TextStyle(
+                color: _sub(context),
+                fontSize: 12,
+                letterSpacing: 1,
+              ),
+            ),
           ],
         ),
       ),
@@ -2887,7 +3182,8 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-              colors: [Color(0xFF2F8DFF), Color(0xFF2F6BFF)]),
+            colors: [Color(0xFF2F8DFF), Color(0xFF2F6BFF)],
+          ),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -2895,8 +3191,9 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(12)),
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: const Icon(Icons.edit_outlined, color: Colors.white),
             ),
             const SizedBox(width: 14),
@@ -2904,14 +3201,18 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(app.t('newChat'),
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800)),
-                  Text(app.t('startFresh'),
-                      style:
-                          const TextStyle(color: Colors.white70, fontSize: 15)),
+                  Text(
+                    app.t('newChat'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    app.t('startFresh'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 15),
+                  ),
                 ],
               ),
             ),
@@ -2934,39 +3235,51 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-                color: _sub(context).withValues(alpha: 0.15),
-                shape: BoxShape.circle),
-            child: Icon(Icons.chat_bubble_outline,
-                color: _sub(context), size: 36),
+              color: _sub(context).withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.chat_bubble_outline,
+              color: _sub(context),
+              size: 36,
+            ),
           ),
           const SizedBox(height: 16),
-          Text(app.t('noChatsYet'),
-              style: TextStyle(
-                  color: _txt(context),
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800)),
+          Text(
+            app.t('noChatsYet'),
+            style: TextStyle(
+              color: _txt(context),
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(app.t('noChatsDesc'),
-              textAlign: TextAlign.center,
-              style:
-                  TextStyle(color: _sub(context), fontSize: 15, height: 1.4)),
+          Text(
+            app.t('noChatsDesc'),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _sub(context), fontSize: 15, height: 1.4),
+          ),
           const SizedBox(height: 20),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2F6BFF),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24)),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             ),
             onPressed: () {
               app.buzz();
               app.newChat();
               Navigator.pop(context);
             },
-            child: Text(app.t('startNewChat'),
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w700)),
+            child: Text(
+              app.t('startNewChat'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -2977,9 +3290,7 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
       child: Material(
         color: _card(context).withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
@@ -2988,16 +3299,20 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
             app.openChat(c);
             Navigator.pop(context);
           },
-          leading: Icon(c.pinned ? Icons.push_pin : Icons.chat_bubble_outline,
-              color: _txt(context)),
-          title: Text(c.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  color: _txt(context), fontWeight: FontWeight.w700)),
+          leading: Icon(
+            c.pinned ? Icons.push_pin : Icons.chat_bubble_outline,
+            color: _txt(context),
+          ),
+          title: Text(
+            c.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: _txt(context), fontWeight: FontWeight.w700),
+          ),
           subtitle: Text(
-              '${c.messages.length} ${app.t('messages')} · ${_ago(app, c.updatedAt)}',
-              style: TextStyle(color: _sub(context))),
+            '${c.messages.length} ${app.t('messages')} · ${_ago(app, c.updatedAt)}',
+            style: TextStyle(color: _sub(context)),
+          ),
           trailing: PopupMenuButton<String>(
             color: _card(context),
             icon: Icon(Icons.more_vert, color: _sub(context)),
@@ -3007,13 +3322,19 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
             },
             itemBuilder: (_) => [
               PopupMenuItem(
-                  value: 'pin',
-                  child: Text(c.pinned ? app.t('unpin') : app.t('pin'),
-                      style: TextStyle(color: _txt(context)))),
+                value: 'pin',
+                child: Text(
+                  c.pinned ? app.t('unpin') : app.t('pin'),
+                  style: TextStyle(color: _txt(context)),
+                ),
+              ),
               PopupMenuItem(
-                  value: 'delete',
-                  child: Text(app.t('delete'),
-                      style: TextStyle(color: _txt(context)))),
+                value: 'delete',
+                child: Text(
+                  app.t('delete'),
+                  style: TextStyle(color: _txt(context)),
+                ),
+              ),
             ],
           ),
         ),
@@ -3069,25 +3390,31 @@ class SettingsSheet extends StatelessWidget {
           children: [
             const SizedBox(height: 10),
             Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: _sub(context),
-                    borderRadius: BorderRadius.circular(2))),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _sub(context),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
               child: Row(
                 children: [
                   const Spacer(),
-                  Text(app.t('settings'),
-                      style: TextStyle(
-                          color: _txt(context),
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700)),
+                  Text(
+                    app.t('settings'),
+                    style: TextStyle(
+                      color: _txt(context),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const Spacer(),
                   GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Icon(Icons.close, color: _txt(context))),
+                    onTap: () => Navigator.pop(context),
+                    child: Icon(Icons.close, color: _txt(context)),
+                  ),
                 ],
               ),
             ),
@@ -3096,65 +3423,123 @@ class SettingsSheet extends StatelessWidget {
                 controller: scrollCtrl,
                 padding: const EdgeInsets.all(20),
                 children: [
-                  Text(app.t('settingsDesc'),
-                      style: TextStyle(
-                          color: _sub(context), fontSize: 16, height: 1.4)),
+                  Text(
+                    app.t('settingsDesc'),
+                    style: TextStyle(
+                      color: _sub(context),
+                      fontSize: 16,
+                      height: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   _sectionLabel(app.t('sectionApp')),
                   _group([
-                    _nav(context, Icons.inventory_2_outlined,
-                        app.t('manageModelsItem'),
-                        trailing: _badge('${app.models.length}'),
-                        onTap: () => _openManageModels(context)),
-                    _nav(context, Icons.download_for_offline_outlined,
-                        app.t('localModelsItem'),
-                        onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => const LocalModelsScreen()))),
-                    _nav(context, Icons.language, app.t('language'),
-                        trailing: Text(
-                            app.lang == 'ru'
-                                ? app.t('russian')
-                                : app.t('english'),
-                            style: TextStyle(color: _sub(context))),
-                        onTap: () => _openLanguage(context)),
-                    _nav(context, Icons.dns_outlined, app.t('serverAddress'),
-                        onTap: () => _openServerSettings(context)),
-                    _nav(context, Icons.person_outline,
-                        app.t('personalization'),
-                        onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) =>
-                                    const PersonalizationScreen()))),
-                    _nav(context, Icons.psychology_outlined, app.t('memory'),
-                        onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => const MemoryScreen()))),
-                    _nav(context, Icons.text_fields, app.t('fontSize'),
-                        trailing: Text('${app.fontSize.toStringAsFixed(1)}x',
-                            style: TextStyle(color: _sub(context))),
-                        onTap: () => _openFontSizeDialog(context)),
+                    _nav(
+                      context,
+                      Icons.inventory_2_outlined,
+                      app.t('manageModelsItem'),
+                      trailing: _badge('${app.models.length}'),
+                      onTap: () => _openManageModels(context),
+                    ),
+                    _nav(
+                      context,
+                      Icons.download_for_offline_outlined,
+                      app.t('localModelsItem'),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const LocalModelsScreen(),
+                        ),
+                      ),
+                    ),
+                    _nav(
+                      context,
+                      Icons.language,
+                      app.t('language'),
+                      trailing: Text(
+                        app.lang == 'ru' ? app.t('russian') : app.t('english'),
+                        style: TextStyle(color: _sub(context)),
+                      ),
+                      onTap: () => _openLanguage(context),
+                    ),
+                    _nav(
+                      context,
+                      Icons.dns_outlined,
+                      app.t('serverAddress'),
+                      onTap: () => _openServerSettings(context),
+                    ),
+                    _nav(
+                      context,
+                      Icons.person_outline,
+                      app.t('personalization'),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const PersonalizationScreen(),
+                        ),
+                      ),
+                    ),
+                    _nav(
+                      context,
+                      Icons.psychology_outlined,
+                      app.t('memory'),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const MemoryScreen()),
+                      ),
+                    ),
+                    _nav(
+                      context,
+                      Icons.text_fields,
+                      app.t('fontSize'),
+                      trailing: Text(
+                        '${app.fontSize.toStringAsFixed(1)}x',
+                        style: TextStyle(color: _sub(context)),
+                      ),
+                      onTap: () => _openFontSizeDialog(context),
+                    ),
                   ]),
                   const SizedBox(height: 24),
                   _sectionLabel(app.t('sectionTheme')),
                   _group([
-                    _nav(context, Icons.palette_outlined, app.t('themeMode'),
-                        trailing: Text(
-                            app.themeMode == AppThemeMode.system
-                                ? app.t('themeSystem')
-                                : app.themeMode == AppThemeMode.light
-                                    ? app.t('themeLight')
-                                    : app.t('themeDark'),
-                            style: TextStyle(color: _sub(context))),
-                        onTap: () => _openThemeDialog(context)),
-                    _switch(context, Icons.vibration, app.t('haptics'),
-                        app.haptics, (v) => app.setHaptics(v)),
-                    _switch(context, Icons.keyboard_alt_outlined,
-                        app.t('showKeyboard'), app.showKeyboardOnLaunch,
-                        (v) => app.setShowKeyboard(v)),
-                    _switch(context, Icons.auto_awesome, app.t('showChips'),
-                        app.showPromptChips, (v) => app.setShowChips(v)),
+                    _nav(
+                      context,
+                      Icons.palette_outlined,
+                      app.t('themeMode'),
+                      trailing: Text(
+                        app.themeMode == AppThemeMode.system
+                            ? app.t('themeSystem')
+                            : app.themeMode == AppThemeMode.light
+                            ? app.t('themeLight')
+                            : app.t('themeDark'),
+                        style: TextStyle(color: _sub(context)),
+                      ),
+                      onTap: () => _openThemeDialog(context),
+                    ),
+                    _switch(
+                      context,
+                      Icons.vibration,
+                      app.t('haptics'),
+                      app.haptics,
+                      (v) => app.setHaptics(v),
+                    ),
+                    _switch(
+                      context,
+                      Icons.keyboard_alt_outlined,
+                      app.t('showKeyboard'),
+                      app.showKeyboardOnLaunch,
+                      (v) => app.setShowKeyboard(v),
+                    ),
+                    _switch(
+                      context,
+                      Icons.auto_awesome,
+                      app.t('showChips'),
+                      app.showPromptChips,
+                      (v) => app.setShowChips(v),
+                    ),
                     _danger(context, app),
+                  ]),
+                  const SizedBox(height: 24),
+                  _sectionLabel(app.t('sectionAbout')),
+                  _group([
+                    _updateRow(context, app),
                   ]),
                   const SizedBox(height: 30),
                 ],
@@ -3167,53 +3552,106 @@ class SettingsSheet extends StatelessWidget {
   }
 
   Widget _sectionLabel(String s) => Builder(
-        builder: (context) => Padding(
-          padding: const EdgeInsets.only(bottom: 10, left: 4),
-          child: Text(s,
-              style: TextStyle(
-                  color: _sub(context),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700)),
+    builder: (context) => Padding(
+      padding: const EdgeInsets.only(bottom: 10, left: 4),
+      child: Text(
+        s,
+        style: TextStyle(
+          color: _sub(context),
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
         ),
-      );
+      ),
+    ),
+  );
 
   Widget _group(List<Widget> children) => Builder(
-        builder: (context) => Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Material(
-            color: _card(context).withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(20),
-            child: Column(children: children),
-          ),
-        ),
-      );
+    builder: (context) => Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(20)),
+      child: Material(
+        color: _card(context).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(20),
+        child: Column(children: children),
+      ),
+    ),
+  );
 
   Widget _badge(String s) => Container(
-        padding: const EdgeInsets.all(8),
-        decoration:
-            const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
-        child: Text(s, style: const TextStyle(color: Colors.white)),
-      );
+    padding: const EdgeInsets.all(8),
+    decoration: const BoxDecoration(
+      color: Colors.white24,
+      shape: BoxShape.circle,
+    ),
+    child: Text(s, style: const TextStyle(color: Colors.white)),
+  );
 
-  Widget _nav(BuildContext c, IconData icon, String label,
-      {Widget? trailing, VoidCallback? onTap}) {
+  Widget _updateRow(BuildContext context, AppState app) {
+    String title = app.t('checkForUpdates');
+    Widget? trailing;
+    VoidCallback? onTap;
+
+    if (app.updateDownloadProgress != null) {
+      final p = app.updateDownloadProgress!;
+      title = app.t('downloadingUpdate');
+      trailing = Text(p > 0 ? '${(p * 100).toStringAsFixed(0)}%' : '…',
+          style: TextStyle(color: _sub(context)));
+    } else if (app.checkingForUpdate) {
+      trailing = const SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    } else if (app.updateAvailableVersion != null) {
+      title = '${app.t('updateAvailable')} ${app.updateAvailableVersion}';
+      trailing = const Icon(Icons.download, color: Colors.green);
+      onTap = () => app.downloadAndInstallUpdate();
+    } else {
+      onTap = () async {
+        await app.checkForUpdates();
+        if (!context.mounted) return;
+        final msg = app.updateCheckError ??
+            (app.updateAvailableVersion == null ? app.t('upToDate') : null);
+        if (msg != null) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(msg)));
+        }
+      };
+    }
+
+    return _nav(context, Icons.system_update_outlined, title,
+        trailing: trailing, onTap: onTap);
+  }
+
+  Widget _nav(
+    BuildContext c,
+    IconData icon,
+    String label, {
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
     return ListTile(
       onTap: onTap,
       leading: Icon(icon, color: _txt(c)),
       title: Text(label, style: TextStyle(color: _txt(c), fontSize: 18)),
-      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (trailing != null) trailing,
-        const SizedBox(width: 8),
-        Icon(Icons.chevron_right, color: _sub(c)),
-      ]),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (trailing != null) trailing,
+          const SizedBox(width: 8),
+          Icon(Icons.chevron_right, color: _sub(c)),
+        ],
+      ),
     );
   }
 
-  Widget _switch(BuildContext c, IconData icon, String label, bool value,
-      ValueChanged<bool> onChanged) {
+  Widget _switch(
+    BuildContext c,
+    IconData icon,
+    String label,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
     return SwitchListTile(
       value: value,
       activeThumbColor: Colors.white,
@@ -3233,28 +3671,31 @@ class SettingsSheet extends StatelessWidget {
         context: c,
         builder: (_) => AlertDialog(
           backgroundColor: _card(c),
-          title: Text(app.t('deleteHistory'),
-              style: TextStyle(color: _txt(c))),
-          content:
-              Text(app.t('cantUndo'), style: TextStyle(color: _sub(c))),
+          title: Text(app.t('deleteHistory'), style: TextStyle(color: _txt(c))),
+          content: Text(app.t('cantUndo'), style: TextStyle(color: _sub(c))),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(c),
-                child: Text(app.t('cancel'))),
+              onPressed: () => Navigator.pop(c),
+              child: Text(app.t('cancel')),
+            ),
             TextButton(
               onPressed: () {
                 app.deleteAll();
                 Navigator.pop(c);
               },
-              child: Text(app.t('delete'),
-                  style: const TextStyle(color: Colors.red)),
+              child: Text(
+                app.t('delete'),
+                style: const TextStyle(color: Colors.red),
+              ),
             ),
           ],
         ),
       ),
       leading: const Icon(Icons.delete_outline, color: Colors.red),
-      title: Text(app.t('deleteHistory'),
-          style: const TextStyle(color: Colors.red, fontSize: 18)),
+      title: Text(
+        app.t('deleteHistory'),
+        style: const TextStyle(color: Colors.red, fontSize: 18),
+      ),
     );
   }
 
@@ -3265,17 +3706,19 @@ class SettingsSheet extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: _card(context),
-        title: Text(app.t('fontSize'),
-            style: TextStyle(color: _txt(context))),
+        title: Text(app.t('fontSize'), style: TextStyle(color: _txt(context))),
         content: StatefulBuilder(
           builder: (ctx, setDialogState) => Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('${tempSize.toStringAsFixed(1)}x',
-                  style: TextStyle(
-                      color: _txt(context),
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700)),
+              Text(
+                '${tempSize.toStringAsFixed(1)}x',
+                style: TextStyle(
+                  color: _txt(context),
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               Slider(
                 value: tempSize,
                 min: 0.7,
@@ -3283,18 +3726,19 @@ class SettingsSheet extends StatelessWidget {
                 divisions: 16,
                 activeColor: const Color(0xFF2F8DFF),
                 label: '${tempSize.toStringAsFixed(1)}x',
-                onChanged: (v) =>
-                    setDialogState(() => tempSize = v),
+                onChanged: (v) => setDialogState(() => tempSize = v),
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('A',
-                      style:
-                          TextStyle(color: _sub(context), fontSize: 12)),
-                  Text('A',
-                      style:
-                          TextStyle(color: _sub(context), fontSize: 20)),
+                  Text(
+                    'A',
+                    style: TextStyle(color: _sub(context), fontSize: 12),
+                  ),
+                  Text(
+                    'A',
+                    style: TextStyle(color: _sub(context), fontSize: 20),
+                  ),
                 ],
               ),
             ],
@@ -3302,8 +3746,9 @@ class SettingsSheet extends StatelessWidget {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(app.t('cancel'))),
+            onPressed: () => Navigator.pop(context),
+            child: Text(app.t('cancel')),
+          ),
           TextButton(
             onPressed: () {
               app.setFontSize(tempSize);
@@ -3322,8 +3767,7 @@ class SettingsSheet extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: _card(context),
-        title: Text(app.t('themeMode'),
-            style: TextStyle(color: _txt(context))),
+        title: Text(app.t('themeMode'), style: TextStyle(color: _txt(context))),
         content: RadioGroup<AppThemeMode>(
           groupValue: app.themeMode,
           onChanged: (v) {
@@ -3343,8 +3787,7 @@ class SettingsSheet extends StatelessWidget {
                 RadioListTile<AppThemeMode>(
                   value: entry.$1,
                   activeColor: const Color(0xFF2F8DFF),
-                  title: Text(entry.$2,
-                      style: TextStyle(color: _txt(context))),
+                  title: Text(entry.$2, style: TextStyle(color: _txt(context))),
                 ),
             ],
           ),
@@ -3359,8 +3802,10 @@ class SettingsSheet extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: _card(context),
-        title: Text(app.t('languageDialogTitle'),
-            style: TextStyle(color: _txt(context))),
+        title: Text(
+          app.t('languageDialogTitle'),
+          style: TextStyle(color: _txt(context)),
+        ),
         content: RadioGroup<String>(
           groupValue: app.lang,
           onChanged: (v) {
@@ -3374,7 +3819,7 @@ class SettingsSheet extends StatelessWidget {
             children: [
               for (final l in [
                 ['ru', app.t('russian')],
-                ['en', app.t('english')]
+                ['en', app.t('english')],
               ])
                 RadioListTile<String>(
                   value: l[0],
@@ -3396,8 +3841,10 @@ class SettingsSheet extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: _card(context),
-        title: Text(app.t('serverDialogTitle'),
-            style: TextStyle(color: _txt(context))),
+        title: Text(
+          app.t('serverDialogTitle'),
+          style: TextStyle(color: _txt(context)),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -3415,15 +3862,15 @@ class SettingsSheet extends StatelessWidget {
               controller: keyCtrl,
               style: TextStyle(color: _txt(context)),
               obscureText: true,
-              decoration:
-                  InputDecoration(labelText: app.t('apiKeyOptional')),
+              decoration: InputDecoration(labelText: app.t('apiKeyOptional')),
             ),
           ],
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(app.t('cancel'))),
+            onPressed: () => Navigator.pop(context),
+            child: Text(app.t('cancel')),
+          ),
           TextButton(
             onPressed: () {
               app.setServer(urlCtrl.text.trim(), keyCtrl.text.trim());
@@ -3445,21 +3892,25 @@ class SettingsSheet extends StatelessWidget {
       builder: (_) => Consumer<AppState>(
         builder: (ctx, app, child) => Padding(
           padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-              left: 20,
-              right: 20,
-              top: 20),
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: 20,
+            right: 20,
+            top: 20,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Text(app.t('manageModelsItem'),
-                      style: TextStyle(
-                          color: _txt(ctx),
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800)),
+                  Text(
+                    app.t('manageModelsItem'),
+                    style: TextStyle(
+                      color: _txt(ctx),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const Spacer(),
                   IconButton(
                     onPressed: () {
@@ -3475,27 +3926,31 @@ class SettingsSheet extends StatelessWidget {
                   padding: EdgeInsets.all(8),
                   child: LinearProgressIndicator(),
                 ),
-              ...app.models.map((m) => ListTile(
-                    leading: Icon(
-                        app.isLocalModel(m)
-                            ? Icons.download_for_offline_outlined
-                            : Icons.inventory_2_outlined,
-                        color: _txt(ctx)),
-                    title: Text(app.modelDisplayName(m),
-                        style: TextStyle(color: _txt(ctx))),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline,
-                          color: Colors.red),
-                      onPressed: () {
-                        final spec = app.localSpecFor(m);
-                        if (spec != null) {
-                          app.deleteLocalModel(spec);
-                        } else {
-                          app.removeModel(m);
-                        }
-                      },
-                    ),
-                  )),
+              ...app.models.map(
+                (m) => ListTile(
+                  leading: Icon(
+                    app.isLocalModel(m)
+                        ? Icons.download_for_offline_outlined
+                        : Icons.inventory_2_outlined,
+                    color: _txt(ctx),
+                  ),
+                  title: Text(
+                    app.modelDisplayName(m),
+                    style: TextStyle(color: _txt(ctx)),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () {
+                      final spec = app.localSpecFor(m);
+                      if (spec != null) {
+                        app.deleteLocalModel(spec);
+                      } else {
+                        app.removeModel(m);
+                      }
+                    },
+                  ),
+                ),
+              ),
               Row(
                 children: [
                   Expanded(
@@ -3503,7 +3958,8 @@ class SettingsSheet extends StatelessWidget {
                       controller: ctrl,
                       style: TextStyle(color: _txt(ctx)),
                       decoration: InputDecoration(
-                          hintText: app.t('addModelHint')),
+                        hintText: app.t('addModelHint'),
+                      ),
                     ),
                   ),
                   IconButton(
@@ -3538,16 +3994,18 @@ class LocalModelsScreen extends StatelessWidget {
         backgroundColor: _bg(context),
         elevation: 0,
         foregroundColor: _txt(context),
-        title: Text(app.t('localModelsTitle'),
-            style:
-                TextStyle(color: _txt(context), fontWeight: FontWeight.w700)),
+        title: Text(
+          app.t('localModelsTitle'),
+          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w700),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text(app.t('localModelsDesc'),
-              style: TextStyle(
-                  color: _sub(context), fontSize: 15, height: 1.4)),
+          Text(
+            app.t('localModelsDesc'),
+            style: TextStyle(color: _sub(context), fontSize: 15, height: 1.4),
+          ),
           const SizedBox(height: 20),
           for (final (i, tier) in LocalModelTier.values.indexed) ...[
             if (kLocalModels.any((m) => m.tier == tier)) ...[
@@ -3561,8 +4019,12 @@ class LocalModelsScreen extends StatelessWidget {
     );
   }
 
-  Widget _tierHeader(BuildContext context, AppState app, LocalModelTier tier,
-      {required bool showDivider}) {
+  Widget _tierHeader(
+    BuildContext context,
+    AppState app,
+    LocalModelTier tier, {
+    required bool showDivider,
+  }) {
     final (titleKey, descKey) = switch (tier) {
       LocalModelTier.light => ('tierLight', 'tierLightDesc'),
       LocalModelTier.mid => ('tierMid', 'tierMidDesc'),
@@ -3580,17 +4042,22 @@ class LocalModelsScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(app.t(titleKey),
-                  style: TextStyle(
-                      color: _txt(context),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700)),
+              Text(
+                app.t(titleKey),
+                style: TextStyle(
+                  color: _txt(context),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(app.t(descKey),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: _sub(context), fontSize: 12)),
+                child: Text(
+                  app.t(descKey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: _sub(context), fontSize: 12),
+                ),
               ),
             ],
           ),
@@ -3620,31 +4087,39 @@ class LocalModelsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(spec.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: _txt(context),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700)),
+                Text(
+                  spec.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _txt(context),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 if (progress != null)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
-                        value: progress > 0 ? progress : null,
-                        minHeight: 4),
+                      value: progress > 0 ? progress : null,
+                      minHeight: 4,
+                    ),
                   )
                 else
-                  Text(formatBytes(spec.sizeBytes),
-                      style: TextStyle(color: _sub(context), fontSize: 12)),
+                  Text(
+                    formatBytes(spec.sizeBytes),
+                    style: TextStyle(color: _sub(context), fontSize: 12),
+                  ),
               ],
             ),
           ),
           const SizedBox(width: 8),
           if (progress != null) ...[
-            Text('${(progress * 100).toStringAsFixed(0)}%',
-                style: TextStyle(color: _sub(context), fontSize: 12)),
+            Text(
+              '${(progress * 100).toStringAsFixed(0)}%',
+              style: TextStyle(color: _sub(context), fontSize: 12),
+            ),
             IconButton(
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -3671,16 +4146,21 @@ class LocalModelsScreen extends StatelessWidget {
                       app.selectModel(spec.modelKey);
                       Navigator.pop(context);
                     },
-              icon: Icon(isSelected ? Icons.check_circle : Icons.play_arrow,
-                  color: isSelected ? Colors.green : null),
+              icon: Icon(
+                isSelected ? Icons.check_circle : Icons.play_arrow,
+                color: isSelected ? Colors.green : null,
+              ),
             ),
             IconButton(
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               tooltip: app.t('deleteModel'),
               onPressed: () => _confirmDelete(context, app, spec),
-              icon: const Icon(Icons.delete_outline,
-                  color: Colors.red, size: 20),
+              icon: const Icon(
+                Icons.delete_outline,
+                color: Colors.red,
+                size: 20,
+              ),
             ),
           ],
         ],
@@ -3688,8 +4168,7 @@ class LocalModelsScreen extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(
-      BuildContext context, AppState app, LocalModelSpec spec) {
+  void _confirmDelete(BuildContext context, AppState app, LocalModelSpec spec) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -3697,15 +4176,18 @@ class LocalModelsScreen extends StatelessWidget {
         content: Text(app.t('deleteLocalModelBody')),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(app.t('cancel'))),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(app.t('cancel')),
+          ),
           TextButton(
             onPressed: () {
               app.deleteLocalModel(spec);
               Navigator.pop(ctx);
             },
-            child: Text(app.t('deleteModel'),
-                style: const TextStyle(color: Colors.red)),
+            child: Text(
+              app.t('deleteModel'),
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -3783,17 +4265,21 @@ class _MemoryScreenState extends State<MemoryScreen> {
         backgroundColor: _bg(context),
         elevation: 0,
         foregroundColor: _txt(context),
-        title: Text(app.t('memory'),
-            style: TextStyle(
-                color: _txt(context), fontWeight: FontWeight.w700)),
+        title: Text(
+          app.t('memory'),
+          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w700),
+        ),
         actions: [
           TextButton(
             onPressed: _save,
-            child: Text(app.t('done'),
-                style: const TextStyle(
-                    color: Color(0xFF2F8DFF),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16)),
+            child: Text(
+              app.t('done'),
+              style: const TextStyle(
+                color: Color(0xFF2F8DFF),
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
           ),
         ],
       ),
@@ -3801,56 +4287,71 @@ class _MemoryScreenState extends State<MemoryScreen> {
         padding: const EdgeInsets.all(20),
         children: [
           _section(app.t('memorySection')),
-          _card2(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _switchRow(app.t('longMemory'), p.longMemory,
-                  (v) => setState(() => p.longMemory = v)),
-              const SizedBox(height: 8),
-              _field(_memory, app.t('memoryNote'), maxLines: 3),
-            ],
-          )),
+          _card2(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _switchRow(
+                  app.t('longMemory'),
+                  p.longMemory,
+                  (v) => setState(() => p.longMemory = v),
+                ),
+                const SizedBox(height: 8),
+                _field(_memory, app.t('memoryNote'), maxLines: 3),
+              ],
+            ),
+          ),
           const SizedBox(height: 20),
           _section(app.t('persProfile')),
-          _card2(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _field(_name, app.t('name')),
-              _field(_pronouns, app.t('pronouns')),
-              _field(_profession, app.t('profession')),
-              _field(_interests, app.t('interests')),
-              _field(_goals, app.t('goals')),
-              _field(_location, app.t('location')),
-              const SizedBox(height: 4),
-              _switchRow(app.t('useMyData'), p.useMyData,
-                  (v) => setState(() => p.useMyData = v)),
-              const SizedBox(height: 8),
-              _label(app.t('knowledgeLevel')),
-              _chipsSelect(
-                options: const ['kl_beginner', 'kl_student', 'kl_expert'],
-                value: p.knowledgeLevel,
-                onSelect: (v) => setState(() => p.knowledgeLevel = v),
-              ),
-            ],
-          )),
+          _card2(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _field(_name, app.t('name')),
+                _field(_pronouns, app.t('pronouns')),
+                _field(_profession, app.t('profession')),
+                _field(_interests, app.t('interests')),
+                _field(_goals, app.t('goals')),
+                _field(_location, app.t('location')),
+                const SizedBox(height: 4),
+                _switchRow(
+                  app.t('useMyData'),
+                  p.useMyData,
+                  (v) => setState(() => p.useMyData = v),
+                ),
+                const SizedBox(height: 8),
+                _label(app.t('knowledgeLevel')),
+                _chipsSelect(
+                  options: const ['kl_beginner', 'kl_student', 'kl_expert'],
+                  value: p.knowledgeLevel,
+                  onSelect: (v) => setState(() => p.knowledgeLevel = v),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 20),
           _section(app.t('persSafety')),
-          _card2(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _field(_avoid, app.t('avoidTopics'), maxLines: 2),
-              const SizedBox(height: 8),
-              _label(app.t('contentFilter')),
-              _chipsSelect(
-                options: const ['cf_strict', 'cf_balanced', 'cf_off'],
-                value: p.contentFilter,
-                onSelect: (v) => setState(() => p.contentFilter = v),
-              ),
-              const SizedBox(height: 4),
-              _switchRow(app.t('warnUncertain'), p.warnUncertain,
-                  (v) => setState(() => p.warnUncertain = v)),
-            ],
-          )),
+          _card2(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _field(_avoid, app.t('avoidTopics'), maxLines: 2),
+                const SizedBox(height: 8),
+                _label(app.t('contentFilter')),
+                _chipsSelect(
+                  options: const ['cf_strict', 'cf_balanced', 'cf_off'],
+                  value: p.contentFilter,
+                  onSelect: (v) => setState(() => p.contentFilter = v),
+                ),
+                const SizedBox(height: 4),
+                _switchRow(
+                  app.t('warnUncertain'),
+                  p.warnUncertain,
+                  (v) => setState(() => p.warnUncertain = v),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 40),
         ],
       ),
@@ -3858,38 +4359,46 @@ class _MemoryScreenState extends State<MemoryScreen> {
   }
 
   Widget _section(String s) => Padding(
-        padding: const EdgeInsets.only(bottom: 10, left: 4),
-        child: Text(s,
-            style: TextStyle(
-                color: _txt(context),
-                fontSize: 18,
-                fontWeight: FontWeight.w800)),
-      );
+    padding: const EdgeInsets.only(bottom: 10, left: 4),
+    child: Text(
+      s,
+      style: TextStyle(
+        color: _txt(context),
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
 
   Widget _card2({required Widget child}) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _card(context).withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: child,
-      );
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: _card(context).withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: child,
+  );
 
   Widget _label(String s) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(s,
-            style: TextStyle(
-                color: _sub(context),
-                fontSize: 14,
-                fontWeight: FontWeight.w600)),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      s,
+      style: TextStyle(
+        color: _sub(context),
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
 
   Widget _switchRow(String label, bool value, ValueChanged<bool> onChanged) {
     return Row(
       children: [
         Expanded(
-          child: Text(label,
-              style: TextStyle(color: _txt(context), fontSize: 16)),
+          child: Text(
+            label,
+            style: TextStyle(color: _txt(context), fontSize: 16),
+          ),
         ),
         Switch(
           value: value,
@@ -3915,13 +4424,11 @@ class _MemoryScreenState extends State<MemoryScreen> {
           fillColor: _bg(context).withValues(alpha: 0.4),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+            borderSide: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+            borderSide: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
           ),
         ),
       ),
@@ -3947,8 +4454,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
             ),
             selectedColor: const Color(0xFF2F8DFF),
             backgroundColor: _bg(context).withValues(alpha: 0.4),
-            side:
-                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+            side: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
             onSelected: (_) => onSelect(o),
           ),
       ],
@@ -3998,141 +4504,197 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
         backgroundColor: _bg(context),
         elevation: 0,
         foregroundColor: _txt(context),
-        title: Text(app.t('pers'),
-            style: TextStyle(
-                color: _txt(context), fontWeight: FontWeight.w700)),
+        title: Text(
+          app.t('pers'),
+          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w700),
+        ),
         actions: [
           TextButton(
             onPressed: _save,
-            child: Text(app.t('done'),
-                style: const TextStyle(
-                    color: Color(0xFF2F8DFF),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16)),
+            child: Text(
+              app.t('done'),
+              style: const TextStyle(
+                color: Color(0xFF2F8DFF),
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text(app.t('persDesc'),
-              style: TextStyle(
-                  color: _sub(context), fontSize: 15, height: 1.4)),
+          Text(
+            app.t('persDesc'),
+            style: TextStyle(color: _sub(context), fontSize: 15, height: 1.4),
+          ),
           const SizedBox(height: 20),
 
           _section(app.t('persPersona')),
-          _card2(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _label(app.t('persPreset')),
-              _chipsSelect(
-                options: const [
-                  'preset_friend',
-                  'preset_mentor',
-                  'preset_expert',
-                  'preset_creative',
-                  'preset_custom'
-                ],
-                value: p.preset,
-                onSelect: (v) => setState(() {
-                  if (v == 'preset_custom') {
-                    p.preset = v;
-                  } else {
-                    p.applyPreset(v);
-                  }
-                }),
-              ),
-            ],
-          )),
+          _card2(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _label(app.t('persPreset')),
+                _chipsSelect(
+                  options: const [
+                    'preset_friend',
+                    'preset_mentor',
+                    'preset_expert',
+                    'preset_creative',
+                    'preset_custom',
+                  ],
+                  value: p.preset,
+                  onSelect: (v) => setState(() {
+                    if (v == 'preset_custom') {
+                      p.preset = v;
+                    } else {
+                      p.applyPreset(v);
+                    }
+                  }),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
-          _card2(child: Column(
-            children: [
-              _slider(app.t('sl_formality'), p.formality,
-                  (v) => setState(() { p.formality = v; p.preset = 'preset_custom'; })),
-              _slider(app.t('sl_empathy'), p.empathy,
-                  (v) => setState(() { p.empathy = v; p.preset = 'preset_custom'; })),
-              _slider(app.t('sl_verbosity'), p.verbosity,
-                  (v) => setState(() { p.verbosity = v; p.preset = 'preset_custom'; })),
-              _slider(app.t('sl_humor'), p.humor,
-                  (v) => setState(() { p.humor = v; p.preset = 'preset_custom'; })),
-              _slider(app.t('sl_creativity'), p.creativity,
-                  (v) => setState(() { p.creativity = v; p.preset = 'preset_custom'; })),
-            ],
-          )),
+          _card2(
+            child: Column(
+              children: [
+                _slider(
+                  app.t('sl_formality'),
+                  p.formality,
+                  (v) => setState(() {
+                    p.formality = v;
+                    p.preset = 'preset_custom';
+                  }),
+                ),
+                _slider(
+                  app.t('sl_empathy'),
+                  p.empathy,
+                  (v) => setState(() {
+                    p.empathy = v;
+                    p.preset = 'preset_custom';
+                  }),
+                ),
+                _slider(
+                  app.t('sl_verbosity'),
+                  p.verbosity,
+                  (v) => setState(() {
+                    p.verbosity = v;
+                    p.preset = 'preset_custom';
+                  }),
+                ),
+                _slider(
+                  app.t('sl_humor'),
+                  p.humor,
+                  (v) => setState(() {
+                    p.humor = v;
+                    p.preset = 'preset_custom';
+                  }),
+                ),
+                _slider(
+                  app.t('sl_creativity'),
+                  p.creativity,
+                  (v) => setState(() {
+                    p.creativity = v;
+                    p.preset = 'preset_custom';
+                  }),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
-          _card2(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _label(app.t('emojiUsage')),
-              _chipsSelect(
-                options: const ['emoji_never', 'emoji_sometimes', 'emoji_always'],
-                value: p.emoji,
-                onSelect: (v) => setState(() => p.emoji = v),
-              ),
-              const SizedBox(height: 12),
-              _label(app.t('answerFormat')),
-              _chipsSelect(
-                options: const ['fmt_plain', 'fmt_lists', 'fmt_tables'],
-                value: p.answerFormat,
-                onSelect: (v) => setState(() => p.answerFormat = v),
-              ),
-            ],
-          )),
+          _card2(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _label(app.t('emojiUsage')),
+                _chipsSelect(
+                  options: const [
+                    'emoji_never',
+                    'emoji_sometimes',
+                    'emoji_always',
+                  ],
+                  value: p.emoji,
+                  onSelect: (v) => setState(() => p.emoji = v),
+                ),
+                const SizedBox(height: 12),
+                _label(app.t('answerFormat')),
+                _chipsSelect(
+                  options: const ['fmt_plain', 'fmt_lists', 'fmt_tables'],
+                  value: p.answerFormat,
+                  onSelect: (v) => setState(() => p.answerFormat = v),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 20),
 
           _section(app.t('persBehavior')),
-          _card2(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _label(app.t('defaultLength')),
-              _chipsSelect(
-                options: const ['len_short', 'len_normal', 'len_long'],
-                value: p.defaultLength,
-                onSelect: (v) => setState(() => p.defaultLength = v),
-              ),
-              const SizedBox(height: 12),
-              _label(app.t('proactivity')),
-              _chipsSelect(
-                options: const ['pro_answer', 'pro_clarify', 'pro_suggest'],
-                value: p.proactivity,
-                onSelect: (v) => setState(() => p.proactivity = v),
-              ),
-            ],
-          )),
+          _card2(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _label(app.t('defaultLength')),
+                _chipsSelect(
+                  options: const ['len_short', 'len_normal', 'len_long'],
+                  value: p.defaultLength,
+                  onSelect: (v) => setState(() => p.defaultLength = v),
+                ),
+                const SizedBox(height: 12),
+                _label(app.t('proactivity')),
+                _chipsSelect(
+                  options: const ['pro_answer', 'pro_clarify', 'pro_suggest'],
+                  value: p.proactivity,
+                  onSelect: (v) => setState(() => p.proactivity = v),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
-          _card2(child: Column(children: [
-            _switchRow(app.t('useMarkdown'), p.useMarkdown,
-                (v) => setState(() => p.useMarkdown = v)),
-          ])),
+          _card2(
+            child: Column(
+              children: [
+                _switchRow(
+                  app.t('useMarkdown'),
+                  p.useMarkdown,
+                  (v) => setState(() => p.useMarkdown = v),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 20),
 
           _section(app.t('persAdvanced')),
-          _card2(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _label(app.t('reasoning')),
-              _chipsSelect(
-                options: const ['rs_fast', 'rs_step'],
-                value: p.reasoning,
-                onSelect: (v) => setState(() => p.reasoning = v),
-              ),
-              const SizedBox(height: 12),
-              _label(app.t('toneTitle')),
-              _chipsSelect(
-                options: const [
-                  'tone_neutral',
-                  'tone_sarcastic',
-                  'tone_melancholic',
-                  'tone_excited'
-                ],
-                value: p.tone,
-                onSelect: (v) => setState(() => p.tone = v),
-              ),
-              const SizedBox(height: 12),
-              _label(app.t('customPrompt')),
-              _field(_custom, app.t('customPromptHint'), maxLines: 4),
-            ],
-          )),
+          _card2(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _label(app.t('reasoning')),
+                _chipsSelect(
+                  options: const ['rs_fast', 'rs_step'],
+                  value: p.reasoning,
+                  onSelect: (v) => setState(() => p.reasoning = v),
+                ),
+                const SizedBox(height: 12),
+                _label(app.t('toneTitle')),
+                _chipsSelect(
+                  options: const [
+                    'tone_neutral',
+                    'tone_sarcastic',
+                    'tone_melancholic',
+                    'tone_excited',
+                  ],
+                  value: p.tone,
+                  onSelect: (v) => setState(() => p.tone = v),
+                ),
+                const SizedBox(height: 12),
+                _label(app.t('customPrompt')),
+                _field(_custom, app.t('customPromptHint'), maxLines: 4),
+              ],
+            ),
+          ),
           const SizedBox(height: 40),
         ],
       ),
@@ -4140,31 +4702,37 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
   }
 
   Widget _section(String s) => Padding(
-        padding: const EdgeInsets.only(bottom: 10, left: 4),
-        child: Text(s,
-            style: TextStyle(
-                color: _txt(context),
-                fontSize: 18,
-                fontWeight: FontWeight.w800)),
-      );
+    padding: const EdgeInsets.only(bottom: 10, left: 4),
+    child: Text(
+      s,
+      style: TextStyle(
+        color: _txt(context),
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
 
   Widget _card2({required Widget child}) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _card(context).withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: child,
-      );
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: _card(context).withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: child,
+  );
 
   Widget _label(String s) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(s,
-            style: TextStyle(
-                color: _sub(context),
-                fontSize: 14,
-                fontWeight: FontWeight.w600)),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      s,
+      style: TextStyle(
+        color: _sub(context),
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
 
   Widget _slider(String label, double value, ValueChanged<double> onChanged) {
     return Column(
@@ -4184,8 +4752,10 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     return Row(
       children: [
         Expanded(
-          child: Text(label,
-              style: TextStyle(color: _txt(context), fontSize: 16)),
+          child: Text(
+            label,
+            style: TextStyle(color: _txt(context), fontSize: 16),
+          ),
         ),
         Switch(
           value: value,
@@ -4211,13 +4781,11 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           fillColor: _bg(context).withValues(alpha: 0.4),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+            borderSide: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+            borderSide: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
           ),
         ),
       ),
@@ -4243,8 +4811,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
             ),
             selectedColor: const Color(0xFF2F8DFF),
             backgroundColor: _bg(context).withValues(alpha: 0.4),
-            side:
-                BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+            side: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
             onSelected: (_) => onSelect(o),
           ),
       ],
