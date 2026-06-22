@@ -171,6 +171,8 @@ const Map<String, Map<String, String>> _i18n = {
     'checkAddress': 'Проверьте адрес в настройках.',
     'pers': 'Персонализация',
     'chatPers': 'Настройки этого чата',
+    'tabPersonality': 'Личность',
+    'tabMemory': 'Память',
     'persDesc': 'Настройте личность, поведение и контекст ассистента под себя.',
     'persPersona': 'Личность и стиль общения',
     'persPreset': 'Готовая персона',
@@ -369,6 +371,8 @@ const Map<String, Map<String, String>> _i18n = {
     'checkAddress': 'Check the address in Settings.',
     'pers': 'Personalization',
     'chatPers': 'This chat\'s settings',
+    'tabPersonality': 'Personality',
+    'tabMemory': 'Memory',
     'persDesc': "Tailor the assistant's personality, behavior and context.",
     'persPersona': 'Character & vibe',
     'persPreset': 'Persona preset',
@@ -917,6 +921,9 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.6.0', [
+    'Экран «Память» (заметки, профиль «о вас», запретные темы/безопасность) объединён с экраном персонализации как вкладка сбоку — раньше «Память» всегда редактировала только общие настройки, даже если открыта из конкретного чата. Теперь обе вкладки сохраняются туда же, куда и настройки личности.',
+  ]),
   ChangelogEntry('2.5.0', [
     'Настройки персонализации снова применяются к локальным моделям среднего и мощного тиров — раньше все локальные модели получали урезанный промпт, теперь это ограничение касается только самых слабых (лёгкий тир).',
     'Даже для лёгкого тира добавилась реакция на тон ответа и частоту эмодзи.',
@@ -3899,7 +3906,10 @@ class SettingsSheet extends StatelessWidget {
                       Icons.psychology_outlined,
                       app.t('memory'),
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const MemoryScreen()),
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const PersonalizationScreen(initialTab: 1),
+                        ),
                       ),
                     ),
                     _nav(
@@ -4710,16 +4720,24 @@ class LocalModelsScreen extends StatelessWidget {
   }
 }
 
-/* ============================ ЭКРАН ПАМЯТИ ============================ */
+/* ============================ ЭКРАН ПЕРСОНАЛИЗАЦИИ ============================ */
 
-class MemoryScreen extends StatefulWidget {
-  const MemoryScreen({super.key});
+class PersonalizationScreen extends StatefulWidget {
+  final Conversation? conversation;
+  final int initialTab;
+  const PersonalizationScreen({
+    super.key,
+    this.conversation,
+    this.initialTab = 0,
+  });
   @override
-  State<MemoryScreen> createState() => _MemoryScreenState();
+  State<PersonalizationScreen> createState() => _PersonalizationScreenState();
 }
 
-class _MemoryScreenState extends State<MemoryScreen> {
+class _PersonalizationScreenState extends State<PersonalizationScreen> {
   late Personalization p;
+  late int _tab;
+  late final TextEditingController _custom;
   late final TextEditingController _memory;
   late final TextEditingController _name;
   late final TextEditingController _pronouns;
@@ -4732,7 +4750,10 @@ class _MemoryScreenState extends State<MemoryScreen> {
   @override
   void initState() {
     super.initState();
-    p = context.read<AppState>().persona.clone();
+    final app = context.read<AppState>();
+    p = (widget.conversation?.persona ?? app.persona).clone();
+    _tab = widget.initialTab;
+    _custom = TextEditingController(text: p.customPrompt);
     _memory = TextEditingController(text: p.memoryNote);
     _name = TextEditingController(text: p.name);
     _pronouns = TextEditingController(text: p.pronouns);
@@ -4745,6 +4766,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
 
   @override
   void dispose() {
+    _custom.dispose();
     _memory.dispose();
     _name.dispose();
     _pronouns.dispose();
@@ -4757,6 +4779,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
   }
 
   void _save() {
+    p.customPrompt = _custom.text;
     p.memoryNote = _memory.text;
     p.name = _name.text;
     p.pronouns = _pronouns.text;
@@ -4765,247 +4788,6 @@ class _MemoryScreenState extends State<MemoryScreen> {
     p.goals = _goals.text;
     p.location = _location.text;
     p.avoidTopics = _avoid.text;
-    context.read<AppState>().savePersona(p);
-    Navigator.pop(context);
-  }
-
-  String tr(String k) => context.read<AppState>().t(k);
-
-  @override
-  Widget build(BuildContext context) {
-    final app = context.watch<AppState>();
-    return Scaffold(
-      backgroundColor: _bg(context),
-      appBar: AppBar(
-        backgroundColor: _bg(context),
-        elevation: 0,
-        foregroundColor: _txt(context),
-        title: Text(
-          app.t('memory'),
-          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _save,
-            child: Text(
-              app.t('done'),
-              style: const TextStyle(
-                color: Color(0xFF2F8DFF),
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          _section(app.t('memorySection')),
-          _card2(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _switchRow(
-                  app.t('longMemory'),
-                  p.longMemory,
-                  (v) => setState(() => p.longMemory = v),
-                ),
-                const SizedBox(height: 8),
-                _field(_memory, app.t('memoryNote'), maxLines: 3),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          _section(app.t('persProfile')),
-          _card2(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _field(_name, app.t('name')),
-                _field(_pronouns, app.t('pronouns')),
-                _field(_profession, app.t('profession')),
-                _field(_interests, app.t('interests')),
-                _field(_goals, app.t('goals')),
-                _field(_location, app.t('location')),
-                const SizedBox(height: 4),
-                _switchRow(
-                  app.t('useMyData'),
-                  p.useMyData,
-                  (v) => setState(() => p.useMyData = v),
-                ),
-                const SizedBox(height: 8),
-                _label(app.t('knowledgeLevel')),
-                _chipsSelect(
-                  options: const ['kl_beginner', 'kl_student', 'kl_expert'],
-                  value: p.knowledgeLevel,
-                  onSelect: (v) => setState(() => p.knowledgeLevel = v),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          _section(app.t('persSafety')),
-          _card2(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _field(_avoid, app.t('avoidTopics'), maxLines: 2),
-                const SizedBox(height: 8),
-                _label(app.t('contentFilter')),
-                _chipsSelect(
-                  options: const ['cf_strict', 'cf_balanced', 'cf_off'],
-                  value: p.contentFilter,
-                  onSelect: (v) => setState(() => p.contentFilter = v),
-                ),
-                const SizedBox(height: 4),
-                _switchRow(
-                  app.t('warnUncertain'),
-                  p.warnUncertain,
-                  (v) => setState(() => p.warnUncertain = v),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  Widget _section(String s) => Padding(
-    padding: const EdgeInsets.only(bottom: 10, left: 4),
-    child: Text(
-      s,
-      style: TextStyle(
-        color: _txt(context),
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-      ),
-    ),
-  );
-
-  Widget _card2({required Widget child}) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: _card(context).withValues(alpha: 0.5),
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: child,
-  );
-
-  Widget _label(String s) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(
-      s,
-      style: TextStyle(
-        color: _sub(context),
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-      ),
-    ),
-  );
-
-  Widget _switchRow(String label, bool value, ValueChanged<bool> onChanged) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(color: _txt(context), fontSize: 16),
-          ),
-        ),
-        Switch(
-          value: value,
-          activeThumbColor: Colors.white,
-          activeTrackColor: const Color(0xFF34C759),
-          onChanged: onChanged,
-        ),
-      ],
-    );
-  }
-
-  Widget _field(TextEditingController c, String hint, {int maxLines = 1}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: TextField(
-        controller: c,
-        maxLines: maxLines,
-        style: TextStyle(color: _txt(context)),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(color: _sub(context)),
-          filled: true,
-          fillColor: _bg(context).withValues(alpha: 0.4),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _chipsSelect({
-    required List<String> options,
-    required String value,
-    required ValueChanged<String> onSelect,
-  }) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final o in options)
-          ChoiceChip(
-            label: Text(tr(o)),
-            selected: value == o,
-            labelStyle: TextStyle(
-              color: value == o ? Colors.white : _txt(context),
-              fontWeight: FontWeight.w500,
-            ),
-            selectedColor: const Color(0xFF2F8DFF),
-            backgroundColor: _bg(context).withValues(alpha: 0.4),
-            side: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
-            onSelected: (_) => onSelect(o),
-          ),
-      ],
-    );
-  }
-}
-
-/* ============================ ЭКРАН ПЕРСОНАЛИЗАЦИИ ============================ */
-
-class PersonalizationScreen extends StatefulWidget {
-  final Conversation? conversation;
-  const PersonalizationScreen({super.key, this.conversation});
-  @override
-  State<PersonalizationScreen> createState() => _PersonalizationScreenState();
-}
-
-class _PersonalizationScreenState extends State<PersonalizationScreen> {
-  late Personalization p;
-  late final TextEditingController _custom;
-
-  @override
-  void initState() {
-    super.initState();
-    final app = context.read<AppState>();
-    p = (widget.conversation?.persona ?? app.persona).clone();
-    _custom = TextEditingController(text: p.customPrompt);
-  }
-
-  @override
-  void dispose() {
-    _custom.dispose();
-    super.dispose();
-  }
-
-  void _save() {
-    p.customPrompt = _custom.text;
     final app = context.read<AppState>();
     if (widget.conversation != null) {
       app.saveConversationPersona(widget.conversation!, p);
@@ -5046,14 +4828,86 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            app.t('persDesc'),
-            style: TextStyle(color: _sub(context), fontSize: 15, height: 1.4),
+          Column(
+            children: [
+              const SizedBox(height: 12),
+              _sideTab(
+                icon: Icons.person_outline,
+                label: app.t('tabPersonality'),
+                selected: _tab == 0,
+                onTap: () => setState(() => _tab = 0),
+              ),
+              _sideTab(
+                icon: Icons.psychology_outlined,
+                label: app.t('tabMemory'),
+                selected: _tab == 1,
+                onTap: () => setState(() => _tab = 1),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
+          Container(width: 1, color: _sub(context).withValues(alpha: 0.15)),
+          Expanded(
+            child: _tab == 0 ? _personalityTab(app) : _memoryTab(app),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sideTab({
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        width: 72,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+              color: selected ? const Color(0xFF2F8DFF) : Colors.transparent,
+              width: 3,
+            ),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: selected ? const Color(0xFF2F8DFF) : _sub(context),
+              size: 22,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: selected ? _txt(context) : _sub(context),
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _personalityTab(AppState app) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text(
+          app.t('persDesc'),
+          style: TextStyle(color: _sub(context), fontSize: 15, height: 1.4),
+        ),
+        const SizedBox(height: 20),
 
           _section(app.t('persPersona')),
           _card2(
@@ -5221,7 +5075,81 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           ),
           const SizedBox(height: 40),
         ],
-      ),
+      );
+  }
+
+  Widget _memoryTab(AppState app) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        _section(app.t('memorySection')),
+        _card2(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _switchRow(
+                app.t('longMemory'),
+                p.longMemory,
+                (v) => setState(() => p.longMemory = v),
+              ),
+              const SizedBox(height: 8),
+              _field(_memory, app.t('memoryNote'), maxLines: 3),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _section(app.t('persProfile')),
+        _card2(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _field(_name, app.t('name')),
+              _field(_pronouns, app.t('pronouns')),
+              _field(_profession, app.t('profession')),
+              _field(_interests, app.t('interests')),
+              _field(_goals, app.t('goals')),
+              _field(_location, app.t('location')),
+              const SizedBox(height: 4),
+              _switchRow(
+                app.t('useMyData'),
+                p.useMyData,
+                (v) => setState(() => p.useMyData = v),
+              ),
+              const SizedBox(height: 8),
+              _label(app.t('knowledgeLevel')),
+              _chipsSelect(
+                options: const ['kl_beginner', 'kl_student', 'kl_expert'],
+                value: p.knowledgeLevel,
+                onSelect: (v) => setState(() => p.knowledgeLevel = v),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _section(app.t('persSafety')),
+        _card2(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _field(_avoid, app.t('avoidTopics'), maxLines: 2),
+              const SizedBox(height: 8),
+              _label(app.t('contentFilter')),
+              _chipsSelect(
+                options: const ['cf_strict', 'cf_balanced', 'cf_off'],
+                value: p.contentFilter,
+                onSelect: (v) => setState(() => p.contentFilter = v),
+              ),
+              const SizedBox(height: 4),
+              _switchRow(
+                app.t('warnUncertain'),
+                p.warnUncertain,
+                (v) => setState(() => p.warnUncertain = v),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 40),
+      ],
     );
   }
 
