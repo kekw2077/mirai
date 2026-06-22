@@ -870,6 +870,10 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('1.7.1', [
+    'Исправлена ошибка «exceeds the available context size» при разговоре с локальной моделью (TinyLlama и др.) — fllama делит запрошенный размер контекста на 4 параллельных слота, из-за чего модели реально доставалось только 512 токенов вместо 2048.',
+    'Кнопка отправки в поле ввода больше не меняет размер при переходе в состояние «отправляется».',
+  ]),
   ChangelogEntry('1.7.0', [
     'Новый пункт «О версии» в настройках («О приложении») — открывает экран со списком изменений по всем версиям приложения.',
     'После обновления приложения при первом запуске показывается всплывающее окно с описанием того, что изменилось в новой версии.',
@@ -1463,7 +1467,10 @@ class AppState extends ChangeNotifier {
         OpenAiRequest(
           messages: messages,
           modelPath: modelPath,
-          contextSize: 2048,
+          // fllama hardcodes n_parallel=4 natively and ignores nParallel on
+          // native platforms, splitting contextSize into 4 slots internally
+          // (n_ctx_seq = n_ctx / 4). Requesting 4x gives ~2048 usable tokens.
+          contextSize: 8192,
           maxTokens: 512,
           temperature: 0.7,
         ),
@@ -2523,30 +2530,33 @@ class _ChatScreenState extends State<ChatScreen> {
               // Кнопка голосового ввода с анимированной обводкой
               _buildAnimatedBtn(onTap: _openVoice, icon: Icons.graphic_eq),
               const SizedBox(width: 4),
-              // Кнопка отправки
-              _sending
-                  ? const Padding(
-                      padding: EdgeInsets.all(10),
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _txt(context).withValues(alpha: 0.1),
-                      ),
-                      child: IconButton(
+              // Кнопка отправки (фиксированный размер, чтобы не "скакать"
+              // между обычным и состоянием отправки)
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _txt(context).withValues(alpha: 0.1),
+                ),
+                child: _sending
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _txt(context),
+                        ),
+                      )
+                    : IconButton(
                         onPressed: () => _send(),
                         icon: Icon(Icons.arrow_upward, color: _txt(context)),
                         iconSize: 20,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
-                    ),
+              ),
             ],
           ),
         ),
