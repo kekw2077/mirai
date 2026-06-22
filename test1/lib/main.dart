@@ -927,6 +927,9 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.7.3', [
+    'На экране голосового ввода вокруг анимированной рамки добавлен мягкий рассеивающийся свет того же сине-фиолетового градиента, расходящийся к центру экрана.',
+  ]),
   ChangelogEntry('2.7.2', [
     'Пока нейросеть генерирует ответ, вместо «Думаю…» — зацикленная анимация из трёх волнообразно подпрыгивающих точек.',
   ]),
@@ -1999,6 +2002,49 @@ class GradientBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant GradientBorderPainter oldDelegate) => true;
+}
+
+// A soft, blurred halo of the same rotating border gradient, painted wider
+// and behind the crisp ring so light appears to scatter inward from the
+// edges toward the center instead of stopping sharply at the border line.
+class BorderGlowPainter extends CustomPainter {
+  final Animation<double> animation;
+  final double radius;
+  final double strokeWidth;
+  final double blurSigma;
+
+  BorderGlowPainter({
+    required this.animation,
+    this.radius = 30,
+    this.strokeWidth = 50,
+    this.blurSigma = 35,
+  }) : super(repaint: animation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final rect = Offset.zero & size;
+
+    final paint = Paint()
+      ..shader = SweepGradient(
+        colors: [
+          Colors.blue.withValues(alpha: 0.4),
+          Colors.purple.withValues(alpha: 0.4),
+          Colors.blue.withValues(alpha: 0.4),
+        ],
+        transform: GradientRotation(animation.value * 2 * math.pi),
+      ).createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurSigma)
+      ..isAntiAlias = true;
+
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+    canvas.drawRRect(rrect, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant BorderGlowPainter oldDelegate) => true;
 }
 
 const kAccentGradientColors = [Color(0xFF4FACFE), Color(0xFF2F6BFF)];
@@ -3537,6 +3583,16 @@ class _VoiceScreenState extends State<VoiceScreen>
           ),
         ),
       ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: BorderGlowPainter(
+                  animation: _borderCtrl,
+                  radius: 36,
+                ),
+              ),
+            ),
+          ),
           Positioned.fill(
             child: IgnorePointer(
               child: Padding(
