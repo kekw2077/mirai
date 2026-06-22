@@ -1488,10 +1488,14 @@ class AliceApp extends StatelessWidget {
       darkTheme: _buildTheme(true),
       themeMode: _getThemeMode(app.themeMode),
       builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        // Combine the OS-level accessibility text scale with the app's own
+        // font size setting, instead of discarding the system scale.
+        final systemFactor = mq.textScaler.scale(100) / 100;
         return MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: TextScaler.linear(app.fontSize)),
+          data: mq.copyWith(
+            textScaler: TextScaler.linear(systemFactor * app.fontSize),
+          ),
           child: child!,
         );
       },
@@ -1749,6 +1753,70 @@ class GradientBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant GradientBorderPainter oldDelegate) => true;
+}
+
+const kAccentGradientColors = [Color(0xFF4FACFE), Color(0xFF2F6BFF)];
+
+class GradientSliderTrackShape extends SliderTrackShape
+    with BaseSliderTrackShape {
+  const GradientSliderTrackShape();
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    double additionalActiveTrackHeight = 2,
+  }) {
+    if (sliderTheme.trackHeight == null || sliderTheme.trackHeight! <= 0) {
+      return;
+    }
+
+    final trackRect = getPreferredRect(
+      parentBox: parentBox,
+      offset: offset,
+      sliderTheme: sliderTheme,
+      isEnabled: isEnabled,
+      isDiscrete: isDiscrete,
+    );
+    final trackRadius = Radius.circular(trackRect.height / 2);
+    final activeTrackRadius = Radius.circular(
+      (trackRect.height + additionalActiveTrackHeight) / 2,
+    );
+
+    final inactivePaint = Paint()
+      ..color = sliderTheme.inactiveTrackColor ?? Colors.white12;
+    context.canvas.drawRRect(
+      RRect.fromLTRBR(
+        thumbCenter.dx,
+        trackRect.top,
+        trackRect.right,
+        trackRect.bottom,
+        trackRadius,
+      ),
+      inactivePaint,
+    );
+
+    final activeRect = RRect.fromLTRBR(
+      trackRect.left,
+      trackRect.top - (additionalActiveTrackHeight / 2),
+      thumbCenter.dx,
+      trackRect.bottom + (additionalActiveTrackHeight / 2),
+      activeTrackRadius,
+    );
+    final activePaint = Paint()
+      ..shader = const LinearGradient(
+        colors: kAccentGradientColors,
+      ).createShader(activeRect.outerRect);
+    context.canvas.drawRRect(activeRect, activePaint);
+  }
 }
 
 class AnimatedBorder extends StatefulWidget {
@@ -2052,7 +2120,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           style: TextStyle(
                             color: _sub(context),
                             fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
@@ -2064,7 +2132,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           style: TextStyle(
                             color: _txt(context),
                             fontSize: 18,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -2127,7 +2195,7 @@ class _ChatScreenState extends State<ChatScreen> {
               style: TextStyle(
                 color: _txt(context),
                 fontSize: 28,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 12),
@@ -2251,7 +2319,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   c.$1,
                   style: TextStyle(
                     color: _txt(context),
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 padding: const EdgeInsets.symmetric(
@@ -2757,7 +2825,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -2797,7 +2865,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                       backgroundColor: Colors.white10,
                       labelStyle: TextStyle(
                         color: selected ? Colors.black : Colors.white70,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                       ),
                       onSelected: (_) {
                         app.setMicPauseSeconds(s);
@@ -2945,7 +3013,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -2996,7 +3064,7 @@ class _VoiceScreenState extends State<VoiceScreen> {
                                   ? Colors.white38
                                   : Colors.black,
                               fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -3069,7 +3137,7 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
                     style: TextStyle(
                       color: _txt(context),
                       fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const Spacer(),
@@ -3090,7 +3158,7 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
                     style: TextStyle(
                       color: _txt(context),
                       fontSize: 38,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -3138,7 +3206,7 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
                     style: TextStyle(
                       color: _sub(context),
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -3190,7 +3258,7 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
               style: TextStyle(
                 color: _txt(context),
                 fontSize: small ? 16 : 26,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 4),
@@ -3219,7 +3287,9 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF2F8DFF), Color(0xFF2F6BFF)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF4FACFE), Color(0xFF2F6BFF)],
           ),
           borderRadius: BorderRadius.circular(20),
         ),
@@ -3243,7 +3313,7 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   Text(
@@ -3287,7 +3357,7 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
             style: TextStyle(
               color: _txt(context),
               fontSize: 24,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 8),
@@ -3297,24 +3367,36 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
             style: TextStyle(color: _sub(context), fontSize: 15, height: 1.4),
           ),
           const SizedBox(height: 20),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2F6BFF),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            ),
-            onPressed: () {
-              app.buzz();
-              app.newChat();
-              Navigator.pop(context);
-            },
-            child: Text(
-              app.t('startNewChat'),
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  app.buzz();
+                  app.newChat();
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: kAccentGradientColors,
+                    ),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
+                  child: Text(
+                    app.t('startNewChat'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -3344,7 +3426,7 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
             c.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: _txt(context), fontWeight: FontWeight.w700),
+            style: TextStyle(color: _txt(context), fontWeight: FontWeight.w600),
           ),
           subtitle: Text(
             '${c.messages.length} ${app.t('messages')} · ${_ago(app, c.updatedAt)}',
@@ -3444,7 +3526,7 @@ class SettingsSheet extends StatelessWidget {
                     style: TextStyle(
                       color: _txt(context),
                       fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const Spacer(),
@@ -3596,7 +3678,7 @@ class SettingsSheet extends StatelessWidget {
         style: TextStyle(
           color: _sub(context),
           fontSize: 15,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
         ),
       ),
     ),
@@ -3753,17 +3835,22 @@ class SettingsSheet extends StatelessWidget {
                 style: TextStyle(
                   color: _txt(context),
                   fontSize: 24,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              Slider(
-                value: tempSize,
-                min: 0.7,
-                max: 1.5,
-                divisions: 16,
-                activeColor: const Color(0xFF2F8DFF),
-                label: '${tempSize.toStringAsFixed(1)}x',
-                onChanged: (v) => setDialogState(() => tempSize = v),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackShape: const GradientSliderTrackShape(),
+                  thumbColor: const Color(0xFF2F6BFF),
+                ),
+                child: Slider(
+                  value: tempSize,
+                  min: 0.7,
+                  max: 1.5,
+                  divisions: 16,
+                  label: '${tempSize.toStringAsFixed(1)}x',
+                  onChanged: (v) => setDialogState(() => tempSize = v),
+                ),
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -3945,7 +4032,7 @@ class SettingsSheet extends StatelessWidget {
                     style: TextStyle(
                       color: _txt(ctx),
                       fontSize: 22,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const Spacer(),
@@ -4033,7 +4120,7 @@ class LocalModelsScreen extends StatelessWidget {
         foregroundColor: _txt(context),
         title: Text(
           app.t('localModelsTitle'),
-          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w700),
+          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w600),
         ),
       ),
       body: ListView(
@@ -4084,7 +4171,7 @@ class LocalModelsScreen extends StatelessWidget {
                 style: TextStyle(
                   color: _txt(context),
                   fontSize: 15,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(width: 6),
@@ -4131,7 +4218,7 @@ class LocalModelsScreen extends StatelessWidget {
                   style: TextStyle(
                     color: _txt(context),
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -4304,7 +4391,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
         foregroundColor: _txt(context),
         title: Text(
           app.t('memory'),
-          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w700),
+          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w600),
         ),
         actions: [
           TextButton(
@@ -4313,7 +4400,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
               app.t('done'),
               style: const TextStyle(
                 color: Color(0xFF2F8DFF),
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
                 fontSize: 16,
               ),
             ),
@@ -4402,7 +4489,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
       style: TextStyle(
         color: _txt(context),
         fontSize: 18,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700,
       ),
     ),
   );
@@ -4423,7 +4510,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
       style: TextStyle(
         color: _sub(context),
         fontSize: 14,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
       ),
     ),
   );
@@ -4487,7 +4574,7 @@ class _MemoryScreenState extends State<MemoryScreen> {
             selected: value == o,
             labelStyle: TextStyle(
               color: value == o ? Colors.white : _txt(context),
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
             selectedColor: const Color(0xFF2F8DFF),
             backgroundColor: _bg(context).withValues(alpha: 0.4),
@@ -4552,7 +4639,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           widget.conversation != null
               ? app.t('chatPers')
               : app.t('pers'),
-          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w700),
+          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w600),
         ),
         actions: [
           TextButton(
@@ -4561,7 +4648,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
               app.t('done'),
               style: const TextStyle(
                 color: Color(0xFF2F8DFF),
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
                 fontSize: 16,
               ),
             ),
@@ -4754,7 +4841,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
       style: TextStyle(
         color: _txt(context),
         fontSize: 18,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700,
       ),
     ),
   );
@@ -4775,7 +4862,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
       style: TextStyle(
         color: _sub(context),
         fontSize: 14,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
       ),
     ),
   );
@@ -4785,10 +4872,12 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: TextStyle(color: _txt(context), fontSize: 15)),
-        Slider(
-          value: value,
-          activeColor: const Color(0xFF2F8DFF),
-          onChanged: onChanged,
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackShape: const GradientSliderTrackShape(),
+            thumbColor: const Color(0xFF2F6BFF),
+          ),
+          child: Slider(value: value, onChanged: onChanged),
         ),
       ],
     );
@@ -4853,7 +4942,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
             selected: value == o,
             labelStyle: TextStyle(
               color: value == o ? Colors.white : _txt(context),
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
             selectedColor: const Color(0xFF2F8DFF),
             backgroundColor: _bg(context).withValues(alpha: 0.4),
