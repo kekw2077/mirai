@@ -1125,6 +1125,7 @@ const List<ChangelogEntry> kChangelog = [
     'Новый вариант темы «Серая» — нейтральная палитра без сине-фиолетового оттенка.',
     'В списке диалогов — карточка «Продолжить» с последним чатом и кнопкой «Возобновить».',
     'Шрифт по всему приложению заменён на Nunito.',
+    'Голосовой ввод больше не выключает микрофон во время пауз в речи — сессия остаётся активной всё время на экране, выключается только по кнопке микрофона или при выходе с экрана.',
   ]),
   ChangelogEntry('2.7.3', [
     'На экране голосового ввода вокруг анимированной рамки добавлен мягкий рассеивающийся свет того же сине-фиолетового градиента, расходящийся к центру экрана.',
@@ -3819,6 +3820,10 @@ class _VoiceScreenState extends State<VoiceScreen>
   // to this so a restart never silently drops what was already said.
   String _committedText = '';
   Timer? _autoSendTimer;
+  // Drives auto-send ourselves instead of relying on the engine's own
+  // `pauseFor` (which now stays open for the whole session — see _listen):
+  // reset on every recognized word, fires once speech has actually paused.
+  Timer? _autoSendIdleTimer;
   Timer? _listenWatchdog;
   int _listenRetries = 0;
   static const _maxListenRetries = 5;
@@ -3893,18 +3898,13 @@ class _VoiceScreenState extends State<VoiceScreen>
     }
     final stoppedNaturally = wasListening && !_listening && !_manualStop;
     _manualStop = false;
-    if (!stoppedNaturally) return;
-    final willAutoSend =
-        _recognized.trim().isNotEmpty && context.read<AppState>().micAutoSend;
-    if (willAutoSend) {
-      _scheduleAutoSend();
-    } else if (!_muted) {
-      // Recognition stops on its own after `pauseFor` of silence even in
-      // dictation mode, so without this the mic would just go silently
-      // idle until the user noticed and toggled mute/unmute by hand.
-      _committedText = _recognized;
-      _listen();
-    }
+    if (!stoppedNaturally || _muted) return;
+    // `pauseFor` is set far longer than any real pause now (see _listen),
+    // so the engine stopping on its own here is an exceptional case (a
+    // platform-side hard session cap, a dropped connection, etc.) rather
+    // than the normal end of a sentence — just pick the mic back up.
+    _committedText = _recognized;
+    _listen();
   }
 
   // speech_to_text reports raw, platform-dependent decibel-ish values (the
@@ -3916,12 +3916,25 @@ class _VoiceScreenState extends State<VoiceScreen>
     _soundLevel.value += (normalized - _soundLevel.value) * 0.35;
   }
 
-  // Recognition already waited out `pauseFor` of silence before stopping;
-  // this extra beat just lets the user see the final transcript before we navigate away.
+  // _autoSendIdleTimer already waited out the configured pause; this extra
+  // beat just lets the user see the final transcript before we navigate away.
   void _scheduleAutoSend() {
     _autoSendTimer?.cancel();
     _autoSendTimer = Timer(const Duration(milliseconds: 900), () {
       if (mounted) Navigator.pop(context, (_recognized, true));
+    });
+  }
+
+  // The mic now stays open for the whole screen (see _listen), so silence
+  // no longer stops the engine on its own — auto-send has to notice the
+  // pause itself instead of reacting to a status change.
+  void _resetAutoSendIdleTimer() {
+    _autoSendIdleTimer?.cancel();
+    if (!context.read<AppState>().micAutoSend) return;
+    final pauseSeconds = context.read<AppState>().micPauseSeconds;
+    _autoSendIdleTimer = Timer(Duration(seconds: pauseSeconds), () {
+      if (!mounted || _muted || _recognized.trim().isEmpty) return;
+      _scheduleAutoSend();
     });
   }
 
@@ -3943,11 +3956,16 @@ class _VoiceScreenState extends State<VoiceScreen>
                         ? _committedText
                         : '$_committedText ${r.recognizedWords}');
             });
+            _resetAutoSendIdleTimer();
           },
           onSoundLevelChange: _onSoundLevel,
           listenOptions: stt.SpeechListenOptions(
             listenMode: stt.ListenMode.dictation,
-            pauseFor: Duration(seconds: app.micPauseSeconds),
+            // Deliberately far longer than any real pause: the mic should
+            // stay active for the whole screen and only stop on mute or on
+            // leaving the screen, never on its own mid-sentence. Auto-send
+            // detects the pause itself via _resetAutoSendIdleTimer instead.
+            pauseFor: const Duration(minutes: 30),
             localeId: app.lang == 'ru' ? 'ru_RU' : 'en_US',
           ),
         )
@@ -3984,6 +4002,7 @@ class _VoiceScreenState extends State<VoiceScreen>
 
   void _toggleMute() {
     _autoSendTimer?.cancel();
+    _autoSendIdleTimer?.cancel();
     _listenWatchdog?.cancel();
     setState(() => _muted = !_muted);
     if (_muted) {
@@ -4067,9 +4086,6 @@ class _VoiceScreenState extends State<VoiceScreen>
                       ),
                       onSelected: (_) {
                         app.setMicPauseSeconds(s);
-                        if (_speech.isListening) {
-                          _speech.changePauseFor(Duration(seconds: s));
-                        }
                         setDialogState(() {});
                       },
                     );
@@ -4097,6 +4113,7 @@ class _VoiceScreenState extends State<VoiceScreen>
   @override
   void dispose() {
     _autoSendTimer?.cancel();
+    _autoSendIdleTimer?.cancel();
     _listenWatchdog?.cancel();
     _borderCtrl.dispose();
     _soundLevel.dispose();
