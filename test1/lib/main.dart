@@ -167,19 +167,31 @@ const Map<String, Map<String, String>> _i18n = {
     'rpModelLockedToast':
         'Модель этого чата зафиксирована при включении режима ролевой игры и не меняется внутри сессии.',
     'rpCharacters': 'Персонажи',
+    'rpCharactersDesc': 'Как модель называет вас и саму себя в этом чате.',
     'rpUserName': 'Ваше имя',
     'rpAiName': 'Имя персонажа ИИ',
     'rpPromptScenario': 'Промпт и сценарий',
     'systemPrompt': 'Системный промпт / личность персонажа',
+    'systemPromptDesc':
+        'Главное описание персонажа — голос, характер, манера речи. Заменяет обычный системный промпт личности в этом чате.',
     'rpSystemPromptHint':
         'Опишите персонажа от первого лица. Доступны {{user}} и {{char}}.',
     'scenario': 'Сценарий / окружение',
+    'scenarioDesc':
+        'Вступление и контекст истории — обстановка, в которой начинается диалог.',
     'rpScenarioHint': 'С чего начинается история?',
     'rpSampling': 'Параметры генерации',
     'rpTemperature': 'Температура',
+    'rpTemperatureDesc':
+        'Выше — более случайные и неожиданные ответы, ниже — более предсказуемые.',
     'rpTopP': 'Top-P',
+    'rpTopPDesc':
+        'Отсекает менее вероятные варианты слов; меньшее значение — более предсказуемый текст.',
     'rpRepetitionPenalty': 'Штраф за повторение',
+    'rpRepetitionPenaltyDesc':
+        'Снижает шанс, что модель повторяет одни и те же фразы.',
     'rpMaxTokens': 'Длина ответа',
+    'rpMaxTokensDesc': 'Примерный потолок длины одного ответа.',
     'rpPresetShort': 'Коротко (150)',
     'rpPresetMedium': 'Средне (300)',
     'rpPresetLong': 'Роман (600)',
@@ -191,8 +203,12 @@ const Map<String, Map<String, String>> _i18n = {
     'rpLorebookContent': 'Описание для промпта',
     'rpLorebookAddEntry': 'Добавить статью',
     'rpStopSequences': 'Стоп-последовательности',
+    'rpStopSequencesDesc':
+        'Генерация останавливается, как только модель выводит один из этих фрагментов текста.',
     'rpStopSequenceHint': 'Введите текст и нажмите Enter',
     'rpContextWindow': 'Лимит контекста',
+    'rpContextWindowDesc':
+        'Сколько последних сообщений чата помещается в запрос к модели за один раз.',
     'rpContextFull':
         'Контекст этого чата почти заполнен — можно сжать старую историю в краткое резюме.',
     'rpCompressButton': 'Сжать память чата',
@@ -244,6 +260,8 @@ const Map<String, Map<String, String>> _i18n = {
         'Управляйте тем, что Mirai запоминает о вас, и сколько контекста диалога видят локальные модели.',
     'persPersona': 'Личность и стиль общения',
     'persPreset': 'Готовая персона',
+    'persPresetDesc':
+        'Шаблон стиля общения — мгновенно подстраивает черты характера и тон ниже.',
     'preset_friend': 'Лучший друг',
     'preset_mentor': 'Наставник / Коуч',
     'preset_expert': 'Эксперт',
@@ -251,25 +269,38 @@ const Map<String, Map<String, String>> _i18n = {
     'preset_custom': 'Свой стиль',
     'slidersTitle': 'Черты характера',
     'sl_formality': 'Формальность',
+    'sl_formalityDesc': 'Насколько официально или непринуждённо звучит ответ.',
     'sl_empathy': 'Эмпатия',
+    'sl_empathyDesc': 'Тёплый и поддерживающий тон — или сухой и по делу.',
     'sl_verbosity': 'Детализация',
+    'sl_verbosityDesc':
+        'Подробные объяснения — или короткие ответы по существу.',
     'sl_humor': 'Юмор',
+    'sl_humorDesc': 'Насколько уместны шутки и игривость.',
     'sl_creativity': 'Креативность',
+    'sl_creativityDesc':
+        'Привычные ответы — или нестандартные идеи и сравнения.',
     'speechStyle': 'Стиль речи',
     'emojiUsage': 'Эмодзи',
+    'emojiUsageDesc': 'Как часто в ответах появляются эмодзи.',
     'emoji_never': 'Никогда',
     'emoji_sometimes': 'Иногда',
     'emoji_always': 'Всегда',
     'answerFormat': 'Формат ответов',
+    'answerFormatDesc':
+        'Обычный текст, списки или таблицы, когда это подходит по смыслу.',
     'fmt_plain': 'Обычный текст',
     'fmt_lists': 'Списки',
     'fmt_tables': 'Таблицы где можно',
     'persBehavior': 'Функциональность и поведение',
     'defaultLength': 'Длина ответа по умолчанию',
+    'defaultLengthDesc': 'Целевая длина ответа, если вы не уточнили иначе.',
     'len_short': 'Короткая',
     'len_normal': 'Стандартная',
     'len_long': 'Развёрнутая',
     'proactivity': 'Проактивность',
+    'proactivityDesc':
+        'Отвечать только на вопрос, переспрашивать при неясности или предлагать смежные темы.',
     'pro_answer': 'Только отвечать',
     'pro_clarify': 'Задавать уточнения',
     'pro_suggest': 'Предлагать темы',
@@ -323,14 +354,19 @@ const Map<String, Map<String, String>> _i18n = {
         'Имя, заметки и настройки личности не уходят на сервер — они используются только для построения промпта, который видит модель.',
     'persAdvanced': 'Продвинутые настройки',
     'reasoning': 'Стиль мышления',
+    'reasoningDesc':
+        'Отвечать сразу или сначала рассуждать пошагово, показывая ход мысли.',
     'rs_fast': 'Быстрый и интуитивный',
     'rs_step': 'Пошаговое рассуждение',
     'toneTitle': 'Тон в тексте',
+    'toneTitleDesc': 'Общая эмоциональная окраска текста ответов.',
     'tone_neutral': 'Нейтральный',
     'tone_sarcastic': 'Саркастичный',
     'tone_melancholic': 'Меланхоличный',
     'tone_excited': 'Восторженный',
     'customPrompt': 'Свой системный промпт',
+    'customPromptDesc':
+        'Добавляется в конец системного промпта — для правил, которых нет среди настроек выше.',
     'customPromptHint': 'Прямая инструкция ассистенту…',
   },
   'en': {
@@ -460,19 +496,31 @@ const Map<String, Map<String, String>> _i18n = {
     'rpModelLockedToast':
         "This chat's model was locked in when roleplay mode turned on and can't change within the session.",
     'rpCharacters': 'Characters',
+    'rpCharactersDesc': 'What the model calls you and itself in this chat.',
     'rpUserName': 'Your name',
     'rpAiName': "AI character's name",
     'rpPromptScenario': 'Prompt & scenario',
     'systemPrompt': 'System prompt / character personality',
+    'systemPromptDesc':
+        "The character's core description — voice, personality, way of speaking. Replaces the regular personality system prompt for this chat.",
     'rpSystemPromptHint':
         'Describe the character in first person. {{user}} and {{char}} are available.',
     'scenario': 'Scenario / setting',
+    'scenarioDesc':
+        'The opening context for the story — the setting the conversation starts in.',
     'rpScenarioHint': 'How does the story begin?',
     'rpSampling': 'Generation settings',
     'rpTemperature': 'Temperature',
+    'rpTemperatureDesc':
+        'Higher makes replies more random and surprising; lower makes them more predictable.',
     'rpTopP': 'Top-P',
+    'rpTopPDesc':
+        'Cuts off unlikely word choices; a lower value makes the text more predictable.',
     'rpRepetitionPenalty': 'Repetition penalty',
+    'rpRepetitionPenaltyDesc':
+        'Lowers the chance the model repeats the same phrases.',
     'rpMaxTokens': 'Reply length',
+    'rpMaxTokensDesc': 'Roughly how long a single reply is allowed to be.',
     'rpPresetShort': 'Short (150)',
     'rpPresetMedium': 'Medium (300)',
     'rpPresetLong': 'Novel (600)',
@@ -484,8 +532,12 @@ const Map<String, Map<String, String>> _i18n = {
     'rpLorebookContent': 'Description for the prompt',
     'rpLorebookAddEntry': 'Add entry',
     'rpStopSequences': 'Stop sequences',
+    'rpStopSequencesDesc':
+        "Generation stops as soon as the model outputs one of these snippets.",
     'rpStopSequenceHint': 'Type text and press Enter',
     'rpContextWindow': 'Context window limit',
+    'rpContextWindowDesc':
+        'How many recent messages from this chat fit into a single request to the model.',
     'rpContextFull':
         "This chat's context is almost full — you can compress the older history into a summary.",
     'rpCompressButton': 'Compress chat memory',
@@ -537,6 +589,8 @@ const Map<String, Map<String, String>> _i18n = {
         "Control what Mirai remembers about you, and how much conversation context local models can see.",
     'persPersona': 'Character & vibe',
     'persPreset': 'Persona preset',
+    'persPresetDesc':
+        'A style template — instantly adjusts the traits and tone below.',
     'preset_friend': 'Best friend',
     'preset_mentor': 'Mentor / Coach',
     'preset_expert': 'Expert',
@@ -544,25 +598,38 @@ const Map<String, Map<String, String>> _i18n = {
     'preset_custom': 'Custom',
     'slidersTitle': 'Character traits',
     'sl_formality': 'Formality',
+    'sl_formalityDesc': 'How formal or casual the answer sounds.',
     'sl_empathy': 'Empathy',
+    'sl_empathyDesc': 'A warm, supportive tone — or a dry, businesslike one.',
     'sl_verbosity': 'Detail',
+    'sl_verbosityDesc':
+        'Detailed explanations — or short, to-the-point replies.',
     'sl_humor': 'Humor',
+    'sl_humorDesc': 'How much room there is for jokes and playfulness.',
     'sl_creativity': 'Creativity',
+    'sl_creativityDesc':
+        'Conventional answers — or unconventional ideas and comparisons.',
     'speechStyle': 'Speech style',
     'emojiUsage': 'Emoji',
+    'emojiUsageDesc': 'How often emoji show up in replies.',
     'emoji_never': 'Never',
     'emoji_sometimes': 'Sometimes',
     'emoji_always': 'Always',
     'answerFormat': 'Answer format',
+    'answerFormatDesc': 'Plain text, lists, or tables, whichever fits the content.',
     'fmt_plain': 'Plain text',
     'fmt_lists': 'Lists',
     'fmt_tables': 'Tables when possible',
     'persBehavior': 'Functionality & behavior',
     'defaultLength': 'Default answer length',
+    'defaultLengthDesc':
+        'Target reply length unless you ask for something different.',
     'len_short': 'Short',
     'len_normal': 'Standard',
     'len_long': 'Detailed',
     'proactivity': 'Proactivity',
+    'proactivityDesc':
+        'Answer only what was asked, ask clarifying questions, or suggest related topics.',
     'pro_answer': 'Answer only',
     'pro_clarify': 'Ask clarifying questions',
     'pro_suggest': 'Suggest related topics',
@@ -616,14 +683,19 @@ const Map<String, Map<String, String>> _i18n = {
         "Your name, notes, and personality settings never leave the device — they're only used to build the prompt the model sees.",
     'persAdvanced': 'Advanced',
     'reasoning': 'Reasoning style',
+    'reasoningDesc':
+        'Answer right away, or think step by step and show the reasoning.',
     'rs_fast': 'Fast & intuitive',
     'rs_step': 'Step-by-step reasoning',
     'toneTitle': 'Text tone',
+    'toneTitleDesc': 'Overall emotional flavor of the reply text.',
     'tone_neutral': 'Neutral',
     'tone_sarcastic': 'Sarcastic',
     'tone_melancholic': 'Melancholic',
     'tone_excited': 'Excited',
     'customPrompt': 'Custom system prompt',
+    'customPromptDesc':
+        "Appended to the end of the system prompt — for rules not covered by the settings above.",
     'customPromptHint': 'Direct instruction to the assistant…',
   },
 };
@@ -952,32 +1024,57 @@ class Personalization {
   // actually away from the neutral middle, instead of a single dense
   // "Style: formality medium, empathy medium, ..." line — models were
   // visibly ignoring the personality sliders entirely with the old format.
+  //
+  // Thresholds at 0.4/0.6 (not 0.33/0.66) and a second, stronger tier past
+  // 0.15/0.85 — the old 0.33-0.66 dead zone covered the sliders' own 0.5
+  // default, so a moderate drag in either direction produced no directive
+  // at all and the setting looked like it did nothing.
   void _writeStyleFacts(StringBuffer b) {
-    if (formality >= 0.66) {
+    if (formality >= 0.85) {
+      b.writeln('Write very formally, like an official document.');
+    } else if (formality >= 0.6) {
       b.writeln('Write formally and professionally.');
-    } else if (formality < 0.33) {
+    } else if (formality < 0.15) {
+      b.writeln('Write very casually, like texting a close friend; slang is fine.');
+    } else if (formality < 0.4) {
       b.writeln('Write casually and informally, like talking to a friend.');
     }
-    if (empathy >= 0.66) {
+    if (empathy >= 0.85) {
+      b.writeln('Be deeply warm and emotionally supportive; validate feelings.');
+    } else if (empathy >= 0.6) {
       b.writeln('Be warm and emotionally supportive in your responses.');
-    } else if (empathy < 0.33) {
+    } else if (empathy < 0.15) {
+      b.writeln('Be strictly factual and blunt; skip emotional commentary entirely.');
+    } else if (empathy < 0.4) {
       b.writeln(
         'Stay matter-of-fact and businesslike, without emotional commentary.',
       );
     }
-    if (verbosity >= 0.66) {
+    if (verbosity >= 0.85) {
+      b.writeln('Give thorough, in-depth answers with examples and context.');
+    } else if (verbosity >= 0.6) {
       b.writeln('Elaborate with extra detail and explanation.');
-    } else if (verbosity < 0.33) {
+    } else if (verbosity < 0.15) {
+      b.writeln('Be extremely terse; answer in as few words as possible.');
+    } else if (verbosity < 0.4) {
       b.writeln('Be concise; avoid unnecessary elaboration.');
     }
-    if (humor >= 0.66) {
+    if (humor >= 0.85) {
+      b.writeln('Be consistently witty and playful; jokes are welcome often.');
+    } else if (humor >= 0.6) {
       b.writeln('Feel free to be playful and use humor.');
-    } else if (humor < 0.33) {
+    } else if (humor < 0.15) {
+      b.writeln('Stay strictly serious; do not joke at all.');
+    } else if (humor < 0.4) {
       b.writeln('Keep a serious tone, avoid jokes.');
     }
-    if (creativity >= 0.66) {
+    if (creativity >= 0.85) {
+      b.writeln('Favor bold, unconventional ideas and unexpected angles.');
+    } else if (creativity >= 0.6) {
       b.writeln('Be imaginative and creative in how you answer.');
-    } else if (creativity < 0.33) {
+    } else if (creativity < 0.15) {
+      b.writeln('Stick strictly to the safest, most conventional answer.');
+    } else if (creativity < 0.4) {
       b.writeln('Stick to straightforward, conventional answers.');
     }
   }
@@ -7099,7 +7196,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _label(app.t('persPreset')),
+              _label(app.t('persPreset'), desc: app.t('persPresetDesc')),
               _chipsSelect(
                 options: const [
                   'preset_friend',
@@ -7131,6 +7228,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                   p.formality = v;
                   p.preset = 'preset_custom';
                 }),
+                desc: app.t('sl_formalityDesc'),
               ),
               _slider(
                 app.t('sl_empathy'),
@@ -7139,6 +7237,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                   p.empathy = v;
                   p.preset = 'preset_custom';
                 }),
+                desc: app.t('sl_empathyDesc'),
               ),
               _slider(
                 app.t('sl_verbosity'),
@@ -7147,6 +7246,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                   p.verbosity = v;
                   p.preset = 'preset_custom';
                 }),
+                desc: app.t('sl_verbosityDesc'),
               ),
               _slider(
                 app.t('sl_humor'),
@@ -7155,6 +7255,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                   p.humor = v;
                   p.preset = 'preset_custom';
                 }),
+                desc: app.t('sl_humorDesc'),
               ),
               _slider(
                 app.t('sl_creativity'),
@@ -7163,6 +7264,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                   p.creativity = v;
                   p.preset = 'preset_custom';
                 }),
+                desc: app.t('sl_creativityDesc'),
               ),
             ],
           ),
@@ -7172,7 +7274,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _label(app.t('emojiUsage')),
+              _label(app.t('emojiUsage'), desc: app.t('emojiUsageDesc')),
               _chipsSelect(
                 options: const [
                   'emoji_never',
@@ -7183,7 +7285,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                 onSelect: (v) => setState(() => p.emoji = v),
               ),
               const SizedBox(height: 12),
-              _label(app.t('answerFormat')),
+              _label(app.t('answerFormat'), desc: app.t('answerFormatDesc')),
               _chipsSelect(
                 options: const ['fmt_plain', 'fmt_lists', 'fmt_tables'],
                 value: p.answerFormat,
@@ -7199,14 +7301,14 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _label(app.t('defaultLength')),
+              _label(app.t('defaultLength'), desc: app.t('defaultLengthDesc')),
               _chipsSelect(
                 options: const ['len_short', 'len_normal', 'len_long'],
                 value: p.defaultLength,
                 onSelect: (v) => setState(() => p.defaultLength = v),
               ),
               const SizedBox(height: 12),
-              _label(app.t('proactivity')),
+              _label(app.t('proactivity'), desc: app.t('proactivityDesc')),
               _chipsSelect(
                 options: const ['pro_answer', 'pro_clarify', 'pro_suggest'],
                 value: p.proactivity,
@@ -7236,14 +7338,14 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _label(app.t('reasoning')),
+              _label(app.t('reasoning'), desc: app.t('reasoningDesc')),
               _chipsSelect(
                 options: const ['rs_fast', 'rs_step'],
                 value: p.reasoning,
                 onSelect: (v) => setState(() => p.reasoning = v),
               ),
               const SizedBox(height: 12),
-              _label(app.t('toneTitle')),
+              _label(app.t('toneTitle'), desc: app.t('toneTitleDesc')),
               _chipsSelect(
                 options: const [
                   'tone_neutral',
@@ -7255,7 +7357,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                 onSelect: (v) => setState(() => p.tone = v),
               ),
               const SizedBox(height: 12),
-              _label(app.t('customPrompt')),
+              _label(app.t('customPrompt'), desc: app.t('customPromptDesc')),
               _field(_custom, app.t('customPromptHint'), maxLines: 4),
               const SizedBox(height: 16),
               _contextSizeControl(),
@@ -7498,7 +7600,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
               desc: app.modelDisplayName(lockedModel),
             ),
           ),
-        _section(app.t('rpCharacters')),
+        _section(app.t('rpCharacters'), app.t('rpCharactersDesc')),
         _card2(
           child: Row(
             children: [
@@ -7514,10 +7616,10 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _label(app.t('systemPrompt')),
+              _label(app.t('systemPrompt'), desc: app.t('systemPromptDesc')),
               _field(_rpSystemPrompt, app.t('rpSystemPromptHint'), maxLines: 6),
               const SizedBox(height: 12),
-              _label(app.t('scenario')),
+              _label(app.t('scenario'), desc: app.t('scenarioDesc')),
               _field(_rpScenario, app.t('rpScenarioHint'), maxLines: 4),
             ],
           ),
@@ -7535,6 +7637,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                 isLocal ? 1.5 : 2.0,
                 (v) => setState(() => rp.sampling.temperature = v),
                 format: (v) => v.toStringAsFixed(2),
+                desc: app.t('rpTemperatureDesc'),
               ),
               _sliderRange(
                 app.t('rpTopP'),
@@ -7543,6 +7646,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                 1.0,
                 (v) => setState(() => rp.sampling.topP = v),
                 format: (v) => v.toStringAsFixed(2),
+                desc: app.t('rpTopPDesc'),
               ),
               _sliderRange(
                 app.t('rpRepetitionPenalty'),
@@ -7551,9 +7655,10 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                 1.5,
                 (v) => setState(() => rp.sampling.repetitionPenalty = v),
                 format: (v) => v.toStringAsFixed(2),
+                desc: app.t('rpRepetitionPenaltyDesc'),
               ),
               const SizedBox(height: 8),
-              _label(app.t('rpMaxTokens')),
+              _label(app.t('rpMaxTokens'), desc: app.t('rpMaxTokensDesc')),
               _quickChips(
                 const [150, 300, 600],
                 rp.sampling.maxResponseTokens,
@@ -7589,10 +7694,10 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        _section(app.t('rpStopSequences')),
+        _section(app.t('rpStopSequences'), app.t('rpStopSequencesDesc')),
         _card2(child: _stopSequenceInput(app)),
         const SizedBox(height: 20),
-        _section(app.t('rpContextWindow')),
+        _section(app.t('rpContextWindow'), app.t('rpContextWindowDesc')),
         _card2(
           child: _quickChips(
             isLocal ? const [2048, 4096, 8192] : const [4096, 16384, 32768],
@@ -7761,6 +7866,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     double max,
     ValueChanged<double> onChanged, {
     String Function(double)? format,
+    String? desc,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -7785,6 +7891,14 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
               ),
             ],
           ),
+          if (desc != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              desc,
+              style: TextStyle(color: _sub(context), fontSize: 12, height: 1.3),
+            ),
+            const SizedBox(height: 4),
+          ],
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               trackShape: const GradientSliderTrackShape(),
@@ -8108,15 +8222,27 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     );
   }
 
-  Widget _section(String s) => Padding(
+  Widget _section(String s, [String? desc]) => Padding(
     padding: const EdgeInsets.only(bottom: 10, left: 4),
-    child: Text(
-      s,
-      style: TextStyle(
-        color: _txt(context),
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-      ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          s,
+          style: TextStyle(
+            color: _txt(context),
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (desc != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            desc,
+            style: TextStyle(color: _sub(context), fontSize: 13, height: 1.3),
+          ),
+        ],
+      ],
     ),
   );
 
@@ -8129,23 +8255,47 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     child: child,
   );
 
-  Widget _label(String s) => Padding(
+  Widget _label(String s, {String? desc}) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: Text(
-      s,
-      style: TextStyle(
-        color: _sub(context),
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-      ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          s,
+          style: TextStyle(
+            color: _sub(context),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        if (desc != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            desc,
+            style: TextStyle(color: _sub(context), fontSize: 12, height: 1.3),
+          ),
+        ],
+      ],
     ),
   );
 
-  Widget _slider(String label, double value, ValueChanged<double> onChanged) {
+  Widget _slider(
+    String label,
+    double value,
+    ValueChanged<double> onChanged, {
+    String? desc,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: TextStyle(color: _txt(context), fontSize: 15)),
+        if (desc != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            desc,
+            style: TextStyle(color: _sub(context), fontSize: 12, height: 1.3),
+          ),
+        ],
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             trackShape: const GradientSliderTrackShape(),
