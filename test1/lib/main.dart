@@ -142,6 +142,9 @@ const Map<String, Map<String, String>> _i18n = {
     'tierHigh': 'Мощные',
     'tierHighDesc':
         'Для флагманов с большим запасом ОЗУ (например, iPhone 15 Pro Max)',
+    'tierRoleplay': 'Для ролевой игры',
+    'tierRoleplayDesc':
+        'Файнтюны на ролевых/литературных диалогах, а не только на ассистентских задачах',
     'onDevice': 'на устройстве',
     'downloadModel': 'Скачать',
     'downloadingModel': 'Загрузка…',
@@ -242,6 +245,8 @@ const Map<String, Map<String, String>> _i18n = {
     'addModelHint': 'Добавьте модель вручную',
     'attachFile': 'Прикрепить файл',
     'fileAttached': 'Файл прикреплён',
+    'imageNotSupportedWarning':
+        'Эта модель не понимает изображения — увидит только имя файла.',
     'recentPhotos': 'Недавние',
     'noRecentPhotos': 'Нет недавних фото',
     'photoAccessDenied':
@@ -328,6 +333,7 @@ const Map<String, Map<String, String>> _i18n = {
     'contextSize': 'Размер контекста',
     'contextSizeDesc':
         'Сколько диалога помнит локальная модель. Больше — лучше память, но выше нагрузка на устройство и медленнее ответы.',
+    'contextSizeMaxFor': 'Максимум для',
     'persProfile': 'О вас',
     'name': 'Имя',
     'pronouns': 'Местоимения',
@@ -471,6 +477,9 @@ const Map<String, Map<String, String>> _i18n = {
     'tierMidDesc': 'For modern mid-range smartphones (e.g. Honor 70)',
     'tierHigh': 'High-end',
     'tierHighDesc': 'For flagships with plenty of RAM (e.g. iPhone 15 Pro Max)',
+    'tierRoleplay': 'For roleplay',
+    'tierRoleplayDesc':
+        'Fine-tunes trained on roleplay/creative-writing dialogue, not just assistant tasks',
     'onDevice': 'on-device',
     'downloadModel': 'Download',
     'downloadingModel': 'Downloading…',
@@ -571,6 +580,8 @@ const Map<String, Map<String, String>> _i18n = {
     'addModelHint': 'Add model manually',
     'attachFile': 'Attach file',
     'fileAttached': 'File attached',
+    'imageNotSupportedWarning':
+        "This model can't understand images — it will only see the file name.",
     'recentPhotos': 'Recent',
     'noRecentPhotos': 'No recent photos',
     'photoAccessDenied':
@@ -657,6 +668,7 @@ const Map<String, Map<String, String>> _i18n = {
     'contextSize': 'Context size',
     'contextSizeDesc':
         "How much of the conversation the local model remembers. Higher means better memory, but more load on the device and slower replies.",
+    'contextSizeMaxFor': 'Maximum for',
     'persProfile': 'About you',
     'name': 'Name',
     'pronouns': 'Pronouns',
@@ -1524,26 +1536,48 @@ class RPGuardFilters {
 
 /* ============================ ЛОКАЛЬНЫЕ МОДЕЛИ ============================ */
 
-enum LocalModelTier { light, mid, high }
+enum LocalModelTier { light, mid, high, roleplay }
 
 class LocalModelSpec {
   final String id;
   final String displayName;
+  // Short, recognizable label without "Instruct"/version/quant suffixes —
+  // shown anywhere the user just needs to know which model is active (chat
+  // header, model picker, RP locked-model card). The full displayName stays
+  // on the Local Models download screen, where the extra precision actually
+  // helps pick what to download.
+  final String shortName;
   final int sizeBytes;
   final String url;
   final String fileName;
   final LocalModelTier tier;
+  // Native context window the model was actually trained/released with (not
+  // a device-RAM guess) — the per-model ceiling shown on the context-size
+  // control. fllama hardcodes n_parallel=4 and splits the requested
+  // contextSize across 4 slots (see localContextSize * 4 at the call site),
+  // so the slider's real usable max is this divided by 4, not the raw value.
+  final int maxContextTokens;
+  // None of the catalog entries below are vision/multimodal GGUF builds —
+  // fllama is given plain OpenAiRequest.messages text, no image bytes — so
+  // this defaults to false rather than requiring every entry to spell it
+  // out. Flip it on a per-entry basis if a real vision GGUF is ever added.
+  final bool isVisionCapable;
 
   const LocalModelSpec({
     required this.id,
     required this.displayName,
+    required this.shortName,
     required this.sizeBytes,
     required this.url,
     required this.fileName,
     required this.tier,
+    required this.maxContextTokens,
+    this.isVisionCapable = false,
   });
 
   String get modelKey => 'local:$id';
+
+  int get maxLocalContextSize => maxContextTokens ~/ 4;
 }
 
 const List<LocalModelSpec> kLocalModels = [
@@ -1551,66 +1585,94 @@ const List<LocalModelSpec> kLocalModels = [
   LocalModelSpec(
     id: 'qwen2.5-1.5b',
     displayName: 'Qwen2.5 1.5B Instruct',
+    shortName: 'Qwen 1.5B',
     sizeBytes: 1117320736,
     url:
         'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf?download=true',
     fileName: 'qwen2.5-1.5b-instruct-q4_k_m.gguf',
     tier: LocalModelTier.mid,
+    maxContextTokens: 32768,
   ),
   LocalModelSpec(
     id: 'gemma2-2b',
     displayName: 'Gemma 2 2B Instruct',
+    shortName: 'Gemma 2B',
     sizeBytes: 1708582752,
     url:
         'https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf?download=true',
     fileName: 'gemma-2-2b-it-Q4_K_M.gguf',
     tier: LocalModelTier.mid,
+    maxContextTokens: 8192,
   ),
   LocalModelSpec(
     id: 'qwen2.5-3b',
     displayName: 'Qwen2.5 3B Instruct',
+    shortName: 'Qwen 3B',
     sizeBytes: 2104932768,
     url:
         'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf?download=true',
     fileName: 'qwen2.5-3b-instruct-q4_k_m.gguf',
     tier: LocalModelTier.mid,
+    maxContextTokens: 32768,
   ),
   LocalModelSpec(
     id: 'phi-3-mini-4k',
     displayName: 'Phi-3 Mini 4K Instruct',
+    shortName: 'Phi-3 Mini',
     sizeBytes: 2393231072,
     url:
         'https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf?download=true',
     fileName: 'Phi-3-mini-4k-instruct-q4.gguf',
     tier: LocalModelTier.mid,
+    maxContextTokens: 4096,
   ),
   // Мощные — флагманы с большим запасом ОЗУ (например, iPhone 15 Pro Max)
   LocalModelSpec(
     id: 'mistral-7b-v0.3',
     displayName: 'Mistral 7B Instruct v0.3',
+    shortName: 'Mistral 7B',
     sizeBytes: 4372812000,
     url:
         'https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF/resolve/main/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf?download=true',
     fileName: 'Mistral-7B-Instruct-v0.3-Q4_K_M.gguf',
     tier: LocalModelTier.high,
+    maxContextTokens: 32768,
   ),
   LocalModelSpec(
     id: 'qwen2.5-7b',
     displayName: 'Qwen2.5 7B Instruct',
+    shortName: 'Qwen 7B',
     sizeBytes: 4683074240,
     url:
         'https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf?download=true',
     fileName: 'Qwen2.5-7B-Instruct-Q4_K_M.gguf',
     tier: LocalModelTier.high,
+    maxContextTokens: 32768,
   ),
   LocalModelSpec(
     id: 'llama-3.1-8b',
     displayName: 'Llama 3.1 8B Instruct',
+    shortName: 'Llama 8B',
     sizeBytes: 4920739232,
     url:
         'https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf?download=true',
     fileName: 'Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf',
     tier: LocalModelTier.high,
+    maxContextTokens: 131072,
+  ),
+  // Ролевая игра — RP-ориентированный файнтюн, отдельно от моделей общего
+  // назначения выше (тот же вес/контекст, что у Qwen2.5 7B, но обучен на
+  // ролевых/литературных диалогах, а не только на ассистентских задачах).
+  LocalModelSpec(
+    id: 'eva-qwen2.5-7b',
+    displayName: 'EVA-Qwen2.5 7B v0.1',
+    shortName: 'EVA 7B',
+    sizeBytes: 4683072288,
+    url:
+        'https://huggingface.co/bartowski/EVA-Qwen2.5-7B-v0.1-GGUF/resolve/main/EVA-Qwen2.5-7B-v0.1-Q4_K_M.gguf?download=true',
+    fileName: 'EVA-Qwen2.5-7B-v0.1-Q4_K_M.gguf',
+    tier: LocalModelTier.roleplay,
+    maxContextTokens: 32768,
   ),
 ];
 
@@ -1876,6 +1938,15 @@ class LocalLLMService implements ILLMService {
   ) {
     final effectivePersona = conv.persona ?? app.persona;
     final sampling = (conv.rpModeEnabled ? conv.rpConfig?.sampling : null);
+    // Defensive re-clamp: the UI control already keeps localContextSize
+    // within the live model's range, but this guards the actual request
+    // too in case the stored value predates a model switch (or this whole
+    // per-model-max feature).
+    final spec = app.localSpecFor(_effectiveModelFor(app, conv));
+    final maxLocalContextSize = spec?.maxLocalContextSize ?? 4096;
+    final clampedContextSize = effectivePersona.localContextSize > maxLocalContextSize
+        ? maxLocalContextSize
+        : effectivePersona.localContextSize;
     return OpenAiRequest(
       messages: messages,
       modelPath: modelPath,
@@ -1883,7 +1954,7 @@ class LocalLLMService implements ILLMService {
       // native platforms, splitting contextSize into 4 slots internally
       // (n_ctx_seq = n_ctx / 4). Requesting 4x the user-facing/effective
       // size gives back that much usable context.
-      contextSize: effectivePersona.localContextSize * 4,
+      contextSize: clampedContextSize * 4,
       maxTokens: sampling?.maxResponseTokens ?? 512,
       temperature: sampling?.temperature ?? 0.7,
       topP: sampling?.topP ?? 1.0,
@@ -2563,7 +2634,7 @@ class AppState extends ChangeNotifier {
     if (modelKey.isEmpty) return t('noModelsAvailable');
     final spec = localSpecFor(modelKey);
     if (spec == null) return modelKey;
-    return '${spec.displayName} (${t('onDevice')})';
+    return '${spec.shortName} (${t('onDevice')})';
   }
 
   Future<void> downloadLocalModel(LocalModelSpec spec) async {
@@ -3576,6 +3647,29 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  static const _imageExtensions = [
+    'jpg',
+    'jpeg',
+    'png',
+    'gif',
+    'webp',
+    'bmp',
+    'heic',
+    'heif',
+  ];
+
+  bool _isImageAttachment(String path) =>
+      _imageExtensions.contains(path.split('.').last.toLowerCase());
+
+  // Mirai never actually sends image bytes to either backend today (local
+  // GGUF requests and the Ollama request body both only carry text), so a
+  // remote model is treated the same as a non-vision one here regardless of
+  // what it nominally supports server-side.
+  bool _modelSupportsVision(AppState app) {
+    if (!app.isLocalModel(app.selectedModel)) return false;
+    return app.localSpecFor(app.selectedModel)?.isVisionCapable ?? false;
+  }
+
   Future<void> _pickFile() async {
     final result = await FilePicker.pickFiles();
     if (result != null && result.files.isNotEmpty) {
@@ -3760,8 +3854,7 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Row(
         children: [
           _circleBtn(Icons.settings_outlined, _openSettings),
-          const Spacer(),
-          Flexible(
+          Expanded(
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
               onTap: () {
@@ -3785,7 +3878,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Opacity(
                   opacity: lockedModel != null ? 0.6 : 1,
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (app.loadingModels) ...[
                         const SizedBox(
@@ -3833,18 +3926,27 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           ),
-          const Spacer(),
           if (app.current != null)
-            _circleBtn(
-              app.current!.rpModeEnabled
-                  ? Icons.auto_awesome
-                  : Icons.auto_awesome_outlined,
-              _toggleRpMode,
-              active: app.current!.rpModeEnabled,
-              tooltip: app.t('rpMode'),
-            ),
-          if (app.current != null) const SizedBox(width: 8),
-          _circleBtn(Icons.manage_accounts_outlined, _openChatPersonalization),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _circleBtn(
+                  app.current!.rpModeEnabled
+                      ? Icons.auto_awesome
+                      : Icons.auto_awesome_outlined,
+                  _toggleRpMode,
+                  active: app.current!.rpModeEnabled,
+                  tooltip: app.t('rpMode'),
+                ),
+                const SizedBox(height: 6),
+                _circleBtn(
+                  Icons.manage_accounts_outlined,
+                  _openChatPersonalization,
+                ),
+              ],
+            )
+          else
+            _circleBtn(Icons.manage_accounts_outlined, _openChatPersonalization),
           const SizedBox(width: 8),
           _circleBtn(Icons.chat_bubble_outline, _openConversations),
         ],
@@ -4264,23 +4366,54 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _attachmentBar(AppState app) {
+    final showVisionWarning =
+        _pendingAttachments.any(_isImageAttachment) &&
+        !_modelSupportsVision(app);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        children: _pendingAttachments.map((a) {
-          return Chip(
-            avatar: const Icon(Icons.attach_file, size: 16),
-            label: Text(
-              a.split('/').last,
-              style: TextStyle(fontSize: 12, color: _txt(context)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: _pendingAttachments.map((a) {
+              return Chip(
+                avatar: const Icon(Icons.attach_file, size: 16),
+                label: Text(
+                  a.split('/').last,
+                  style: TextStyle(fontSize: 12, color: _txt(context)),
+                ),
+                onDeleted: () => setState(() => _pendingAttachments.remove(a)),
+                backgroundColor: _card(context),
+                side: BorderSide(color: _sub(context).withValues(alpha: 0.3)),
+              );
+            }).toList(),
+          ),
+          if (showVisionWarning) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.warning_amber_outlined,
+                  size: 14,
+                  color: Colors.orangeAccent,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    app.t('imageNotSupportedWarning'),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.orangeAccent,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            onDeleted: () => setState(() => _pendingAttachments.remove(a)),
-            backgroundColor: _card(context),
-            side: BorderSide(color: _sub(context).withValues(alpha: 0.3)),
-          );
-        }).toList(),
+          ],
+        ],
       ),
     );
   }
@@ -5537,7 +5670,10 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
       initialChildSize: 0.92,
       minChildSize: 0.5,
       maxChildSize: 0.95,
-      builder: (_, scrollCtrl) => Container(
+      builder: (_, scrollCtrl) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Container(
         decoration: BoxDecoration(
           color: _bg(context),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -5660,6 +5796,7 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -6831,6 +6968,7 @@ class LocalModelsScreen extends StatelessWidget {
       LocalModelTier.light => ('tierLight', 'tierLightDesc'),
       LocalModelTier.mid => ('tierMid', 'tierMidDesc'),
       LocalModelTier.high => ('tierHigh', 'tierHighDesc'),
+      LocalModelTier.roleplay => ('tierRoleplay', 'tierRoleplayDesc'),
     };
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -7121,46 +7259,50 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _topTab(
-                  icon: Icons.person_outline,
-                  label: app.t('tabPersonality'),
-                  selected: _tab == 0,
-                  onTap: () => setState(() => _tab = 0),
-                ),
-              ),
-              Expanded(
-                child: _topTab(
-                  icon: Icons.psychology_outlined,
-                  label: app.t('tabMemory'),
-                  selected: _tab == 1,
-                  onTap: () => setState(() => _tab = 1),
-                ),
-              ),
-              if (widget.conversation?.rpModeEnabled == true)
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(
+          children: [
+            Row(
+              children: [
                 Expanded(
                   child: _topTab(
-                    icon: Icons.badge_outlined,
-                    label: app.t('tabRoleplay'),
-                    selected: _tab == 2,
-                    onTap: () => setState(() => _tab = 2),
+                    icon: Icons.person_outline,
+                    label: app.t('tabPersonality'),
+                    selected: _tab == 0,
+                    onTap: () => setState(() => _tab = 0),
                   ),
                 ),
-            ],
-          ),
-          Container(height: 1, color: _sub(context).withValues(alpha: 0.15)),
-          Expanded(
-            child: switch (_tab) {
-              0 => _personalityTab(app),
-              1 => _memoryTab(app),
-              _ => _roleplayTab(app),
-            },
-          ),
-        ],
+                Expanded(
+                  child: _topTab(
+                    icon: Icons.psychology_outlined,
+                    label: app.t('tabMemory'),
+                    selected: _tab == 1,
+                    onTap: () => setState(() => _tab = 1),
+                  ),
+                ),
+                if (widget.conversation?.rpModeEnabled == true)
+                  Expanded(
+                    child: _topTab(
+                      icon: Icons.badge_outlined,
+                      label: app.t('tabRoleplay'),
+                      selected: _tab == 2,
+                      onTap: () => setState(() => _tab = 2),
+                    ),
+                  ),
+              ],
+            ),
+            Container(height: 1, color: _sub(context).withValues(alpha: 0.15)),
+            Expanded(
+              child: switch (_tab) {
+                0 => _personalityTab(app),
+                1 => _memoryTab(app),
+                _ => _roleplayTab(app),
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -7380,8 +7522,6 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
               const SizedBox(height: 12),
               _label(app.t('customPrompt'), desc: app.t('customPromptDesc')),
               _field(_custom, app.t('customPromptHint'), maxLines: 4),
-              const SizedBox(height: 16),
-              _contextSizeControl(),
             ],
           ),
         ),
@@ -7425,6 +7565,8 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
               ),
               const SizedBox(height: 12),
               _field(_memory, app.t('memoryNote'), maxLines: 3),
+              Divider(color: _sub(context).withValues(alpha: 0.25), height: 25),
+              _contextSizeControl(app),
               Divider(color: _sub(context).withValues(alpha: 0.25), height: 25),
               _destructiveActionRow(
                 icon: Icons.delete_outline,
@@ -8165,10 +8307,22 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     );
   }
 
-  Widget _contextSizeControl() {
+  Widget _contextSizeControl(AppState app) {
     const step = 512;
     const minSize = 512;
-    const maxSize = 4096;
+    // Adaptive per-model ceiling instead of a flat 4096: an RP chat follows
+    // its locked model, everything else follows whatever's selected
+    // globally right now — same resolution LocalLLMService uses to build
+    // the actual request, so the slider can never promise more context than
+    // the model (and the fllama ×4 multiplier) can really deliver.
+    final modelKey = widget.conversation != null
+        ? _effectiveModelFor(app, widget.conversation!)
+        : app.selectedModel;
+    final spec = app.localSpecFor(modelKey);
+    final maxSize = spec?.maxLocalContextSize ?? 4096;
+    final displaySize = p.localContextSize < minSize
+        ? minSize
+        : (p.localContextSize > maxSize ? maxSize : p.localContextSize);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -8185,7 +8339,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
               ),
             ),
             Text(
-              '${p.localContextSize}',
+              '$displaySize',
               style: TextStyle(
                 color: _sub(context),
                 fontSize: 15,
@@ -8199,15 +8353,15 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           children: [
             _stepBtn(
               Icons.remove,
-              p.localContextSize > minSize
-                  ? () => setState(() => p.localContextSize -= step)
+              displaySize > minSize
+                  ? () => setState(() => p.localContextSize = displaySize - step)
                   : null,
             ),
             const SizedBox(width: 10),
             _stepBtn(
               Icons.add,
-              p.localContextSize < maxSize
-                  ? () => setState(() => p.localContextSize += step)
+              displaySize < maxSize
+                  ? () => setState(() => p.localContextSize = displaySize + step)
                   : null,
             ),
           ],
@@ -8217,6 +8371,13 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           tr('contextSizeDesc'),
           style: TextStyle(color: _sub(context), fontSize: 13, height: 1.3),
         ),
+        if (spec != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            '${app.t('contextSizeMaxFor')} ${spec.shortName}: $maxSize',
+            style: TextStyle(color: _sub(context), fontSize: 12, height: 1.3),
+          ),
+        ],
       ],
     );
   }
