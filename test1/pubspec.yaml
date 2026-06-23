@@ -1,7 +1,7 @@
 name: mirai
 description: Mirai — local & remote AI chat client
 publish_to: "none"
-version: 2.7.3+26
+version: 2.8.0+27
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
@@ -18,7 +18,7 @@ dependencies:
   flutter_test:
     sdk: flutter
   file_picker: ^11.0.2
-  image_picker: ^1.2.2
+  photo_manager: ^3.9.0
   fllama:
     git:
       url: https://github.com/Telosnex/fllama.git
@@ -36,6 +36,19 @@ flutter:
   assets:
     - shorebird.yaml
   uses-material-design: true
+  fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito-VariableFont_wght.ttf
+          weight: 400
+        - asset: assets/fonts/Nunito-VariableFont_wght.ttf
+          weight: 500
+        - asset: assets/fonts/Nunito-VariableFont_wght.ttf
+          weight: 600
+        - asset: assets/fonts/Nunito-VariableFont_wght.ttf
+          weight: 700
+        - asset: assets/fonts/Nunito-VariableFont_wght.ttf
+          weight: 800
 
 flutter_launcher_icons:
   image_path: "assets/icon/icon.png"

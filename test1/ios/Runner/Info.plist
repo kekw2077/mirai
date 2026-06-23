@@ -30,6 +30,8 @@
 		<string>Mirai использует микрофон для голосового ввода сообщений.</string>
 		<key>NSSpeechRecognitionUsageDescription</key>
 		<string>Mirai распознаёт речь, чтобы превращать голосовые сообщения в текст.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Mirai использует фотогалерею, чтобы прикреплять изображения к сообщениям.</string>
 		<key>UIApplicationSceneManifest</key>
 		<dict>
 			<key>UIApplicationSupportsMultipleScenes</key>
@@ -71,7 +73,7 @@
 			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
 		<key>UIStatusBarHidden</key>
-		<true/>
+		<false/>
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
 	</dict>

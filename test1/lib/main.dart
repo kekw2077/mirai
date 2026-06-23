@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:uuid/uuid.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:photo_manager/photo_manager.dart';
 import 'package:fllama/fllama.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -81,6 +81,9 @@ const Map<String, Map<String, String>> _i18n = {
     'latestLabel': 'ПОСЛЕДНИЙ',
     'noChatsYet': 'Чатов пока нет',
     'startFresh': 'Начните новый пустой диалог.',
+    'continueSection': 'Продолжить',
+    'latestConversation': 'ПОСЛЕДНИЙ ДИАЛОГ',
+    'resume': 'Возобновить',
     'recent': 'Недавние',
     'noChatsDesc':
         'Как только вы начнёте общение, история диалогов появится здесь.',
@@ -90,6 +93,21 @@ const Map<String, Map<String, String>> _i18n = {
     'pin': 'Закрепить',
     'unpin': 'Открепить',
     'delete': 'Удалить',
+    'msgCopy': 'Копировать',
+    'msgUseInComposer': 'Использовать в поле ввода',
+    'msgRemember': 'Запомнить',
+    'msgForgetMemory': 'Забыть связанное воспоминание',
+    'msgPinContext': 'Закрепить в контексте чата',
+    'msgUnpinContext': 'Открепить из контекста чата',
+    'msgCopied': 'Скопировано',
+    'msgRemembered': 'Добавлено в память',
+    'msgForgotten': 'Воспоминание забыто',
+    'msgPinned': 'Закреплено в контексте чата',
+    'msgUnpinned': 'Откреплено из контекста чата',
+    'savedMemoriesSection': 'Сохранённые воспоминания',
+    'noSavedMemories': 'Пока нет сохранённых воспоминаний.',
+    'pinnedMessagesSection': 'Закреплённые сообщения',
+    'noPinnedMessages': 'Пока нет закреплённых сообщений.',
     'justNow': 'только что',
     'minAgo': 'мин назад',
     'hAgo': 'ч назад',
@@ -146,6 +164,7 @@ const Map<String, Map<String, String>> _i18n = {
     'themeSystem': 'Системная',
     'themeLight': 'Светлая',
     'themeDark': 'Тёмная',
+    'themeGray': 'Серая',
     'showChips': 'Показывать подсказки',
     'fontSize': 'Размер шрифта',
     'deleteHistory': 'Удалить историю диалогов',
@@ -165,10 +184,14 @@ const Map<String, Map<String, String>> _i18n = {
     'russian': 'Русский',
     'english': 'English',
     'addModelHint': 'Добавьте модель вручную',
-    'attachImage': 'Прикрепить изображение',
     'attachFile': 'Прикрепить файл',
     'fileAttached': 'Файл прикреплён',
-    'imageAttached': 'Изображение прикреплено',
+    'recentPhotos': 'Недавние',
+    'noRecentPhotos': 'Нет недавних фото',
+    'photoAccessDenied':
+        'Нет доступа к галерее. Разрешите доступ к фото в настройках устройства.',
+    'attachTabGallery': 'Галерея',
+    'attachTabFile': 'Файл',
     'serverError': 'Ошибка сервера',
     'unreachable': 'Не удалось подключиться к серверу',
     'checkAddress': 'Проверьте адрес в настройках.',
@@ -177,6 +200,8 @@ const Map<String, Map<String, String>> _i18n = {
     'tabPersonality': 'Личность',
     'tabMemory': 'Память',
     'persDesc': 'Настройте личность, поведение и контекст ассистента под себя.',
+    'memoryDesc':
+        'Управляйте тем, что Mirai запоминает о вас, и сколько контекста диалога видят локальные модели.',
     'persPersona': 'Личность и стиль общения',
     'persPreset': 'Готовая персона',
     'preset_friend': 'Лучший друг',
@@ -209,9 +234,29 @@ const Map<String, Map<String, String>> _i18n = {
     'pro_clarify': 'Задавать уточнения',
     'pro_suggest': 'Предлагать темы',
     'useMarkdown': 'Использовать markdown-разметку',
+    'useMarkdownDesc': 'Заголовки, списки и выделение текста в ответах.',
     'memorySection': 'Память и контекст',
     'longMemory': 'Долговременная память',
+    'longMemoryDesc': 'Учитывать заметку ниже при ответах ассистента.',
     'memoryNote': 'Запомни обо мне, что…',
+    'autoSaveMemories': 'Автосохранение полезных деталей',
+    'autoSaveMemoriesDesc':
+        'После каждого ответа тихо спрашивать модель, стоит ли запомнить что-то устойчивое: предпочтения, факты профиля, текущие задачи.',
+    'askBeforeRemembering': 'Спрашивать перед сохранением',
+    'askBeforeRememberingDesc':
+        'Выбирать категорию воспоминания при сохранении сообщения вручную.',
+    'deleteAllMemories': 'Удалить все воспоминания',
+    'deleteAllMemoriesDesc': 'Очистить все сохранённые воспоминания на устройстве.',
+    'deleteAllMemoriesConfirm':
+        'Все сохранённые воспоминания будут удалены без возможности восстановления.',
+    'chooseMemoryCategory': 'Выберите категорию воспоминания',
+    'memCatPreference': 'Предпочтение',
+    'memCatProfile': 'Профиль',
+    'memCatProject': 'Проект',
+    'memCatOther': 'Другое',
+    'contextSize': 'Размер контекста',
+    'contextSizeDesc':
+        'Сколько диалога помнит локальная модель. Больше — лучше память, но выше нагрузка на устройство и медленнее ответы.',
     'persProfile': 'О вас',
     'name': 'Имя',
     'pronouns': 'Местоимения',
@@ -219,6 +264,7 @@ const Map<String, Map<String, String>> _i18n = {
     'interests': 'Интересы и хобби',
     'goals': 'Цели',
     'useMyData': 'Использовать мои данные для ответов',
+    'useMyDataDesc': 'Имя, профессия, интересы и другие поля из этого раздела.',
     'knowledgeLevel': 'Уровень знаний',
     'kl_beginner': 'Новичок',
     'kl_student': 'Студент',
@@ -231,6 +277,10 @@ const Map<String, Map<String, String>> _i18n = {
     'cf_balanced': 'Сбалансированный',
     'cf_off': 'Без фильтра',
     'warnUncertain': 'Предупреждать о неуверенности и чувствительных темах',
+    'warnUncertainDesc': 'Честно говорить, когда ассистент не уверен в ответе.',
+    'localDataTitle': 'Персонализация хранится локально на устройстве',
+    'localDataDesc':
+        'Имя, заметки и настройки личности не уходят на сервер — они используются только для построения промпта, который видит модель.',
     'persAdvanced': 'Продвинутые настройки',
     'reasoning': 'Стиль мышления',
     'rs_fast': 'Быстрый и интуитивный',
@@ -286,6 +336,9 @@ const Map<String, Map<String, String>> _i18n = {
     'latestLabel': 'LATEST',
     'noChatsYet': 'No chats yet',
     'startFresh': 'Start fresh with an empty thread.',
+    'continueSection': 'Continue',
+    'latestConversation': 'LATEST CONVERSATION',
+    'resume': 'Resume',
     'recent': 'Recent',
     'noChatsDesc':
         'Once you start chatting, your local conversation history will show up here.',
@@ -295,6 +348,21 @@ const Map<String, Map<String, String>> _i18n = {
     'pin': 'Pin',
     'unpin': 'Unpin',
     'delete': 'Delete',
+    'msgCopy': 'Copy',
+    'msgUseInComposer': 'Use in composer',
+    'msgRemember': 'Remember this',
+    'msgForgetMemory': 'Forget related memory',
+    'msgPinContext': 'Pin to chat context',
+    'msgUnpinContext': 'Unpin from chat context',
+    'msgCopied': 'Copied',
+    'msgRemembered': 'Added to memory',
+    'msgForgotten': 'Memory forgotten',
+    'msgPinned': 'Pinned to chat context',
+    'msgUnpinned': 'Unpinned from chat context',
+    'savedMemoriesSection': 'Saved memories',
+    'noSavedMemories': 'No saved memories yet.',
+    'pinnedMessagesSection': 'Pinned messages',
+    'noPinnedMessages': 'No pinned messages yet.',
     'justNow': 'just now',
     'minAgo': 'm ago',
     'hAgo': 'h ago',
@@ -349,6 +417,7 @@ const Map<String, Map<String, String>> _i18n = {
     'themeSystem': 'System',
     'themeLight': 'Light',
     'themeDark': 'Dark',
+    'themeGray': 'Gray',
     'showChips': 'Show prompt chips',
     'fontSize': 'Font size',
     'deleteHistory': 'Delete conversation history',
@@ -368,10 +437,14 @@ const Map<String, Map<String, String>> _i18n = {
     'russian': 'Русский',
     'english': 'English',
     'addModelHint': 'Add model manually',
-    'attachImage': 'Attach image',
     'attachFile': 'Attach file',
     'fileAttached': 'File attached',
-    'imageAttached': 'Image attached',
+    'recentPhotos': 'Recent',
+    'noRecentPhotos': 'No recent photos',
+    'photoAccessDenied':
+        "No access to your photos. Allow photo access in the device settings.",
+    'attachTabGallery': 'Gallery',
+    'attachTabFile': 'File',
     'serverError': 'Server error',
     'unreachable': 'Could not reach the server',
     'checkAddress': 'Check the address in Settings.',
@@ -380,6 +453,8 @@ const Map<String, Map<String, String>> _i18n = {
     'tabPersonality': 'Personality',
     'tabMemory': 'Memory',
     'persDesc': "Tailor the assistant's personality, behavior and context.",
+    'memoryDesc':
+        "Control what Mirai remembers about you, and how much conversation context local models can see.",
     'persPersona': 'Character & vibe',
     'persPreset': 'Persona preset',
     'preset_friend': 'Best friend',
@@ -412,9 +487,29 @@ const Map<String, Map<String, String>> _i18n = {
     'pro_clarify': 'Ask clarifying questions',
     'pro_suggest': 'Suggest related topics',
     'useMarkdown': 'Use markdown formatting',
+    'useMarkdownDesc': 'Headings, lists, and emphasis in responses.',
     'memorySection': 'Memory & context',
     'longMemory': 'Long-term memory',
+    'longMemoryDesc': "Factor the note below into the assistant's answers.",
     'memoryNote': 'Remember about me that…',
+    'autoSaveMemories': 'Auto-save useful details',
+    'autoSaveMemoriesDesc':
+        'After every reply, quietly ask the model whether anything stable is worth remembering: preferences, profile details, ongoing projects.',
+    'askBeforeRemembering': 'Ask before remembering',
+    'askBeforeRememberingDesc':
+        'Choose a memory category when you save a message manually.',
+    'deleteAllMemories': 'Delete all memories',
+    'deleteAllMemoriesDesc': 'Clear every saved memory from this device.',
+    'deleteAllMemoriesConfirm':
+        'All saved memories will be permanently deleted.',
+    'chooseMemoryCategory': 'Choose a memory category',
+    'memCatPreference': 'Preference',
+    'memCatProfile': 'Profile',
+    'memCatProject': 'Project',
+    'memCatOther': 'Other',
+    'contextSize': 'Context size',
+    'contextSizeDesc':
+        "How much of the conversation the local model remembers. Higher means better memory, but more load on the device and slower replies.",
     'persProfile': 'About you',
     'name': 'Name',
     'pronouns': 'Pronouns',
@@ -422,6 +517,7 @@ const Map<String, Map<String, String>> _i18n = {
     'interests': 'Interests & hobbies',
     'goals': 'Goals',
     'useMyData': 'Use my data to improve answers',
+    'useMyDataDesc': 'Name, profession, interests, and the other fields below.',
     'knowledgeLevel': 'Knowledge level',
     'kl_beginner': 'Beginner',
     'kl_student': 'Student',
@@ -434,6 +530,10 @@ const Map<String, Map<String, String>> _i18n = {
     'cf_balanced': 'Balanced',
     'cf_off': 'No filter',
     'warnUncertain': 'Warn on uncertainty and sensitive topics',
+    'warnUncertainDesc': "Be upfront when the assistant isn't sure.",
+    'localDataTitle': 'Personalization is stored locally on this device',
+    'localDataDesc':
+        "Your name, notes, and personality settings never leave the device — they're only used to build the prompt the model sees.",
     'persAdvanced': 'Advanced',
     'reasoning': 'Reasoning style',
     'rs_fast': 'Fast & intuitive',
@@ -451,25 +551,30 @@ const Map<String, Map<String, String>> _i18n = {
 /* ============================ МОДЕЛИ ДАННЫХ ============================ */
 
 class ChatMessage {
+  final String id;
   final String role;
   final String content;
   final DateTime time;
   final List<String> attachments;
   ChatMessage({
+    String? id,
     required this.role,
     required this.content,
     DateTime? time,
     List<String>? attachments,
-  }) : time = time ?? DateTime.now(),
+  }) : id = id ?? const Uuid().v4(),
+       time = time ?? DateTime.now(),
        attachments = attachments ?? [];
 
   Map<String, dynamic> toJson() => {
+    'id': id,
     'role': role,
     'content': content,
     'time': time.toIso8601String(),
     'attachments': attachments,
   };
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
+    id: j['id'] as String?,
     role: j['role'] as String? ?? 'user',
     content: j['content'] as String? ?? '',
     time: DateTime.tryParse(j['time'] as String? ?? '') ?? DateTime.now(),
@@ -488,6 +593,7 @@ class Conversation {
   DateTime updatedAt;
   List<ChatMessage> messages;
   Personalization? persona;
+  List<String> pinnedMessageIds;
 
   Conversation({
     required this.id,
@@ -496,8 +602,23 @@ class Conversation {
     DateTime? updatedAt,
     List<ChatMessage>? messages,
     this.persona,
+    List<String>? pinnedMessageIds,
   }) : updatedAt = updatedAt ?? DateTime.now(),
-       messages = messages ?? [];
+       messages = messages ?? [],
+       pinnedMessageIds = pinnedMessageIds ?? [];
+
+  // Pinned messages stay part of the prompt for every reply in this chat,
+  // no matter how long the conversation grows — appended after the regular
+  // personalization prompt so it isn't buried/ignored like the rest.
+  String pinnedContextBlock() {
+    final pinnedMsgs = messages.where((m) => pinnedMessageIds.contains(m.id));
+    if (pinnedMsgs.isEmpty) return '';
+    final b = StringBuffer('Pinned context — always keep this in mind:\n');
+    for (final m in pinnedMsgs) {
+      b.writeln('- ${m.content}');
+    }
+    return b.toString();
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -506,6 +627,7 @@ class Conversation {
     'updatedAt': updatedAt.toIso8601String(),
     'messages': messages.map((m) => m.toJson()).toList(),
     'persona': persona?.toJson(),
+    'pinnedMessageIds': pinnedMessageIds,
   };
   factory Conversation.fromJson(Map<String, dynamic> j) => Conversation(
     id: j['id'] as String? ?? '',
@@ -521,6 +643,11 @@ class Conversation {
     persona: j['persona'] is Map<String, dynamic>
         ? Personalization.fromJson(j['persona'] as Map<String, dynamic>)
         : null,
+    pinnedMessageIds:
+        (j['pinnedMessageIds'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [],
   );
 }
 
@@ -540,6 +667,15 @@ class Personalization {
   bool useMarkdown = true;
   bool longMemory = true;
   String memoryNote = '';
+  // Individual snippets saved via the "Remember this" action on a chat
+  // message, as opposed to memoryNote which is one freeform note the user
+  // types by hand.
+  List<String> savedMemories = [];
+  bool askBeforeRemembering = true;
+  // When on, after every assistant reply a small silent follow-up request
+  // asks the same model to extract one durable fact worth remembering (or
+  // "NONE"), so savedMemories grows without the user tapping "Remember".
+  bool autoSaveMemories = true;
   String name = '';
   String pronouns = '';
   String profession = '';
@@ -554,6 +690,11 @@ class Personalization {
   String reasoning = 'rs_fast';
   String tone = 'tone_neutral';
   String customPrompt = '';
+  // Effective context window (in tokens) handed to local on-device models.
+  // fllama internally hardcodes n_parallel=4 and splits the requested
+  // contextSize across 4 slots, so callers must request 4x this value to
+  // actually get this much usable context — see _sendLocalMessage.
+  int localContextSize = 2048;
 
   Map<String, dynamic> toJson() => {
     'preset': preset,
@@ -569,6 +710,9 @@ class Personalization {
     'useMarkdown': useMarkdown,
     'longMemory': longMemory,
     'memoryNote': memoryNote,
+    'savedMemories': savedMemories,
+    'askBeforeRemembering': askBeforeRemembering,
+    'autoSaveMemories': autoSaveMemories,
     'name': name,
     'pronouns': pronouns,
     'profession': profession,
@@ -583,6 +727,7 @@ class Personalization {
     'reasoning': reasoning,
     'tone': tone,
     'customPrompt': customPrompt,
+    'localContextSize': localContextSize,
   };
 
   factory Personalization.fromJson(Map<String, dynamic> j) {
@@ -600,6 +745,15 @@ class Personalization {
     p.useMarkdown = (j['useMarkdown'] as bool?) ?? p.useMarkdown;
     p.longMemory = (j['longMemory'] as bool?) ?? p.longMemory;
     p.memoryNote = (j['memoryNote'] as String?) ?? p.memoryNote;
+    p.savedMemories =
+        (j['savedMemories'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        p.savedMemories;
+    p.askBeforeRemembering =
+        (j['askBeforeRemembering'] as bool?) ?? p.askBeforeRemembering;
+    p.autoSaveMemories =
+        (j['autoSaveMemories'] as bool?) ?? p.autoSaveMemories;
     p.name = (j['name'] as String?) ?? p.name;
     p.pronouns = (j['pronouns'] as String?) ?? p.pronouns;
     p.profession = (j['profession'] as String?) ?? p.profession;
@@ -614,6 +768,8 @@ class Personalization {
     p.reasoning = (j['reasoning'] as String?) ?? p.reasoning;
     p.tone = (j['tone'] as String?) ?? p.tone;
     p.customPrompt = (j['customPrompt'] as String?) ?? p.customPrompt;
+    p.localContextSize =
+        (j['localContextSize'] as num?)?.toInt() ?? p.localContextSize;
     return p;
   }
 
@@ -663,15 +819,73 @@ class Personalization {
     }
   }
 
+  // Plain declarative sentences instead of a dense "name: X; pronouns: Y; ..."
+  // list — small/mid local models tend to skim past or ignore facts packed
+  // into one compressed key:value sentence, but pick up on short individual
+  // statements much more reliably (the same reason buildLocalSystemPrompt
+  // below uses plain sentences for tone/emoji instead of a directive line).
+  void _writeProfileFacts(StringBuffer b) {
+    if (name.isNotEmpty) b.writeln("The user's name is $name.");
+    if (pronouns.isNotEmpty) {
+      b.writeln("The user's pronouns are $pronouns.");
+    }
+    if (profession.isNotEmpty) b.writeln('The user works as $profession.');
+    if (interests.isNotEmpty) {
+      b.writeln('The user is interested in $interests.');
+    }
+    if (goals.isNotEmpty) b.writeln("The user's goal: $goals.");
+    if (location.isNotEmpty) b.writeln('The user is located in $location.');
+  }
+
+  void _writeMemoryFacts(StringBuffer b) {
+    if (!longMemory) return;
+    if (memoryNote.isNotEmpty) {
+      b.writeln('Remember about the user: $memoryNote');
+    }
+    for (final mem in savedMemories) {
+      b.writeln('Also remember: $mem');
+    }
+  }
+
+  // Same reasoning as _writeProfileFacts: one sentence per trait that's
+  // actually away from the neutral middle, instead of a single dense
+  // "Style: formality medium, empathy medium, ..." line — models were
+  // visibly ignoring the personality sliders entirely with the old format.
+  void _writeStyleFacts(StringBuffer b) {
+    if (formality >= 0.66) {
+      b.writeln('Write formally and professionally.');
+    } else if (formality < 0.33) {
+      b.writeln('Write casually and informally, like talking to a friend.');
+    }
+    if (empathy >= 0.66) {
+      b.writeln('Be warm and emotionally supportive in your responses.');
+    } else if (empathy < 0.33) {
+      b.writeln(
+        'Stay matter-of-fact and businesslike, without emotional commentary.',
+      );
+    }
+    if (verbosity >= 0.66) {
+      b.writeln('Elaborate with extra detail and explanation.');
+    } else if (verbosity < 0.33) {
+      b.writeln('Be concise; avoid unnecessary elaboration.');
+    }
+    if (humor >= 0.66) {
+      b.writeln('Feel free to be playful and use humor.');
+    } else if (humor < 0.33) {
+      b.writeln('Keep a serious tone, avoid jokes.');
+    }
+    if (creativity >= 0.66) {
+      b.writeln('Be imaginative and creative in how you answer.');
+    } else if (creativity < 0.33) {
+      b.writeln('Stick to straightforward, conventional answers.');
+    }
+  }
+
   String buildSystemPrompt() {
     final b = StringBuffer();
     b.writeln('You are Mirai, a helpful AI assistant.');
 
-    String lvl(double v) => v < 0.33 ? 'low' : (v < 0.66 ? 'medium' : 'high');
-    b.writeln(
-      'Style: formality ${lvl(formality)}, empathy ${lvl(empathy)}, '
-      'verbosity ${lvl(verbosity)}, humor ${lvl(humor)}, creativity ${lvl(creativity)}.',
-    );
+    _writeStyleFacts(b);
 
     b.writeln(
       emoji == 'emoji_never'
@@ -714,24 +928,13 @@ class Personalization {
     }
 
     if (useMyData) {
-      final prof = <String>[];
-      if (name.isNotEmpty) prof.add('name: $name');
-      if (pronouns.isNotEmpty) prof.add('pronouns: $pronouns');
-      if (profession.isNotEmpty) prof.add('profession: $profession');
-      if (interests.isNotEmpty) prof.add('interests: $interests');
-      if (goals.isNotEmpty) prof.add('goals: $goals');
-      if (location.isNotEmpty) prof.add('location: $location');
-      if (prof.isNotEmpty) {
-        b.writeln('User profile (use it naturally): ${prof.join('; ')}.');
-      }
+      _writeProfileFacts(b);
       b.writeln(
         'Explain things at a ${knowledgeLevel.replaceFirst('kl_', '')} level.',
       );
     }
 
-    if (longMemory && memoryNote.isNotEmpty) {
-      b.writeln('Remember about the user: $memoryNote');
-    }
+    _writeMemoryFacts(b);
 
     if (avoidTopics.isNotEmpty) {
       b.writeln('Avoid these topics: $avoidTopics.');
@@ -762,15 +965,15 @@ class Personalization {
   // and important enough to be worth the tokens.
   String buildLocalSystemPrompt() {
     final b = StringBuffer();
-    b.writeln('You are Mirai, a helpful assistant. Answer naturally and directly.');
+    b.writeln(
+      'You are Mirai, a helpful assistant. Answer naturally and directly.',
+    );
     if (defaultLength == 'len_short') {
       b.writeln('Keep answers short.');
     } else if (defaultLength == 'len_long') {
       b.writeln('Give detailed answers.');
     }
-    // Only written when they differ from the default — one extra plain
-    // sentence per setting is fine, it's the dense multi-attribute "Style:
-    // formality X, empathy Y, ..." line above that small models choke on.
+    _writeStyleFacts(b);
     if (emoji == 'emoji_never') {
       b.writeln('Never use emoji.');
     } else if (emoji == 'emoji_always') {
@@ -785,6 +988,8 @@ class Personalization {
       };
       if (toneWord != null) b.writeln('Write in a $toneWord tone.');
     }
+    if (useMyData) _writeProfileFacts(b);
+    _writeMemoryFacts(b);
     if (avoidTopics.isNotEmpty) {
       b.writeln('Avoid these topics: $avoidTopics.');
     }
@@ -823,25 +1028,6 @@ class LocalModelSpec {
 }
 
 const List<LocalModelSpec> kLocalModels = [
-  // Лёгкие — слабые/старые телефоны (32-бит ARM, мало ОЗУ)
-  LocalModelSpec(
-    id: 'qwen2.5-0.5b',
-    displayName: 'Qwen2.5 0.5B Instruct',
-    sizeBytes: 491400032,
-    url:
-        'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true',
-    fileName: 'qwen2.5-0.5b-instruct-q4_k_m.gguf',
-    tier: LocalModelTier.light,
-  ),
-  LocalModelSpec(
-    id: 'llama-3.2-1b',
-    displayName: 'Llama 3.2 1B Instruct',
-    sizeBytes: 807694464,
-    url:
-        'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf?download=true',
-    fileName: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf',
-    tier: LocalModelTier.light,
-  ),
   // Средние — современные смартфоны среднего класса (например, Honor 70)
   LocalModelSpec(
     id: 'qwen2.5-1.5b',
@@ -927,6 +1113,19 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.8.0', [
+    'В чате: тап по пустой области экрана скрывает клавиатуру; на iOS статус-бар и Dynamic Island больше не перекрываются содержимым чата.',
+    'Настройки персонализации теперь реально применяются к локальным моделям среднего и мощного тиров, а не только к удалённым.',
+    'Лёгкий тир локальных моделей убран из каталога — был слишком слабым для системного промпта.',
+    'Вкладки «Личность»/«Память» переоформлены; для локальных моделей добавлен контроль размера контекста.',
+    'Долгое нажатие на сообщение открывает меню: Копировать / В поле ввода / Запомнить / Забыть / Закрепить в контексте.',
+    'В «Памяти»: сохранённые воспоминания и закреплённые сообщения чата, «Спрашивать перед сохранением», «Автосохранение полезных деталей».',
+    'Прикрепление файлов — шторка снизу с реальной сеткой недавних фото из галереи и вкладкой «Файл».',
+    'Кнопка отправки подсвечивается зелёным, когда есть текст или прикреплённый файл.',
+    'Новый вариант темы «Серая» — нейтральная палитра без сине-фиолетового оттенка.',
+    'В списке диалогов — карточка «Продолжить» с последним чатом и кнопкой «Возобновить».',
+    'Шрифт по всему приложению заменён на Nunito.',
+  ]),
   ChangelogEntry('2.7.3', [
     'На экране голосового ввода вокруг анимированной рамки добавлен мягкий рассеивающийся свет того же сине-фиолетового градиента, расходящийся к центру экрана.',
   ]),
@@ -1030,7 +1229,7 @@ const List<ChangelogEntry> kChangelog = [
 
 /* ============================ СОСТОЯНИЕ ============================ */
 
-enum AppThemeMode { system, light, dark }
+enum AppThemeMode { system, light, dark, gray }
 
 class AppState extends ChangeNotifier {
   final SharedPreferences prefs;
@@ -1085,6 +1284,7 @@ class AppState extends ChangeNotifier {
   bool get isDarkMode {
     switch (themeMode) {
       case AppThemeMode.dark:
+      case AppThemeMode.gray:
         return true;
       case AppThemeMode.light:
         return false;
@@ -1241,6 +1441,32 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Mutates whichever Personalization is actually in effect for the current
+  // chat (its own override if it has one, otherwise the global one) — the
+  // same target buildSystemPrompt()/buildLocalSystemPrompt() read from.
+  void rememberMessageContent(String content) {
+    final target = current?.persona ?? persona;
+    if (content.isEmpty || target.savedMemories.contains(content)) return;
+    target.savedMemories.add(content);
+    _save();
+    notifyListeners();
+  }
+
+  void forgetMessageMemory(String content) {
+    final target = current?.persona ?? persona;
+    if (!target.savedMemories.remove(content)) return;
+    _save();
+    notifyListeners();
+  }
+
+  void toggleMessagePin(Conversation conv, ChatMessage m) {
+    if (!conv.pinnedMessageIds.remove(m.id)) {
+      conv.pinnedMessageIds.add(m.id);
+    }
+    _save();
+    notifyListeners();
+  }
+
   void setServer(String url, String key) {
     serverUrl = url;
     apiKey = key;
@@ -1385,12 +1611,8 @@ class AppState extends ChangeNotifier {
   static const _updateRepo = 'kekw2077/mirai';
 
   bool _isNewerVersion(String remote, String local) {
-    List<int> parse(String v) => v
-        .split('+')
-        .first
-        .split('.')
-        .map((s) => int.tryParse(s) ?? 0)
-        .toList();
+    List<int> parse(String v) =>
+        v.split('+').first.split('.').map((s) => int.tryParse(s) ?? 0).toList();
     final r = parse(remote);
     final l = parse(local);
     for (var i = 0; i < 3; i++) {
@@ -1425,8 +1647,9 @@ class AppState extends ChangeNotifier {
     _updateApkUrl = null;
     notifyListeners();
     try {
-      final res = await http.get(Uri.parse(
-          'https://api.github.com/repos/$_updateRepo/releases/latest'));
+      final res = await http.get(
+        Uri.parse('https://api.github.com/repos/$_updateRepo/releases/latest'),
+      );
       if (res.statusCode == 404) {
         return; // no releases published yet — not an error
       }
@@ -1469,15 +1692,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     try {
       final path = await updateDownloadPath('mirai_update.apk');
-      await downloadFileWithProgress(
-        url,
-        path,
-        (received, total) {
-          updateDownloadProgress = total > 0 ? received / total : null;
-          notifyListeners();
-        },
-        () => false,
-      );
+      await downloadFileWithProgress(url, path, (received, total) {
+        updateDownloadProgress = total > 0 ? received / total : null;
+        notifyListeners();
+      }, () => false);
       updateDownloadProgress = null;
       notifyListeners();
       await installApk(path);
@@ -1560,9 +1778,11 @@ class AppState extends ChangeNotifier {
     // multi-directive prompt — mid/high tier local models are capable
     // instruct models in their own right and should get full
     // personalization, same as remote models.
-    final systemPrompt = spec.tier == LocalModelTier.light
-        ? effectivePersona.buildLocalSystemPrompt()
-        : effectivePersona.buildSystemPrompt();
+    final systemPrompt =
+        (spec.tier == LocalModelTier.light
+            ? effectivePersona.buildLocalSystemPrompt()
+            : effectivePersona.buildSystemPrompt()) +
+        conv.pinnedContextBlock();
 
     final messages = <Message>[
       Message(Role.system, systemPrompt),
@@ -1584,8 +1804,9 @@ class AppState extends ChangeNotifier {
           modelPath: modelPath,
           // fllama hardcodes n_parallel=4 natively and ignores nParallel on
           // native platforms, splitting contextSize into 4 slots internally
-          // (n_ctx_seq = n_ctx / 4). Requesting 4x gives ~2048 usable tokens.
-          contextSize: 8192,
+          // (n_ctx_seq = n_ctx / 4). Requesting 4x the user-facing/effective
+          // size gives back that much usable context.
+          contextSize: effectivePersona.localContextSize * 4,
           maxTokens: 512,
           temperature: 0.7,
         ),
@@ -1636,7 +1857,9 @@ class AppState extends ChangeNotifier {
         final msgs = <Map<String, dynamic>>[
           {
             'role': 'system',
-            'content': (conv.persona ?? persona).buildSystemPrompt(),
+            'content':
+                (conv.persona ?? persona).buildSystemPrompt() +
+                conv.pinnedContextBlock(),
           },
           ...conv.messages.map(
             (m) => {
@@ -1683,7 +1906,95 @@ class AppState extends ChangeNotifier {
     conv.updatedAt = DateTime.now();
     _save();
     notifyListeners();
+    unawaited(_autoSaveMemoryFromExchange(conv, text, reply.trim()));
     return reply;
+  }
+
+  static const _memoryExtractionPrompt =
+      'You extract durable facts about the user from one chat exchange, for '
+      "a personal assistant's long-term memory. Stable facts only: "
+      'preferences, profile details (name, job, location), ongoing projects '
+      'or goals. Skip one-off questions, small talk, and anything temporary. '
+      'Reply with exactly one short factual sentence about the user and '
+      'nothing else, or reply with exactly NONE if there is nothing worth '
+      'remembering.';
+
+  Future<void> _autoSaveMemoryFromExchange(
+    Conversation conv,
+    String userText,
+    String assistantText,
+  ) async {
+    final effectivePersona = conv.persona ?? persona;
+    if (!effectivePersona.longMemory ||
+        !effectivePersona.autoSaveMemories ||
+        userText.trim().isEmpty ||
+        selectedModel.isEmpty) {
+      return;
+    }
+    final exchange = 'User: $userText\nAssistant: $assistantText';
+    String result;
+    try {
+      result = isLocalModel(selectedModel)
+          ? await _runLocalExtraction(exchange)
+          : await _runRemoteExtraction(exchange);
+    } catch (_) {
+      return;
+    }
+    final fact = result.trim();
+    if (fact.isEmpty || fact.toUpperCase() == 'NONE') return;
+    if (effectivePersona.savedMemories.contains(fact)) return;
+    effectivePersona.savedMemories.add(fact);
+    _save();
+    notifyListeners();
+  }
+
+  Future<String> _runRemoteExtraction(String exchange) async {
+    final headers = {'Content-Type': 'application/json'};
+    if (apiKey.isNotEmpty) headers['Authorization'] = 'Bearer $apiKey';
+    final res = await http
+        .post(
+          Uri.parse('$baseUrl/api/chat'),
+          headers: headers,
+          body: jsonEncode({
+            'model': selectedModel,
+            'stream': false,
+            'messages': [
+              {'role': 'system', 'content': _memoryExtractionPrompt},
+              {'role': 'user', 'content': exchange},
+            ],
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+    if (res.statusCode != 200) return 'NONE';
+    final data = jsonDecode(res.body);
+    if (data is! Map<String, dynamic>) return 'NONE';
+    return _extractContent(data) ?? 'NONE';
+  }
+
+  Future<String> _runLocalExtraction(String exchange) async {
+    final spec = localSpecFor(selectedModel);
+    if (spec == null) return 'NONE';
+    final dir = await localModelsDirPath();
+    final modelPath = '$dir/${spec.fileName}';
+    if (!await localModelFileExists(modelPath)) return 'NONE';
+
+    final completer = Completer<String>();
+    await fllamaChat(
+      OpenAiRequest(
+        messages: [
+          Message(Role.system, _memoryExtractionPrompt),
+          Message(Role.user, exchange),
+        ],
+        modelPath: modelPath,
+        contextSize: persona.localContextSize * 4,
+        maxTokens: 60,
+        temperature: 0.2,
+      ),
+      (response, openaiJson, done) {
+        if (done && !completer.isCompleted) completer.complete(response);
+      },
+    );
+    return completer.future;
   }
 }
 
@@ -1699,7 +2010,9 @@ class MiraiApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Mirai',
       theme: _buildTheme(false),
-      darkTheme: _buildTheme(true),
+      darkTheme: app.themeMode == AppThemeMode.gray
+          ? _buildGrayTheme()
+          : _buildTheme(true),
       themeMode: _getThemeMode(app.themeMode),
       builder: (context, child) {
         final mq = MediaQuery.of(context);
@@ -1722,6 +2035,7 @@ class MiraiApp extends StatelessWidget {
       case AppThemeMode.light:
         return ThemeMode.light;
       case AppThemeMode.dark:
+      case AppThemeMode.gray:
         return ThemeMode.dark;
       case AppThemeMode.system:
         return ThemeMode.system;
@@ -1743,17 +2057,39 @@ class MiraiApp extends StatelessWidget {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: bg,
-      fontFamily: 'Roboto',
+      fontFamily: 'Nunito',
+    );
+  }
+
+  // Neutral charcoal/gray dark palette (iOS-style grouped dark colors)
+  // instead of the default dark theme's blue-tinted background.
+  ThemeData _buildGrayTheme() {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: const ColorScheme.dark(
+        primary: Color(0xFF7C8CF8),
+        surface: Color(0xFF1C1C1E),
+      ),
+      scaffoldBackgroundColor: const Color(0xFF000000),
+      fontFamily: 'Nunito',
     );
   }
 }
 
-Color _bg(BuildContext c) => Theme.of(c).brightness == Brightness.dark
-    ? const Color(0xFF0E0E15)
-    : Colors.white;
-Color _card(BuildContext c) => Theme.of(c).brightness == Brightness.dark
-    ? const Color(0xFF1C1C26)
-    : const Color(0xFFEDEEF3);
+bool _isGrayMode(BuildContext c) =>
+    c.read<AppState>().themeMode == AppThemeMode.gray;
+
+Color _bg(BuildContext c) {
+  if (Theme.of(c).brightness != Brightness.dark) return Colors.white;
+  return _isGrayMode(c) ? const Color(0xFF000000) : const Color(0xFF0E0E15);
+}
+
+Color _card(BuildContext c) {
+  if (Theme.of(c).brightness != Brightness.dark) {
+    return const Color(0xFFEDEEF3);
+  }
+  return _isGrayMode(c) ? const Color(0xFF1C1C1E) : const Color(0xFF1C1C26);
+}
 Color _txt(BuildContext c) =>
     Theme.of(c).brightness == Brightness.dark ? Colors.white : Colors.black;
 Color _sub(BuildContext c) => Theme.of(c).brightness == Brightness.dark
@@ -2048,6 +2384,7 @@ class BorderGlowPainter extends CustomPainter {
 }
 
 const kAccentGradientColors = [Color(0xFF4FACFE), Color(0xFF2F6BFF)];
+const kSendActiveColor = Color(0xFF1ED760);
 
 class GradientSliderTrackShape extends SliderTrackShape
     with BaseSliderTrackShape {
@@ -2195,11 +2532,11 @@ class _ChatScreenState extends State<ChatScreen> {
   final _inputFocus = FocusNode();
   bool _sending = false;
   final List<String> _pendingAttachments = [];
-  final _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
+    _controller.addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final app = context.read<AppState>();
@@ -2256,19 +2593,6 @@ class _ChatScreenState extends State<ChatScreen> {
             context,
           ).showSnackBar(SnackBar(content: Text(app.t('fileAttached'))));
         }
-      }
-    }
-  }
-
-  Future<void> _pickImage() async {
-    final file = await _picker.pickImage(source: ImageSource.gallery);
-    if (file != null) {
-      setState(() => _pendingAttachments.add(file.path));
-      if (mounted) {
-        final app = context.read<AppState>();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(app.t('imageAttached'))));
       }
     }
   }
@@ -2388,17 +2712,21 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       backgroundColor: _bg(context),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _topBar(app),
-            Expanded(
-              child: hasMessages ? _messageList(conv) : _emptyState(app),
-            ),
-            if (app.showPromptChips && !hasMessages) _promptChips(app),
-            if (_pendingAttachments.isNotEmpty) _attachmentBar(app),
-            _inputBar(app),
-          ],
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _topBar(app),
+              Expanded(
+                child: hasMessages ? _messageList(conv) : _emptyState(app),
+              ),
+              if (app.showPromptChips && !hasMessages) _promptChips(app),
+              if (_pendingAttachments.isNotEmpty) _attachmentBar(app),
+              _inputBar(app),
+            ],
+          ),
         ),
       ),
     );
@@ -2557,67 +2885,218 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _bubble(ChatMessage m, {bool thinking = false}) {
     final isUser = m.role == 'user';
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
-        ),
-        decoration: BoxDecoration(
-          color: isUser ? Theme.of(context).colorScheme.primary : null,
-          gradient: isUser
-              ? null
-              : const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: kAccentGradientColors,
-                ),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (m.attachments.isNotEmpty)
-              ...m.attachments.map(
-                (a) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.attach_file,
-                        size: 14,
-                        color: Colors.white70,
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          a.split('/').last,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
+    final bubble = Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.78,
+      ),
+      decoration: BoxDecoration(
+        color: isUser ? Theme.of(context).colorScheme.primary : null,
+        gradient: isUser
+            ? null
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: kAccentGradientColors,
+              ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (m.attachments.isNotEmpty)
+            ...m.attachments.map(
+              (a) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.attach_file,
+                      size: 14,
+                      color: Colors.white70,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        a.split('/').last,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
                         ),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (thinking)
+            const _ThinkingDots()
+          else if (m.content.isNotEmpty)
+            Text(
+              m.content,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+        ],
+      ),
+    );
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: thinking
+          ? bubble
+          : GestureDetector(
+              onLongPressStart: (d) => _showMessageActions(m, d.globalPosition),
+              child: bubble,
+            ),
+    );
+  }
+
+  void _showMessageActions(ChatMessage m, Offset globalPosition) async {
+    final app = context.read<AppState>();
+    final conv = app.current;
+    final isPinned = conv != null && conv.pinnedMessageIds.contains(m.id);
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        globalPosition.dx,
+        globalPosition.dy,
+      ),
+      color: _card(context),
+      items: [
+        _menuItem('copy', Icons.copy_outlined, app.t('msgCopy')),
+        _menuItem(
+          'compose',
+          Icons.edit_note_outlined,
+          app.t('msgUseInComposer'),
+        ),
+        _menuItem(
+          'remember',
+          Icons.psychology_alt_outlined,
+          app.t('msgRemember'),
+        ),
+        _menuItem(
+          'forget',
+          Icons.delete_outline,
+          app.t('msgForgetMemory'),
+          color: Colors.redAccent,
+        ),
+        _menuItem(
+          'pin',
+          isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+          isPinned ? app.t('msgUnpinContext') : app.t('msgPinContext'),
+        ),
+      ],
+    );
+    if (selected == null || !mounted) return;
+    String? toast;
+    switch (selected) {
+      case 'copy':
+        await Clipboard.setData(ClipboardData(text: m.content));
+        toast = app.t('msgCopied');
+        break;
+      case 'compose':
+        _controller.text = m.content;
+        _inputFocus.requestFocus();
+        break;
+      case 'remember':
+        final effectivePersona = conv?.persona ?? app.persona;
+        if (effectivePersona.askBeforeRemembering) {
+          final confirmed = await _pickMemoryCategory(app);
+          if (confirmed != true || !mounted) break;
+        }
+        app.rememberMessageContent(m.content);
+        toast = app.t('msgRemembered');
+        break;
+      case 'forget':
+        app.forgetMessageMemory(m.content);
+        toast = app.t('msgForgotten');
+        break;
+      case 'pin':
+        if (conv != null) {
+          app.toggleMessagePin(conv, m);
+          toast = isPinned ? app.t('msgUnpinned') : app.t('msgPinned');
+        }
+        break;
+    }
+    if (toast != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(toast), duration: const Duration(seconds: 2)),
+      );
+    }
+  }
+
+  Future<bool?> _pickMemoryCategory(AppState app) {
+    const categories = [
+      'memCatPreference',
+      'memCatProfile',
+      'memCatProject',
+      'memCatOther',
+    ];
+    var selected = categories.first;
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: _card(context),
+          title: Text(
+            app.t('chooseMemoryCategory'),
+            style: TextStyle(color: _txt(context)),
+          ),
+          content: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final cat in categories)
+                ChoiceChip(
+                  label: Text(app.t(cat)),
+                  selected: selected == cat,
+                  labelStyle: TextStyle(
+                    color: selected == cat ? Colors.white : _txt(context),
+                    fontWeight: FontWeight.w500,
                   ),
+                  selectedColor: const Color(0xFF2F8DFF),
+                  backgroundColor: _bg(context).withValues(alpha: 0.4),
+                  side: BorderSide(color: _sub(context).withValues(alpha: 0.2)),
+                  onSelected: (_) => setDialogState(() => selected = cat),
                 ),
-              ),
-            if (thinking)
-              const _ThinkingDots()
-            else if (m.content.isNotEmpty)
-              Text(
-                m.content,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  height: 1.4,
-                ),
-              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(app.t('cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(app.t('save')),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _menuItem(
+    String value,
+    IconData icon,
+    String label, {
+    Color? color,
+  }) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color ?? _txt(context)),
+          const SizedBox(width: 12),
+          Text(label, style: TextStyle(color: color ?? _txt(context))),
+        ],
       ),
     );
   }
@@ -2702,8 +3181,13 @@ class _ChatScreenState extends State<ChatScreen> {
                   app.buzz();
                   showModalBottomSheet(
                     context: context,
-                    backgroundColor: _card(context),
-                    builder: (_) => _attachMenu(app),
+                    backgroundColor: Colors.transparent,
+                    isScrollControlled: true,
+                    builder: (_) => _RecentAttachSheet(
+                      onPick: (path) =>
+                          setState(() => _pendingAttachments.add(path)),
+                      onPickFile: _pickFile,
+                    ),
                   );
                 },
                 icon: Icons.add,
@@ -2732,30 +3216,44 @@ class _ChatScreenState extends State<ChatScreen> {
               const SizedBox(width: 4),
               // Кнопка отправки (фиксированный размер, чтобы не "скакать"
               // между обычным и состоянием отправки)
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _txt(context).withValues(alpha: 0.1),
-                ),
-                child: _sending
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: _txt(context),
-                        ),
-                      )
-                    : IconButton(
-                        onPressed: () => _send(),
-                        icon: Icon(Icons.arrow_upward, color: _txt(context)),
-                        iconSize: 20,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
+              Builder(
+                builder: (context) {
+                  final hasContent =
+                      _controller.text.trim().isNotEmpty ||
+                      _pendingAttachments.isNotEmpty;
+                  return Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: hasContent
+                          ? kSendActiveColor
+                          : _txt(context).withValues(alpha: 0.1),
+                    ),
+                    child: _sending
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: hasContent
+                                  ? Colors.white
+                                  : _txt(context),
+                            ),
+                          )
+                        : IconButton(
+                            onPressed: () => _send(),
+                            icon: Icon(
+                              Icons.arrow_upward,
+                              color: hasContent ? Colors.white : _txt(context),
+                            ),
+                            iconSize: 20,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                  );
+                },
               ),
             ],
           ),
@@ -2788,37 +3286,267 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+}
 
-  Widget _attachMenu(AppState app) {
-    return SafeArea(
-      child: Wrap(
-        children: [
-          ListTile(
-            leading: Icon(
-              Icons.add_photo_alternate_outlined,
-              color: _txt(context),
-            ),
-            title: Text(
-              app.t('attachImage'),
-              style: TextStyle(color: _txt(context)),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              _pickImage();
-            },
+// Mirrors the iOS Messages attachment drawer: a draggable sheet with a grid
+// of recent photos up top and a row of source tabs at the bottom. Only
+// Gallery/File are kept — Gift/Wallet/Location/Checklist don't map to
+// anything this app does.
+class _RecentAttachSheet extends StatefulWidget {
+  final ValueChanged<String> onPick;
+  final VoidCallback onPickFile;
+  const _RecentAttachSheet({required this.onPick, required this.onPickFile});
+
+  @override
+  State<_RecentAttachSheet> createState() => _RecentAttachSheetState();
+}
+
+class _RecentAttachSheetState extends State<_RecentAttachSheet> {
+  List<AssetEntity> _assets = [];
+  bool _loading = true;
+  bool _denied = false;
+  final Set<String> _pickedIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final permission = await PhotoManager.requestPermissionExtend();
+      if (!permission.isAuth && !permission.hasAccess) {
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _denied = true;
+          });
+        }
+        return;
+      }
+      final albums = await PhotoManager.getAssetPathList(
+        type: RequestType.image,
+        onlyAll: true,
+      );
+      final assets = albums.isEmpty
+          ? <AssetEntity>[]
+          : await albums.first.getAssetListPaged(page: 0, size: 60);
+      if (!mounted) return;
+      setState(() {
+        _assets = assets;
+        _loading = false;
+      });
+    } catch (_) {
+      // photo_manager has no implementation on this platform (Windows,
+      // Linux and Web aren't supported) — fall back to the same "no
+      // access" state so the user can still attach via the file picker.
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _denied = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _onTapAsset(AssetEntity asset) async {
+    final file = await asset.file;
+    if (file == null || !mounted) return;
+    setState(() => _pickedIds.add(asset.id));
+    widget.onPick(file.path);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.read<AppState>();
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: _card(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          ListTile(
-            leading: Icon(Icons.attach_file, color: _txt(context)),
-            title: Text(
-              app.t('attachFile'),
-              style: TextStyle(color: _txt(context)),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              _pickFile();
-            },
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _sub(context),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 40),
+                    Expanded(
+                      child: Text(
+                        app.t('recentPhotos'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _txt(context),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: _txt(context)),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: _buildBody(scrollController, app)),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _attachTab(
+                        Icons.photo_outlined,
+                        app.t('attachTabGallery'),
+                        selected: true,
+                        onTap: () {},
+                      ),
+                      _attachTab(
+                        Icons.attach_file,
+                        app.t('attachTabFile'),
+                        selected: false,
+                        onTap: () {
+                          Navigator.pop(context);
+                          widget.onPickFile();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(ScrollController scrollController, AppState app) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_denied) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            app.t('photoAccessDenied'),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _sub(context)),
+          ),
+        ),
+      );
+    }
+    if (_assets.isEmpty) {
+      return Center(
+        child: Text(
+          app.t('noRecentPhotos'),
+          style: TextStyle(color: _sub(context)),
+        ),
+      );
+    }
+    return GridView.builder(
+      controller: scrollController,
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 4,
+        mainAxisSpacing: 4,
+      ),
+      itemCount: _assets.length,
+      itemBuilder: (_, i) {
+        final asset = _assets[i];
+        final picked = _pickedIds.contains(asset.id);
+        return GestureDetector(
+          onTap: () => _onTapAsset(asset),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: FutureBuilder<Uint8List?>(
+                  future: asset.thumbnailDataWithSize(
+                    const ThumbnailSize.square(200),
+                  ),
+                  builder: (_, snap) {
+                    if (snap.data == null) {
+                      return Container(color: _bg(context));
+                    }
+                    return Image.memory(snap.data!, fit: BoxFit.cover);
+                  },
+                ),
+              ),
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: picked ? const Color(0xFF2F8DFF) : Colors.black38,
+                    border: Border.all(color: Colors.white70, width: 1.2),
+                  ),
+                  child: picked
+                      ? const Icon(Icons.check, size: 13, color: Colors.white)
+                      : null,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _attachTab(
+    IconData icon,
+    String label, {
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: selected ? const Color(0xFF2F8DFF) : _sub(context),
+              size: 22,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? _txt(context) : _sub(context),
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3390,206 +4118,212 @@ class _VoiceScreenState extends State<VoiceScreen>
               ),
             ),
             child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: _toggleMute,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black38,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _muted ? Icons.mic_off : Icons.mic,
-                              color: Colors.white,
-                              size: 20,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: _toggleMute,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _muted ? app.t('unmute') : app.t('mute'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
+                            decoration: BoxDecoration(
+                              color: Colors.black38,
+                              borderRadius: BorderRadius.circular(24),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: () => _openMicSettings(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.black38,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: const Icon(Icons.tune, color: Colors.white),
-                      ),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context, (_recognized, false)),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.black38,
-                        ),
-                        child: const Icon(Icons.close, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              ParticleSphere(
-                size: 280,
-                color: const Color(0xFF7C83FD),
-                dense: true,
-                active: _listening,
-                soundLevel: _soundLevel,
-              ),
-              const SizedBox(height: 40),
-              GestureDetector(
-                onTap: _initFailed && _recognized.isEmpty ? _retryInit : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black38,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _initFailed && _recognized.isEmpty
-                            ? Icons.mic_off
-                            : Icons.mic,
-                        color: _initFailed && _recognized.isEmpty
-                            ? Colors.redAccent
-                            : const Color(0xFF7C83FD),
-                      ),
-                      const SizedBox(width: 10),
-                      Flexible(
-                        child: Text(
-                          _recognized.isEmpty
-                              ? (_initFailed
-                                    ? app.t('micUnavailable')
-                                    : (_muted
-                                          ? app.t('muted')
-                                          : (_listening
-                                                ? app.t('listening')
-                                                : app.t('preparingMic'))))
-                              : _recognized,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _muted ? Icons.mic_off : Icons.mic,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _muted ? app.t('unmute') : app.t('mute'),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      if (_initFailed && _recognized.isEmpty) ...[
-                        const SizedBox(width: 10),
-                        Text(
-                          app.t('retry'),
-                          style: const TextStyle(
-                            color: Color(0xFF7C83FD),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(width: 12),
+                        GestureDetector(
+                          onTap: () => _openMicSettings(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.black38,
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: const Icon(Icons.tune, color: Colors.white),
+                          ),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () =>
+                              Navigator.pop(context, (_recognized, false)),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black38,
+                            ),
+                            child: const Icon(Icons.close, color: Colors.white),
                           ),
                         ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              const Spacer(),
-              if (_initFailed && _recognized.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(40, 0, 40, 30),
-                  child: Text(
-                    app.t('micUnavailableDesc'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white54, fontSize: 16),
+                  const Spacer(),
+                  ParticleSphere(
+                    size: 280,
+                    color: const Color(0xFF7C83FD),
+                    dense: true,
+                    active: _listening,
+                    soundLevel: _soundLevel,
                   ),
-                )
-              else if (app.micAutoSend)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(40, 0, 40, 30),
-                  child: Text(
-                    app.t('speakNaturally'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white54, fontSize: 16),
-                  ),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(40, 0, 40, 30),
-                  child: GestureDetector(
-                    onTap: _recognized.trim().isEmpty
-                        ? null
-                        : () => Navigator.pop(context, (_recognized, true)),
+                  const SizedBox(height: 40),
+                  GestureDetector(
+                    onTap: _initFailed && _recognized.isEmpty
+                        ? _retryInit
+                        : null,
                     child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(28),
-                        color: _recognized.trim().isEmpty
-                            ? Colors.black38
-                            : const Color(0xFF7C83FD),
+                        color: Colors.black38,
+                        borderRadius: BorderRadius.circular(24),
                       ),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.arrow_upward,
-                            color: _recognized.trim().isEmpty
-                                ? Colors.white38
-                                : Colors.black,
-                            size: 22,
+                            _initFailed && _recognized.isEmpty
+                                ? Icons.mic_off
+                                : Icons.mic,
+                            color: _initFailed && _recognized.isEmpty
+                                ? Colors.redAccent
+                                : const Color(0xFF7C83FD),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            app.t('send'),
-                            style: TextStyle(
-                              color: _recognized.trim().isEmpty
-                                  ? Colors.white38
-                                  : Colors.black,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Text(
+                              _recognized.isEmpty
+                                  ? (_initFailed
+                                        ? app.t('micUnavailable')
+                                        : (_muted
+                                              ? app.t('muted')
+                                              : (_listening
+                                                    ? app.t('listening')
+                                                    : app.t('preparingMic'))))
+                                  : _recognized,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
+                          if (_initFailed && _recognized.isEmpty) ...[
+                            const SizedBox(width: 10),
+                            Text(
+                              app.t('retry'),
+                              style: const TextStyle(
+                                color: Color(0xFF7C83FD),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
                   ),
-                ),
-            ],
+                  const Spacer(),
+                  if (_initFailed && _recognized.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(40, 0, 40, 30),
+                      child: Text(
+                        app.t('micUnavailableDesc'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 16,
+                        ),
+                      ),
+                    )
+                  else if (app.micAutoSend)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(40, 0, 40, 30),
+                      child: Text(
+                        app.t('speakNaturally'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 16,
+                        ),
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(40, 0, 40, 30),
+                      child: GestureDetector(
+                        onTap: _recognized.trim().isEmpty
+                            ? null
+                            : () => Navigator.pop(context, (_recognized, true)),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(28),
+                            color: _recognized.trim().isEmpty
+                                ? Colors.black38
+                                : const Color(0xFF7C83FD),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.arrow_upward,
+                                color: _recognized.trim().isEmpty
+                                    ? Colors.white38
+                                    : Colors.black,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                app.t('send'),
+                                style: TextStyle(
+                                  color: _recognized.trim().isEmpty
+                                      ? Colors.white38
+                                      : Colors.black,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
           Positioned.fill(
             child: IgnorePointer(
               child: CustomPaint(
-                painter: BorderGlowPainter(
-                  animation: _borderCtrl,
-                  radius: 36,
-                ),
+                painter: BorderGlowPainter(animation: _borderCtrl, radius: 36),
               ),
             ),
           ),
@@ -3733,6 +4467,19 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
                   ),
                   const SizedBox(height: 20),
                   _newChatBanner(app),
+                  if (app.latest != null) ...[
+                    const SizedBox(height: 24),
+                    Text(
+                      app.t('continueSection'),
+                      style: TextStyle(
+                        color: _sub(context),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _continueCard(app.latest!, app),
+                  ],
                   const SizedBox(height: 24),
                   Text(
                     app.t('recent'),
@@ -3938,6 +4685,108 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
     );
   }
 
+  Widget _continueCard(Conversation c, AppState app) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF2F6BFF).withValues(alpha: 0.28),
+            const Color(0xFF15151E).withValues(alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: Colors.white24,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.arrow_forward,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                app.t('latestConversation'),
+                style: TextStyle(
+                  color: _sub(context),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _txt(context),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${c.messages.length} ${app.t('messages')} · ${_ago(app, c.updatedAt)}',
+                      style: TextStyle(color: _sub(context), fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Material(
+                  color: Colors.white24,
+                  child: InkWell(
+                    onTap: () {
+                      app.openChat(c);
+                      Navigator.pop(context);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
+                      child: Text(
+                        app.t('resume'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _chatTile(Conversation c, AppState app) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -4076,6 +4925,15 @@ class SettingsSheet extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 children: [
                   Text(
+                    app.t('settings'),
+                    style: TextStyle(
+                      color: _txt(context),
+                      fontSize: 38,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
                     app.t('settingsDesc'),
                     style: TextStyle(
                       color: _sub(context),
@@ -4159,11 +5017,12 @@ class SettingsSheet extends StatelessWidget {
                       Icons.palette_outlined,
                       app.t('themeMode'),
                       trailing: Text(
-                        app.themeMode == AppThemeMode.system
-                            ? app.t('themeSystem')
-                            : app.themeMode == AppThemeMode.light
-                            ? app.t('themeLight')
-                            : app.t('themeDark'),
+                        switch (app.themeMode) {
+                          AppThemeMode.system => app.t('themeSystem'),
+                          AppThemeMode.light => app.t('themeLight'),
+                          AppThemeMode.dark => app.t('themeDark'),
+                          AppThemeMode.gray => app.t('themeGray'),
+                        },
                         style: TextStyle(color: _sub(context)),
                       ),
                       onTap: () => _openThemeDialog(context),
@@ -4259,8 +5118,10 @@ class SettingsSheet extends StatelessWidget {
     if (app.updateDownloadProgress != null) {
       final p = app.updateDownloadProgress!;
       title = app.t('downloadingUpdate');
-      trailing = Text(p > 0 ? '${(p * 100).toStringAsFixed(0)}%' : '…',
-          style: TextStyle(color: _sub(context)));
+      trailing = Text(
+        p > 0 ? '${(p * 100).toStringAsFixed(0)}%' : '…',
+        style: TextStyle(color: _sub(context)),
+      );
     } else if (app.checkingForUpdate) {
       trailing = const SizedBox(
         width: 18,
@@ -4312,8 +5173,13 @@ class SettingsSheet extends StatelessWidget {
       };
     }
 
-    return _nav(context, Icons.system_update_outlined, title,
-        trailing: trailing, onTap: onTap);
+    return _nav(
+      context,
+      Icons.system_update_outlined,
+      title,
+      trailing: trailing,
+      onTap: onTap,
+    );
   }
 
   Widget _nav(
@@ -4481,6 +5347,7 @@ class SettingsSheet extends StatelessWidget {
                 (AppThemeMode.system, app.t('themeSystem')),
                 (AppThemeMode.light, app.t('themeLight')),
                 (AppThemeMode.dark, app.t('themeDark')),
+                (AppThemeMode.gray, app.t('themeGray')),
               ])
                 RadioListTile<AppThemeMode>(
                   value: entry.$1,
@@ -4692,9 +5559,10 @@ class AboutVersionScreen extends StatelessWidget {
         backgroundColor: _bg(context),
         elevation: 0,
         foregroundColor: _txt(context),
-        title: Text(app.t('aboutVersion'),
-            style:
-                TextStyle(color: _txt(context), fontWeight: FontWeight.w600)),
+        title: Text(
+          app.t('aboutVersion'),
+          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w600),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -4710,11 +5578,14 @@ class AboutVersionScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(entry.version,
-                      style: TextStyle(
-                          color: _txt(context),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    entry.version,
+                    style: TextStyle(
+                      color: _txt(context),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   for (final change in entry.changes)
                     Padding(
@@ -4722,14 +5593,16 @@ class AboutVersionScreen extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('•  ',
-                              style: TextStyle(color: _sub(context))),
+                          Text('•  ', style: TextStyle(color: _sub(context))),
                           Expanded(
-                            child: Text(change,
-                                style: TextStyle(
-                                    color: _sub(context),
-                                    fontSize: 14,
-                                    height: 1.4)),
+                            child: Text(
+                              change,
+                              style: TextStyle(
+                                color: _sub(context),
+                                fontSize: 14,
+                                height: 1.4,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -4772,7 +5645,14 @@ class LocalModelsScreen extends StatelessWidget {
           const SizedBox(height: 20),
           for (final (i, tier) in LocalModelTier.values.indexed) ...[
             if (kLocalModels.any((m) => m.tier == tier)) ...[
-              _tierHeader(context, app, tier, showDivider: i > 0),
+              _tierHeader(
+                context,
+                app,
+                tier,
+                showDivider: LocalModelTier.values
+                    .take(i)
+                    .any((t) => kLocalModels.any((m) => m.tier == t)),
+              ),
               for (final spec in kLocalModels.where((m) => m.tier == tier))
                 _modelCard(context, app, spec),
             ],
@@ -5037,9 +5917,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
         elevation: 0,
         foregroundColor: _txt(context),
         title: Text(
-          widget.conversation != null
-              ? app.t('chatPers')
-              : app.t('pers'),
+          widget.conversation != null ? app.t('chatPers') : app.t('pers'),
           style: TextStyle(color: _txt(context), fontWeight: FontWeight.w600),
         ),
         actions: [
@@ -5079,9 +5957,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
             ],
           ),
           Container(height: 1, color: _sub(context).withValues(alpha: 0.15)),
-          Expanded(
-            child: _tab == 0 ? _personalityTab(app) : _memoryTab(app),
-          ),
+          Expanded(child: _tab == 0 ? _personalityTab(app) : _memoryTab(app)),
         ],
       ),
     );
@@ -5132,200 +6008,330 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text(
-          app.t('persDesc'),
-          style: TextStyle(color: _sub(context), fontSize: 15, height: 1.4),
+        _heroHeader(app.t('tabPersonality'), app.t('persDesc')),
+
+        _section(app.t('persPersona')),
+        _card2(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label(app.t('persPreset')),
+              _chipsSelect(
+                options: const [
+                  'preset_friend',
+                  'preset_mentor',
+                  'preset_expert',
+                  'preset_creative',
+                  'preset_custom',
+                ],
+                value: p.preset,
+                onSelect: (v) => setState(() {
+                  if (v == 'preset_custom') {
+                    p.preset = v;
+                  } else {
+                    p.applyPreset(v);
+                  }
+                }),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _card2(
+          child: Column(
+            children: [
+              _slider(
+                app.t('sl_formality'),
+                p.formality,
+                (v) => setState(() {
+                  p.formality = v;
+                  p.preset = 'preset_custom';
+                }),
+              ),
+              _slider(
+                app.t('sl_empathy'),
+                p.empathy,
+                (v) => setState(() {
+                  p.empathy = v;
+                  p.preset = 'preset_custom';
+                }),
+              ),
+              _slider(
+                app.t('sl_verbosity'),
+                p.verbosity,
+                (v) => setState(() {
+                  p.verbosity = v;
+                  p.preset = 'preset_custom';
+                }),
+              ),
+              _slider(
+                app.t('sl_humor'),
+                p.humor,
+                (v) => setState(() {
+                  p.humor = v;
+                  p.preset = 'preset_custom';
+                }),
+              ),
+              _slider(
+                app.t('sl_creativity'),
+                p.creativity,
+                (v) => setState(() {
+                  p.creativity = v;
+                  p.preset = 'preset_custom';
+                }),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _card2(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label(app.t('emojiUsage')),
+              _chipsSelect(
+                options: const [
+                  'emoji_never',
+                  'emoji_sometimes',
+                  'emoji_always',
+                ],
+                value: p.emoji,
+                onSelect: (v) => setState(() => p.emoji = v),
+              ),
+              const SizedBox(height: 12),
+              _label(app.t('answerFormat')),
+              _chipsSelect(
+                options: const ['fmt_plain', 'fmt_lists', 'fmt_tables'],
+                value: p.answerFormat,
+                onSelect: (v) => setState(() => p.answerFormat = v),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 20),
 
-          _section(app.t('persPersona')),
-          _card2(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _label(app.t('persPreset')),
-                _chipsSelect(
-                  options: const [
-                    'preset_friend',
-                    'preset_mentor',
-                    'preset_expert',
-                    'preset_creative',
-                    'preset_custom',
-                  ],
-                  value: p.preset,
-                  onSelect: (v) => setState(() {
-                    if (v == 'preset_custom') {
-                      p.preset = v;
-                    } else {
-                      p.applyPreset(v);
-                    }
-                  }),
-                ),
-              ],
-            ),
+        _section(app.t('persBehavior')),
+        _card2(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label(app.t('defaultLength')),
+              _chipsSelect(
+                options: const ['len_short', 'len_normal', 'len_long'],
+                value: p.defaultLength,
+                onSelect: (v) => setState(() => p.defaultLength = v),
+              ),
+              const SizedBox(height: 12),
+              _label(app.t('proactivity')),
+              _chipsSelect(
+                options: const ['pro_answer', 'pro_clarify', 'pro_suggest'],
+                value: p.proactivity,
+                onSelect: (v) => setState(() => p.proactivity = v),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          _card2(
-            child: Column(
-              children: [
-                _slider(
-                  app.t('sl_formality'),
-                  p.formality,
-                  (v) => setState(() {
-                    p.formality = v;
-                    p.preset = 'preset_custom';
-                  }),
-                ),
-                _slider(
-                  app.t('sl_empathy'),
-                  p.empathy,
-                  (v) => setState(() {
-                    p.empathy = v;
-                    p.preset = 'preset_custom';
-                  }),
-                ),
-                _slider(
-                  app.t('sl_verbosity'),
-                  p.verbosity,
-                  (v) => setState(() {
-                    p.verbosity = v;
-                    p.preset = 'preset_custom';
-                  }),
-                ),
-                _slider(
-                  app.t('sl_humor'),
-                  p.humor,
-                  (v) => setState(() {
-                    p.humor = v;
-                    p.preset = 'preset_custom';
-                  }),
-                ),
-                _slider(
-                  app.t('sl_creativity'),
-                  p.creativity,
-                  (v) => setState(() {
-                    p.creativity = v;
-                    p.preset = 'preset_custom';
-                  }),
-                ),
-              ],
-            ),
+        ),
+        const SizedBox(height: 12),
+        _card2(
+          child: Column(
+            children: [
+              _iconSwitchRow(
+                icon: Icons.notes_outlined,
+                title: app.t('useMarkdown'),
+                desc: app.t('useMarkdownDesc'),
+                value: p.useMarkdown,
+                onChanged: (v) => setState(() => p.useMarkdown = v),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          _card2(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _label(app.t('emojiUsage')),
-                _chipsSelect(
-                  options: const [
-                    'emoji_never',
-                    'emoji_sometimes',
-                    'emoji_always',
-                  ],
-                  value: p.emoji,
-                  onSelect: (v) => setState(() => p.emoji = v),
-                ),
-                const SizedBox(height: 12),
-                _label(app.t('answerFormat')),
-                _chipsSelect(
-                  options: const ['fmt_plain', 'fmt_lists', 'fmt_tables'],
-                  value: p.answerFormat,
-                  onSelect: (v) => setState(() => p.answerFormat = v),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
+        ),
+        const SizedBox(height: 20),
 
-          _section(app.t('persBehavior')),
-          _card2(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _label(app.t('defaultLength')),
-                _chipsSelect(
-                  options: const ['len_short', 'len_normal', 'len_long'],
-                  value: p.defaultLength,
-                  onSelect: (v) => setState(() => p.defaultLength = v),
-                ),
-                const SizedBox(height: 12),
-                _label(app.t('proactivity')),
-                _chipsSelect(
-                  options: const ['pro_answer', 'pro_clarify', 'pro_suggest'],
-                  value: p.proactivity,
-                  onSelect: (v) => setState(() => p.proactivity = v),
-                ),
-              ],
-            ),
+        _section(app.t('persAdvanced')),
+        _card2(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label(app.t('reasoning')),
+              _chipsSelect(
+                options: const ['rs_fast', 'rs_step'],
+                value: p.reasoning,
+                onSelect: (v) => setState(() => p.reasoning = v),
+              ),
+              const SizedBox(height: 12),
+              _label(app.t('toneTitle')),
+              _chipsSelect(
+                options: const [
+                  'tone_neutral',
+                  'tone_sarcastic',
+                  'tone_melancholic',
+                  'tone_excited',
+                ],
+                value: p.tone,
+                onSelect: (v) => setState(() => p.tone = v),
+              ),
+              const SizedBox(height: 12),
+              _label(app.t('customPrompt')),
+              _field(_custom, app.t('customPromptHint'), maxLines: 4),
+              const SizedBox(height: 16),
+              _contextSizeControl(),
+            ],
           ),
-          const SizedBox(height: 12),
-          _card2(
-            child: Column(
-              children: [
-                _switchRow(
-                  app.t('useMarkdown'),
-                  p.useMarkdown,
-                  (v) => setState(() => p.useMarkdown = v),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          _section(app.t('persAdvanced')),
-          _card2(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _label(app.t('reasoning')),
-                _chipsSelect(
-                  options: const ['rs_fast', 'rs_step'],
-                  value: p.reasoning,
-                  onSelect: (v) => setState(() => p.reasoning = v),
-                ),
-                const SizedBox(height: 12),
-                _label(app.t('toneTitle')),
-                _chipsSelect(
-                  options: const [
-                    'tone_neutral',
-                    'tone_sarcastic',
-                    'tone_melancholic',
-                    'tone_excited',
-                  ],
-                  value: p.tone,
-                  onSelect: (v) => setState(() => p.tone = v),
-                ),
-                const SizedBox(height: 12),
-                _label(app.t('customPrompt')),
-                _field(_custom, app.t('customPromptHint'), maxLines: 4),
-              ],
-            ),
-          ),
-          const SizedBox(height: 40),
-        ],
-      );
+        ),
+        const SizedBox(height: 40),
+      ],
+    );
   }
 
   Widget _memoryTab(AppState app) {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        _heroHeader(app.t('tabMemory'), app.t('memoryDesc')),
         _section(app.t('memorySection')),
         _card2(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _switchRow(
-                app.t('longMemory'),
-                p.longMemory,
-                (v) => setState(() => p.longMemory = v),
+              _iconSwitchRow(
+                icon: Icons.psychology_alt_outlined,
+                title: app.t('longMemory'),
+                desc: app.t('longMemoryDesc'),
+                value: p.longMemory,
+                onChanged: (v) => setState(() => p.longMemory = v),
               ),
-              const SizedBox(height: 8),
+              Divider(color: _sub(context).withValues(alpha: 0.25), height: 17),
+              _iconSwitchRow(
+                icon: Icons.auto_awesome_outlined,
+                title: app.t('autoSaveMemories'),
+                desc: app.t('autoSaveMemoriesDesc'),
+                value: p.autoSaveMemories,
+                onChanged: (v) => setState(() => p.autoSaveMemories = v),
+              ),
+              Divider(color: _sub(context).withValues(alpha: 0.25), height: 17),
+              _iconSwitchRow(
+                icon: Icons.help_outline,
+                title: app.t('askBeforeRemembering'),
+                desc: app.t('askBeforeRememberingDesc'),
+                value: p.askBeforeRemembering,
+                onChanged: (v) => setState(() => p.askBeforeRemembering = v),
+              ),
+              const SizedBox(height: 12),
               _field(_memory, app.t('memoryNote'), maxLines: 3),
+              Divider(color: _sub(context).withValues(alpha: 0.25), height: 25),
+              _destructiveActionRow(
+                icon: Icons.delete_outline,
+                title: app.t('deleteAllMemories'),
+                desc: app.t('deleteAllMemoriesDesc'),
+                onTap: () => _confirmDeleteAllMemories(context, app),
+              ),
             ],
           ),
         ),
+        const SizedBox(height: 20),
+        _section(app.t('savedMemoriesSection')),
+        _card2(
+          child: p.savedMemories.isEmpty
+              ? Text(
+                  app.t('noSavedMemories'),
+                  style: TextStyle(color: _sub(context), fontSize: 14),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final mem in p.savedMemories)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                mem,
+                                style: TextStyle(
+                                  color: _txt(context),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                              icon: const Icon(
+                                Icons.close,
+                                size: 18,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () =>
+                                  setState(() => p.savedMemories.remove(mem)),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+        if (widget.conversation != null) ...[
+          const SizedBox(height: 20),
+          _section(app.t('pinnedMessagesSection')),
+          _card2(
+            child: widget.conversation!.pinnedMessageIds.isEmpty
+                ? Text(
+                    app.t('noPinnedMessages'),
+                    style: TextStyle(color: _sub(context), fontSize: 14),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final msg in widget.conversation!.messages.where(
+                        (m) => widget.conversation!.pinnedMessageIds.contains(
+                          m.id,
+                        ),
+                      ))
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  msg.content,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: _txt(context),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 32,
+                                  minHeight: 32,
+                                ),
+                                icon: const Icon(
+                                  Icons.push_pin,
+                                  size: 18,
+                                  color: Color(0xFF2F8DFF),
+                                ),
+                                onPressed: () => setState(() {
+                                  app.toggleMessagePin(
+                                    widget.conversation!,
+                                    msg,
+                                  );
+                                }),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+        ],
         const SizedBox(height: 20),
         _section(app.t('persProfile')),
         _card2(
@@ -5338,13 +6344,15 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
               _field(_interests, app.t('interests')),
               _field(_goals, app.t('goals')),
               _field(_location, app.t('location')),
-              const SizedBox(height: 4),
-              _switchRow(
-                app.t('useMyData'),
-                p.useMyData,
-                (v) => setState(() => p.useMyData = v),
-              ),
               const SizedBox(height: 8),
+              _iconSwitchRow(
+                icon: Icons.badge_outlined,
+                title: app.t('useMyData'),
+                desc: app.t('useMyDataDesc'),
+                value: p.useMyData,
+                onChanged: (v) => setState(() => p.useMyData = v),
+              ),
+              const SizedBox(height: 12),
               _label(app.t('knowledgeLevel')),
               _chipsSelect(
                 options: const ['kl_beginner', 'kl_student', 'kl_expert'],
@@ -5368,17 +6376,304 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                 value: p.contentFilter,
                 onSelect: (v) => setState(() => p.contentFilter = v),
               ),
-              const SizedBox(height: 4),
-              _switchRow(
-                app.t('warnUncertain'),
-                p.warnUncertain,
-                (v) => setState(() => p.warnUncertain = v),
+              const SizedBox(height: 12),
+              _iconSwitchRow(
+                icon: Icons.warning_amber_outlined,
+                title: app.t('warnUncertain'),
+                desc: app.t('warnUncertainDesc'),
+                value: p.warnUncertain,
+                onChanged: (v) => setState(() => p.warnUncertain = v),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 20),
+        _infoCard(
+          icon: Icons.lock_outline,
+          title: app.t('localDataTitle'),
+          desc: app.t('localDataDesc'),
+        ),
         const SizedBox(height: 40),
       ],
+    );
+  }
+
+  Widget _heroHeader(String title, String desc) => Padding(
+    padding: const EdgeInsets.only(bottom: 20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: _txt(context),
+            fontSize: 30,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          desc,
+          style: TextStyle(color: _sub(context), fontSize: 15, height: 1.4),
+        ),
+      ],
+    ),
+  );
+
+  Widget _destructiveActionRow({
+    required IconData icon,
+    required String title,
+    required String desc,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Colors.redAccent, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    desc,
+                    style: TextStyle(
+                      color: _sub(context),
+                      fontSize: 13,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteAllMemories(BuildContext context, AppState app) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _card(context),
+        title: Text(
+          app.t('deleteAllMemories'),
+          style: TextStyle(color: _txt(context)),
+        ),
+        content: Text(
+          app.t('deleteAllMemoriesConfirm'),
+          style: TextStyle(color: _sub(context)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(app.t('cancel')),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() => p.savedMemories.clear());
+              Navigator.pop(dialogContext);
+            },
+            child: Text(
+              app.t('delete'),
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconSwitchRow({
+    required IconData icon,
+    required String title,
+    required String desc,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: _sub(context), size: 22),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: _txt(context),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                desc,
+                style: TextStyle(
+                  color: _sub(context),
+                  fontSize: 13,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Switch(
+          value: value,
+          activeThumbColor: Colors.white,
+          activeTrackColor: const Color(0xFF34C759),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _infoCard({
+    required IconData icon,
+    required String title,
+    required String desc,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _card(context).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2F8DFF).withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: const Color(0xFF2F8DFF), size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: _txt(context),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  desc,
+                  style: TextStyle(
+                    color: _sub(context),
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _contextSizeControl() {
+    const step = 512;
+    const minSize = 512;
+    const maxSize = 4096;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                tr('contextSize'),
+                style: TextStyle(
+                  color: _txt(context),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Text(
+              '${p.localContextSize}',
+              style: TextStyle(
+                color: _sub(context),
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _stepBtn(
+              Icons.remove,
+              p.localContextSize > minSize
+                  ? () => setState(() => p.localContextSize -= step)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            _stepBtn(
+              Icons.add,
+              p.localContextSize < maxSize
+                  ? () => setState(() => p.localContextSize += step)
+                  : null,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          tr('contextSizeDesc'),
+          style: TextStyle(color: _sub(context), fontSize: 13, height: 1.3),
+        ),
+      ],
+    );
+  }
+
+  Widget _stepBtn(IconData icon, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: _bg(context).withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _sub(context).withValues(alpha: 0.2)),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: onTap == null
+              ? _sub(context).withValues(alpha: 0.4)
+              : _txt(context),
+        ),
+      ),
     );
   }
 
@@ -5426,25 +6721,6 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
             thumbColor: const Color(0xFF2F6BFF),
           ),
           child: Slider(value: value, onChanged: onChanged),
-        ),
-      ],
-    );
-  }
-
-  Widget _switchRow(String label, bool value, ValueChanged<bool> onChanged) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(color: _txt(context), fontSize: 16),
-          ),
-        ),
-        Switch(
-          value: value,
-          activeThumbColor: Colors.white,
-          activeTrackColor: const Color(0xFF34C759),
-          onChanged: onChanged,
         ),
       ],
     );
