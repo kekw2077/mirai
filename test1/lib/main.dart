@@ -6273,16 +6273,10 @@ class SettingsSheet extends StatelessWidget {
                       app.t('serverAddress'),
                       onTap: () => _openServerSettings(context),
                     ),
-                    _nav(
-                      context,
-                      Icons.person_outline,
-                      app.t('personalization'),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const PersonalizationScreen(),
-                        ),
-                      ),
-                    ),
+                    // The separate "Personalization" entry that used to open
+                    // straight to the (now-hidden) "Личность" tab is removed
+                    // for now — "Memory" below is the only remaining
+                    // PersonalizationScreen entry point from Settings.
                     _nav(
                       context,
                       Icons.psychology_outlined,
@@ -6290,7 +6284,7 @@ class SettingsSheet extends StatelessWidget {
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) =>
-                              const PersonalizationScreen(initialTab: 1),
+                              const PersonalizationScreen(initialTab: 0),
                         ),
                       ),
                     ),
@@ -7264,41 +7258,41 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
         onTap: () => FocusScope.of(context).unfocus(),
         child: Column(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _topTab(
-                    icon: Icons.person_outline,
-                    label: app.t('tabPersonality'),
-                    selected: _tab == 0,
-                    onTap: () => setState(() => _tab = 0),
+            // "Личность" (_personalityTab) is temporarily disabled — the
+            // user's testing on an up-to-date build still found no
+            // observable change in model behavior from these sliders, so
+            // it's hidden from the tab row rather than fixed-in-place again.
+            // The tab body, its state (`p`), and _save() are left fully
+            // intact below; re-enabling is just adding its _topTab back and
+            // restoring the `0 => _personalityTab(app)` switch case.
+            if (widget.conversation?.rpModeEnabled == true)
+              Row(
+                children: [
+                  Expanded(
+                    child: _topTab(
+                      icon: Icons.psychology_outlined,
+                      label: app.t('tabMemory'),
+                      selected: _tab == 0,
+                      onTap: () => setState(() => _tab = 0),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _topTab(
-                    icon: Icons.psychology_outlined,
-                    label: app.t('tabMemory'),
-                    selected: _tab == 1,
-                    onTap: () => setState(() => _tab = 1),
-                  ),
-                ),
-                if (widget.conversation?.rpModeEnabled == true)
                   Expanded(
                     child: _topTab(
                       icon: Icons.badge_outlined,
                       label: app.t('tabRoleplay'),
-                      selected: _tab == 2,
-                      onTap: () => setState(() => _tab = 2),
+                      selected: _tab == 1,
+                      onTap: () => setState(() => _tab = 1),
                     ),
                   ),
-              ],
-            ),
-            Container(height: 1, color: _sub(context).withValues(alpha: 0.15)),
+                ],
+              ),
+            if (widget.conversation?.rpModeEnabled == true)
+              Container(height: 1, color: _sub(context).withValues(alpha: 0.15)),
             Expanded(
               child: switch (_tab) {
-                0 => _personalityTab(app),
-                1 => _memoryTab(app),
-                _ => _roleplayTab(app),
+                1 when widget.conversation?.rpModeEnabled == true =>
+                  _roleplayTab(app),
+                _ => _memoryTab(app),
               },
             ),
           ],
@@ -7348,6 +7342,9 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     );
   }
 
+  // Unreferenced while the "Личность" tab is hidden from build() above —
+  // kept intact (not deleted) so it can come back with a one-line revert.
+  // ignore: unused_element
   Widget _personalityTab(AppState app) {
     return ListView(
       padding: const EdgeInsets.all(20),
