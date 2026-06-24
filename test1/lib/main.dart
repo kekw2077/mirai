@@ -169,11 +169,13 @@ const Map<String, Map<String, String>> _i18n = {
     'rpModelLocked': 'Модель зафиксирована для этого чата',
     'rpModelLockedToast':
         'Модель этого чата зафиксирована при включении режима ролевой игры и не меняется внутри сессии.',
-    'rpCharacters': 'Персонажи',
-    'rpCharactersDesc': 'Как модель называет вас и саму себя в этом чате.',
+    'rpMyCharacter': 'Мой персонаж',
+    'rpMyCharacterDesc': 'Как модель называет вас в этом чате.',
+    'rpAiRole': 'Роль ИИ',
+    'rpAiRoleDesc': 'Кем должна быть нейросеть в этом чате — имя и личность персонажа.',
     'rpUserName': 'Ваше имя',
     'rpAiName': 'Имя персонажа ИИ',
-    'rpPromptScenario': 'Промпт и сценарий',
+    'rpScenarioSection': 'Сценарий',
     'systemPrompt': 'Системный промпт / личность персонажа',
     'systemPromptDesc':
         'Главное описание персонажа — голос, характер, манера речи. Заменяет обычный системный промпт личности в этом чате.',
@@ -198,6 +200,7 @@ const Map<String, Map<String, String>> _i18n = {
     'rpPresetShort': 'Коротко (150)',
     'rpPresetMedium': 'Средне (300)',
     'rpPresetLong': 'Роман (600)',
+    'rpPresetEpic': 'Эпопея (1000)',
     'rpLorebook': 'Блокнот мира',
     'rpLorebookEnable': 'Блокнот мира (Lorebook)',
     'rpLorebookDesc':
@@ -504,11 +507,13 @@ const Map<String, Map<String, String>> _i18n = {
     'rpModelLocked': 'Model is locked for this chat',
     'rpModelLockedToast':
         "This chat's model was locked in when roleplay mode turned on and can't change within the session.",
-    'rpCharacters': 'Characters',
-    'rpCharactersDesc': 'What the model calls you and itself in this chat.',
+    'rpMyCharacter': 'My character',
+    'rpMyCharacterDesc': 'What the model calls you in this chat.',
+    'rpAiRole': "AI's role",
+    'rpAiRoleDesc': "Who the AI should be in this chat — the character's name and personality.",
     'rpUserName': 'Your name',
     'rpAiName': "AI character's name",
-    'rpPromptScenario': 'Prompt & scenario',
+    'rpScenarioSection': 'Scenario',
     'systemPrompt': 'System prompt / character personality',
     'systemPromptDesc':
         "The character's core description — voice, personality, way of speaking. Replaces the regular personality system prompt for this chat.",
@@ -533,6 +538,7 @@ const Map<String, Map<String, String>> _i18n = {
     'rpPresetShort': 'Short (150)',
     'rpPresetMedium': 'Medium (300)',
     'rpPresetLong': 'Novel (600)',
+    'rpPresetEpic': 'Epic (1000)',
     'rpLorebook': 'Lorebook',
     'rpLorebookEnable': 'World lorebook',
     'rpLorebookDesc':
@@ -1381,15 +1387,27 @@ class RPMemoryManager {
   static String buildSystemPrompt(Conversation conv) {
     final cfg = conv.rpConfig!;
     final b = StringBuffer();
+    final aiName = cfg.aiCharacterName.trim();
+    final userName = cfg.userCharacterName.trim();
     if (cfg.systemPrompt.trim().isNotEmpty) {
       b.writeln(_substitutePlaceholders(cfg.systemPrompt.trim(), cfg));
+      // The substitution above only fills in a name where the user's own
+      // prompt text happens to use {{user}}/{{char}} — a freeform custom
+      // prompt that never does leaves the model with no idea what to call
+      // the user (the AI's own name tends to come through anyway, since
+      // the prompt is written in its voice). State both names explicitly
+      // so a forgotten {{user}} token can't silently drop it.
+      if (userName.isNotEmpty || aiName.isNotEmpty) {
+        final who = [
+          if (userName.isNotEmpty) 'the user is $userName',
+          if (aiName.isNotEmpty) 'you are $aiName',
+        ].join(' and ');
+        b.writeln('(For reference: $who.)');
+      }
     } else {
-      final ai = cfg.aiCharacterName.trim().isNotEmpty
-          ? cfg.aiCharacterName.trim()
-          : 'a character';
-      final user = cfg.userCharacterName.trim();
+      final ai = aiName.isNotEmpty ? aiName : 'a character';
       b.writeln(
-        'You are roleplaying as $ai${user.isNotEmpty ? " opposite $user" : ""}. '
+        'You are roleplaying as $ai${userName.isNotEmpty ? " opposite $userName" : ""}. '
         'Stay in character and respond only as your character would.',
       );
     }
@@ -1694,6 +1712,12 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.11.1', [
+    'Исправлен статус-бар на iOS (время, сеть, заряд батареи пропадали).',
+    'В ролевой игре добавлен пресет длины ответа «Эпопея» (1000 токенов).',
+    'Имена персонажей в ролевой игре надёжнее доходят до модели, даже при своём системном промпте без {{user}}.',
+    'Настройки персонажей переразложены: «Мой персонаж» отдельно от «Роль ИИ».',
+  ]),
   ChangelogEntry('2.11.0', [
     'Новая иконка приложения — светящийся синий орб с частицами вместо прежнего волнистого узора.',
     'Сплэш-экран при запуске теперь показывает тот же орб на фирменном фоне, для светлой и тёмной темы.',
@@ -7809,25 +7833,27 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
               desc: app.modelDisplayName(lockedModel),
             ),
           ),
-        _section(app.t('rpCharacters'), app.t('rpCharactersDesc')),
-        _card2(
-          child: Row(
-            children: [
-              Expanded(child: _field(_rpUserName, app.t('rpUserName'))),
-              const SizedBox(width: 12),
-              Expanded(child: _field(_rpAiName, app.t('rpAiName'))),
-            ],
-          ),
-        ),
+        _section(app.t('rpMyCharacter'), app.t('rpMyCharacterDesc')),
+        _card2(child: _field(_rpUserName, app.t('rpUserName'))),
         const SizedBox(height: 20),
-        _section(app.t('rpPromptScenario')),
+        _section(app.t('rpAiRole'), app.t('rpAiRoleDesc')),
         _card2(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _field(_rpAiName, app.t('rpAiName')),
+              const SizedBox(height: 12),
               _label(app.t('systemPrompt'), desc: app.t('systemPromptDesc')),
               _field(_rpSystemPrompt, app.t('rpSystemPromptHint'), maxLines: 6),
-              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _section(app.t('rpScenarioSection')),
+        _card2(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               _label(app.t('scenario'), desc: app.t('scenarioDesc')),
               _field(_rpScenario, app.t('rpScenarioHint'), maxLines: 4),
             ],
@@ -7869,13 +7895,14 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
               const SizedBox(height: 8),
               _label(app.t('rpMaxTokens'), desc: app.t('rpMaxTokensDesc')),
               _quickChips(
-                const [150, 300, 600],
+                const [150, 300, 600, 1000],
                 rp.sampling.maxResponseTokens,
                 (v) => setState(() => rp.sampling.maxResponseTokens = v),
                 labelFor: (v) => switch (v) {
                   150 => app.t('rpPresetShort'),
                   300 => app.t('rpPresetMedium'),
                   600 => app.t('rpPresetLong'),
+                  1000 => app.t('rpPresetEpic'),
                   _ => '$v',
                 },
               ),

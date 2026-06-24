@@ -1,7 +1,7 @@
 name: mirai
 description: Mirai — local & remote AI chat client
 publish_to: "none"
-version: 2.11.0+35
+version: 2.11.1+36
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
@@ -67,7 +67,12 @@ flutter_native_splash:
   color_dark: "#0f182f"
   image: assets/splash/splash_orb.png
   image_dark: assets/splash/splash_orb.png
-  fullscreen: true
+  # Must stay false: true makes the generator set UIStatusBarHidden=true in
+  # ios/Runner/Info.plist, which hides the status bar (time/signal/battery)
+  # app-wide on iOS, not just during the splash -- this has bitten the
+  # project before. Re-running `flutter_native_splash:create` with this on
+  # silently reintroduces the bug, so the flag itself has to stay off.
+  fullscreen: false
   android: true
   ios: true
   web: true
