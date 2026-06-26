@@ -1751,6 +1751,15 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.13.1', [
+    'Лимит контекста в ролевой игре предлагает все значения до максимума модели (раньше обрезалось на 8192).',
+    'Контекстные меню (⋮ у чата, долгое нажатие на сообщение) — в стиле «Жидкое стекло» с размытием.',
+    'Экран «Настройки этого чата» в стеклянном стиле открывается полупрозрачным слоем поверх чата.',
+    'Между строками настроек добавлены тонкие разделители.',
+    'Уведомления всплывают по центру стеклянной «пилюлей», а не белой полосой снизу.',
+    'Плитка чата в списке стала немного уже.',
+    'Исправлено: свайп-открытие списка чатов больше не поднимает клавиатуру.',
+  ]),
   ChangelogEntry('2.13.0', [
     'Список чатов открывается свайпом от левого края (полноэкранно); кнопка чатов из шапки убрана, настройки чата — справа, название модели по центру.',
     'Новый стиль «Жидкое стекло» (iOS 26) — в настройках под «Темой» пункт «Стиль приложения». Переоформлен весь интерфейс, включая тумблеры. Работает поверх любой темы.',
@@ -3468,6 +3477,169 @@ Widget _glassCard(
   );
 }
 
+class GlassMenuItem {
+  final String value;
+  final String label;
+  final IconData? icon;
+  final Color? color;
+  const GlassMenuItem(this.value, this.label, {this.icon, this.color});
+}
+
+// Glass-styled context menu (used in glass mode instead of PopupMenuButton /
+// showMenu, which can't backdrop-blur). Positions a GlassSurface near the
+// anchor [position] (a global point), clamped on-screen, over a dismissible
+// barrier. Returns the tapped item's value, or null if dismissed.
+Future<String?> showGlassMenu(
+  BuildContext context, {
+  required Offset position,
+  required List<GlassMenuItem> items,
+  double menuWidth = 220,
+}) {
+  final size = MediaQuery.of(context).size;
+  final menuHeight = items.length * 50.0 + 8;
+  var left = position.dx;
+  if (left + menuWidth > size.width - 8) left = size.width - 8 - menuWidth;
+  if (left < 8) left = 8;
+  var top = position.dy;
+  if (top + menuHeight > size.height - 8) top = size.height - 8 - menuHeight;
+  if (top < 8) top = 8;
+  return showGeneralDialog<String>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.black.withValues(alpha: 0.08),
+    transitionDuration: const Duration(milliseconds: 130),
+    pageBuilder: (ctx, _, _) {
+      return Stack(
+        children: [
+          Positioned(
+            left: left,
+            top: top,
+            width: menuWidth,
+            child: GlassSurface(
+              borderRadius: BorderRadius.circular(16),
+              child: Material(
+                type: MaterialType.transparency,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < items.length; i++) ...[
+                      InkWell(
+                        onTap: () => Navigator.pop(ctx, items[i].value),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            children: [
+                              if (items[i].icon != null) ...[
+                                Icon(
+                                  items[i].icon,
+                                  size: 20,
+                                  color: items[i].color ?? _txt(ctx),
+                                ),
+                                const SizedBox(width: 12),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  items[i].label,
+                                  style: TextStyle(
+                                    color: items[i].color ?? _txt(ctx),
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (i != items.length - 1)
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: _sub(ctx).withValues(alpha: 0.14),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+    transitionBuilder: (ctx, anim, _, child) =>
+        FadeTransition(opacity: anim, child: child),
+  );
+}
+
+// App-wide toast: a centered floating pill instead of the default full-width
+// white SnackBar at the bottom edge. Glass mode → blurred glass pill;
+// standard → solid rounded pill.
+void showAppSnackBar(BuildContext context, String text) {
+  final messenger = ScaffoldMessenger.of(context);
+  final label = Text(
+    text,
+    textAlign: TextAlign.center,
+    style: TextStyle(color: _txt(context), fontSize: 14),
+  );
+  const pad = EdgeInsets.symmetric(horizontal: 18, vertical: 12);
+  final pill = _isGlass(context)
+      ? GlassSurface(
+          borderRadius: BorderRadius.circular(18),
+          padding: pad,
+          child: label,
+        )
+      : Container(
+          padding: pad,
+          decoration: BoxDecoration(
+            color: _card(context),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: label,
+        );
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
+    SnackBar(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      padding: EdgeInsets.zero,
+      duration: const Duration(seconds: 2),
+      content: Center(child: pill),
+    ),
+  );
+}
+
+// Opens the chat/personalization settings screen. In glass mode it's pushed
+// as a transparent overlay so the screen's frosted app bar/body blur the
+// chat behind (real glass); in standard mode it's a normal opaque page.
+void openPersonalization(
+  BuildContext context, {
+  Conversation? conversation,
+  int initialTab = 0,
+}) {
+  final screen = PersonalizationScreen(
+    conversation: conversation,
+    initialTab: initialTab,
+  );
+  if (_isGlass(context)) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 240),
+        reverseTransitionDuration: const Duration(milliseconds: 200),
+        pageBuilder: (_, anim, _) =>
+            FadeTransition(opacity: anim, child: screen),
+      ),
+    );
+  } else {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
+}
+
 // Reusable translucent blurred surface for the Liquid Glass style. A real
 // backdrop blur (so content behind shows through), a translucent fill tuned
 // per brightness, and a soft top-left specular border. Used by the chat
@@ -4070,9 +4242,7 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _pendingAttachments.add(file.path!));
         if (mounted) {
           final app = context.read<AppState>();
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(app.t('fileAttached'))));
+          showAppSnackBar(context, app.t('fileAttached'));
         }
       }
     }
@@ -4129,9 +4299,7 @@ class _ChatScreenState extends State<ChatScreen> {
         onCreateImage: () {
           Navigator.pop(context);
           if (!mounted) return;
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(app.t('createImageHint'))));
+          showAppSnackBar(context, app.t('createImageHint'));
         },
       ),
     );
@@ -4151,11 +4319,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     final app = context.read<AppState>();
     if (app.current == null) app.newChat();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PersonalizationScreen(conversation: app.current),
-      ),
-    );
+    openPersonalization(context, conversation: app.current);
   }
 
   void _openVoice() async {
@@ -4185,6 +4349,12 @@ class _ChatScreenState extends State<ChatScreen> {
       // (the old top-bar chats button is gone). Drawer keeps the OS status
       // bar visible (not immersive); its content uses its own SafeArea.
       drawerEdgeDragWidth: 56,
+      // Opening the drawer must drop any text-field focus, otherwise the
+      // keyboard (from the chat input or the drawer's search field) stays up
+      // over the drawer with no way to dismiss it.
+      onDrawerChanged: (opened) {
+        if (opened) FocusManager.instance.primaryFocus?.unfocus();
+      },
       drawer: Drawer(
         width: MediaQuery.of(context).size.width,
         backgroundColor: Colors.transparent,
@@ -4236,12 +4406,7 @@ class _ChatScreenState extends State<ChatScreen> {
               onTap: () {
                 app.buzz();
                 if (lockedModel != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(app.t('rpModelLockedToast')),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
+                  showAppSnackBar(context, app.t('rpModelLockedToast'));
                   return;
                 }
                 _openModelMenu();
@@ -4552,40 +4717,73 @@ class _ChatScreenState extends State<ChatScreen> {
     final app = context.read<AppState>();
     final conv = app.current;
     final isPinned = conv != null && conv.pinnedMessageIds.contains(m.id);
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        globalPosition.dx,
-        globalPosition.dy,
-        globalPosition.dx,
-        globalPosition.dy,
-      ),
-      color: _card(context),
-      items: [
-        _menuItem('copy', Icons.copy_outlined, app.t('msgCopy')),
-        _menuItem(
-          'compose',
-          Icons.edit_note_outlined,
-          app.t('msgUseInComposer'),
+    final String? selected;
+    if (_isGlass(context)) {
+      selected = await showGlassMenu(
+        context,
+        position: globalPosition,
+        menuWidth: 260,
+        items: [
+          GlassMenuItem('copy', app.t('msgCopy'), icon: Icons.copy_outlined),
+          GlassMenuItem(
+            'compose',
+            app.t('msgUseInComposer'),
+            icon: Icons.edit_note_outlined,
+          ),
+          GlassMenuItem(
+            'remember',
+            app.t('msgRemember'),
+            icon: Icons.psychology_alt_outlined,
+          ),
+          GlassMenuItem(
+            'forget',
+            app.t('msgForgetMemory'),
+            icon: Icons.delete_outline,
+            color: Colors.redAccent,
+          ),
+          GlassMenuItem(
+            'pin',
+            isPinned ? app.t('msgUnpinContext') : app.t('msgPinContext'),
+            icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+          ),
+        ],
+      );
+    } else {
+      selected = await showMenu<String>(
+        context: context,
+        position: RelativeRect.fromLTRB(
+          globalPosition.dx,
+          globalPosition.dy,
+          globalPosition.dx,
+          globalPosition.dy,
         ),
-        _menuItem(
-          'remember',
-          Icons.psychology_alt_outlined,
-          app.t('msgRemember'),
-        ),
-        _menuItem(
-          'forget',
-          Icons.delete_outline,
-          app.t('msgForgetMemory'),
-          color: Colors.redAccent,
-        ),
-        _menuItem(
-          'pin',
-          isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-          isPinned ? app.t('msgUnpinContext') : app.t('msgPinContext'),
-        ),
-      ],
-    );
+        color: _card(context),
+        items: [
+          _menuItem('copy', Icons.copy_outlined, app.t('msgCopy')),
+          _menuItem(
+            'compose',
+            Icons.edit_note_outlined,
+            app.t('msgUseInComposer'),
+          ),
+          _menuItem(
+            'remember',
+            Icons.psychology_alt_outlined,
+            app.t('msgRemember'),
+          ),
+          _menuItem(
+            'forget',
+            Icons.delete_outline,
+            app.t('msgForgetMemory'),
+            color: Colors.redAccent,
+          ),
+          _menuItem(
+            'pin',
+            isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+            isPinned ? app.t('msgUnpinContext') : app.t('msgPinContext'),
+          ),
+        ],
+      );
+    }
     if (selected == null || !mounted) return;
     String? toast;
     switch (selected) {
@@ -4618,9 +4816,7 @@ class _ChatScreenState extends State<ChatScreen> {
         break;
     }
     if (toast != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(toast), duration: const Duration(seconds: 2)),
-      );
+      showAppSnackBar(context, toast);
     }
   }
 
@@ -6572,43 +6768,10 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
         '${c.messages.length} ${app.t('messages')} · ${_ago(app, c.updatedAt)}',
         style: TextStyle(color: _sub(context)),
       ),
-      trailing: PopupMenuButton<String>(
-        color: _isGlass(context)
-            ? _card(context).withValues(alpha: 0.85)
-            : _card(context),
-        icon: Icon(Icons.more_vert, color: _sub(context)),
-        onSelected: (v) {
-          if (v == 'rename') _promptRename(c, app);
-          if (v == 'pin') app.togglePin(c);
-          if (v == 'delete') app.deleteChat(c);
-        },
-        itemBuilder: (_) => [
-          PopupMenuItem(
-            value: 'rename',
-            child: Text(
-              app.t('rename'),
-              style: TextStyle(color: _txt(context)),
-            ),
-          ),
-          PopupMenuItem(
-            value: 'pin',
-            child: Text(
-              c.pinned ? app.t('unpin') : app.t('pin'),
-              style: TextStyle(color: _txt(context)),
-            ),
-          ),
-          PopupMenuItem(
-            value: 'delete',
-            child: Text(
-              app.t('delete'),
-              style: TextStyle(color: _txt(context)),
-            ),
-          ),
-        ],
-      ),
+      trailing: _chatTileMenuButton(c, app),
     );
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.fromLTRB(8, 0, 8, 10),
       child: _isGlass(context)
           ? GlassSurface(
               borderRadius: BorderRadius.circular(16),
@@ -6625,6 +6788,66 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
                 child: tile,
               ),
             ),
+    );
+  }
+
+  // Overflow (⋮) menu for a chat row. Glass mode uses the blurred glass menu
+  // anchored to the button; standard mode keeps the plain PopupMenuButton.
+  Widget _chatTileMenuButton(Conversation c, AppState app) {
+    void handle(String? v) {
+      if (v == 'rename') _promptRename(c, app);
+      if (v == 'pin') app.togglePin(c);
+      if (v == 'delete') app.deleteChat(c);
+    }
+
+    if (_isGlass(context)) {
+      return Builder(
+        builder: (btnCtx) => IconButton(
+          icon: Icon(Icons.more_vert, color: _sub(context)),
+          onPressed: () async {
+            final box = btnCtx.findRenderObject() as RenderBox?;
+            final pos = box != null
+                ? box.localToGlobal(Offset.zero)
+                : Offset.zero;
+            final v = await showGlassMenu(
+              context,
+              position: pos,
+              items: [
+                GlassMenuItem('rename', app.t('rename')),
+                GlassMenuItem('pin', c.pinned ? app.t('unpin') : app.t('pin')),
+                GlassMenuItem(
+                  'delete',
+                  app.t('delete'),
+                  color: Colors.redAccent,
+                ),
+              ],
+            );
+            handle(v);
+          },
+        ),
+      );
+    }
+    return PopupMenuButton<String>(
+      color: _card(context),
+      icon: Icon(Icons.more_vert, color: _sub(context)),
+      onSelected: handle,
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'rename',
+          child: Text(app.t('rename'), style: TextStyle(color: _txt(context))),
+        ),
+        PopupMenuItem(
+          value: 'pin',
+          child: Text(
+            c.pinned ? app.t('unpin') : app.t('pin'),
+            style: TextStyle(color: _txt(context)),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: Text(app.t('delete'), style: TextStyle(color: _txt(context))),
+        ),
+      ],
     );
   }
 
@@ -6812,12 +7035,7 @@ class SettingsSheet extends StatelessWidget {
                       context,
                       Icons.psychology_outlined,
                       app.t('memory'),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              const PersonalizationScreen(initialTab: 0),
-                        ),
-                      ),
+                      onTap: () => openPersonalization(context, initialTab: 0),
                     ),
                     _nav(
                       context,
@@ -6940,23 +7158,41 @@ class SettingsSheet extends StatelessWidget {
   );
 
   Widget _group(List<Widget> children) => Builder(
-    builder: (context) => _isGlass(context)
-        ? GlassSurface(
-            borderRadius: BorderRadius.circular(20),
-            child: Material(
-              type: MaterialType.transparency,
-              child: Column(children: children),
+    builder: (context) {
+      // Thin inset separators between rows (iOS grouped-list look), matching
+      // the dividers in the chat row's context menu.
+      final rows = <Widget>[];
+      for (var i = 0; i < children.length; i++) {
+        rows.add(children[i]);
+        if (i != children.length - 1) {
+          rows.add(
+            Divider(
+              height: 1,
+              thickness: 1,
+              indent: 16,
+              color: _sub(context).withValues(alpha: 0.12),
             ),
-          )
-        : Container(
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(20)),
-            child: Material(
-              color: _card(context).withValues(alpha: 0.5),
+          );
+        }
+      }
+      final column = Column(mainAxisSize: MainAxisSize.min, children: rows);
+      return _isGlass(context)
+          ? GlassSurface(
               borderRadius: BorderRadius.circular(20),
-              child: Column(children: children),
-            ),
-          ),
+              child: Material(type: MaterialType.transparency, child: column),
+            )
+          : Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Material(
+                color: _card(context).withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(20),
+                child: column,
+              ),
+            );
+    },
   );
 
   Widget _badge(String s) => Container(
@@ -7848,11 +8084,9 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
       rp.contextWindowLimit =
           conv.rpConfig?.contextWindowLimit ?? rp.contextWindowLimit;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(conv.rpModeEnabled ? app.t('rpModeOn') : app.t('rpModeOff')),
-        duration: const Duration(seconds: 2),
-      ),
+    showAppSnackBar(
+      context,
+      conv.rpModeEnabled ? app.t('rpModeOn') : app.t('rpModeOff'),
     );
   }
 
@@ -7861,34 +8095,16 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    return Scaffold(
-      backgroundColor: _bg(context),
-      appBar: AppBar(
-        backgroundColor: _bg(context),
-        elevation: 0,
-        foregroundColor: _txt(context),
-        title: Text(
-          widget.conversation != null ? app.t('chatPers') : app.t('pers'),
-          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _save,
-            child: Text(
-              app.t('done'),
-              style: const TextStyle(
-                color: Color(0xFF2F8DFF),
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: Column(
+    // Glass mode: this screen is pushed as a transparent overlay over the
+    // chat (see openPersonalization), so the app bar + body frost the chat
+    // behind for a real glass look (like the settings sheet) instead of
+    // sitting on a flat opaque background.
+    final glass = _isGlass(context);
+    final frostFill = _bg(context).withValues(alpha: 0.4);
+    final body = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Column(
           children: [
             // "Личность" (_personalityTab) is temporarily disabled — the
             // user's testing on an up-to-date build still found no
@@ -7934,7 +8150,41 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
             ),
           ],
         ),
+    );
+
+    Widget frost(Widget child) => ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(color: frostFill, child: child),
       ),
+    );
+
+    return Scaffold(
+      backgroundColor: glass ? Colors.transparent : _bg(context),
+      appBar: AppBar(
+        backgroundColor: glass ? Colors.transparent : _bg(context),
+        elevation: 0,
+        flexibleSpace: glass ? frost(const SizedBox.expand()) : null,
+        foregroundColor: _txt(context),
+        title: Text(
+          widget.conversation != null ? app.t('chatPers') : app.t('pers'),
+          style: TextStyle(color: _txt(context), fontWeight: FontWeight.w600),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _save,
+            child: Text(
+              app.t('done'),
+              style: const TextStyle(
+                color: Color(0xFF2F8DFF),
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: glass ? frost(body) : body,
     );
   }
 
@@ -8400,7 +8650,13 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     final localSpec = lockedModel != null ? app.localSpecFor(lockedModel) : null;
     final localMax = localSpec?.maxLocalContextSize ?? 8192;
     final contextOptions = isLocal
-        ? const [2048, 4096, 8192].where((v) => v <= localMax).toList()
+        ? const [
+            2048,
+            4096,
+            8192,
+            16384,
+            32768,
+          ].where((v) => v <= localMax).toList()
         : const [4096, 16384, 32768];
     final safeContextOptions = contextOptions.isEmpty
         ? [localMax]
