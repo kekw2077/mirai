@@ -207,6 +207,11 @@ const Map<String, Map<String, String>> _i18n = {
     'rpPlaceholderExampleTitle': 'Пример',
     'rpPlaceholderExample':
         '«Ты — {{char}}, бывалый капитан космического корабля. Ты называешь {{user}} новым членом экипажа и общаешься с ним грубовато, но по-доброму.» При ответе модель сама заменит {{user}} и {{char}} на имена из полей выше.',
+    'rpModelDirectives': 'Системный промпт',
+    'rpModelDirectivesDesc':
+        'Общие указания для модели вне роли — язык ответа, формат, правила (например: «отвечай только на русском»). Действуют на весь чат и добавляются последним, самым весомым блоком промпта.',
+    'rpModelDirectivesHint':
+        'Например: отвечай только на русском; не пиши за пользователя; держи ответы короткими.',
     'scenario': 'Сценарий / окружение',
     'scenarioDesc':
         'Вступление и контекст истории — обстановка, в которой начинается диалог.',
@@ -572,6 +577,11 @@ const Map<String, Map<String, String>> _i18n = {
     'rpPlaceholderExampleTitle': 'Example',
     'rpPlaceholderExample':
         '"You are {{char}}, a grizzled starship captain. You call {{user}} the crew\'s newest recruit and speak to them gruffly but warmly." The model will replace {{user}} and {{char}} with the names from the fields above.',
+    'rpModelDirectives': 'System prompt',
+    'rpModelDirectivesDesc':
+        'General out-of-character directions for the model — reply language, format, rules (e.g. "reply only in Russian"). Apply to the whole chat and are added as the last, most salient block of the prompt.',
+    'rpModelDirectivesHint':
+        "E.g.: reply only in Russian; don't write for the user; keep replies short.",
     'scenario': 'Scenario / setting',
     'scenarioDesc':
         'The opening context for the story — the setting the conversation starts in.',
@@ -1368,6 +1378,11 @@ class RPSessionConfig {
   // использует один авторский шаблон (см. RPMemoryManager.buildSystemPrompt).
   String systemPrompt = '';
   String scenario = '';
+  // Общие инструкции для модели вне роли (язык ответа, формат, правила) —
+  // подставляются последним, самым «весомым» блоком системного промпта (см.
+  // RPMemoryManager.buildSystemPrompt). В отличие от systemPrompt (личность
+  // персонажа) это мета-указания, действующие на весь чат, а не часть отыгрыша.
+  String modelDirectives = '';
   RPSamplingConfig sampling = RPSamplingConfig();
   bool isLorebookEnabled = false;
   List<LoreEntry> lorebook = [];
@@ -1387,6 +1402,7 @@ class RPSessionConfig {
     'aiCharacterName': aiCharacterName,
     'systemPrompt': systemPrompt,
     'scenario': scenario,
+    'modelDirectives': modelDirectives,
     'sampling': sampling.toJson(),
     'isLorebookEnabled': isLorebookEnabled,
     'lorebook': lorebook.map((e) => e.toJson()).toList(),
@@ -1405,6 +1421,7 @@ class RPSessionConfig {
     c.aiCharacterName = j['aiCharacterName'] as String? ?? '';
     c.systemPrompt = j['systemPrompt'] as String? ?? '';
     c.scenario = j['scenario'] as String? ?? '';
+    c.modelDirectives = j['modelDirectives'] as String? ?? '';
     c.sampling = j['sampling'] is Map<String, dynamic>
         ? RPSamplingConfig.fromJson(j['sampling'] as Map<String, dynamic>)
         : RPSamplingConfig();
@@ -1500,6 +1517,16 @@ class RPMemoryManager {
     }
     final pinned = conv.pinnedContextBlock();
     if (pinned.isNotEmpty) b.writeln(pinned);
+    // Out-of-character model directives go LAST so they're the most salient
+    // instruction the model sees (e.g. "reply only in Russian"), overriding
+    // the character prose above without being narrated as part of the story.
+    if (cfg.modelDirectives.trim().isNotEmpty) {
+      b.writeln(
+        'Important instructions (apply to every reply regardless of the '
+        'roleplay; follow them but never narrate or mention them): '
+        '${_substitutePlaceholders(cfg.modelDirectives.trim(), cfg)}',
+      );
+    }
     return b.toString();
   }
 
@@ -1772,6 +1799,7 @@ const List<ChangelogEntry> kChangelog = [
     'Экран «Подготовка модели»: при открытии чата с локальной моделью она заранее прогревается — видна карточка загрузки, поле ввода блокируется до готовности (первый ответ быстрее).',
     'Все всплывающие окна в стеклянном стиле теперь оформлены как Liquid Glass (полупрозрачные с размытием).',
     'Окно «Управление моделями» теперь открывается по центру экрана в общем стиле, а не выезжает снизу.',
+    'В режиме ролевой игры — отдельное поле «Системный промпт» для общих указаний модели вне роли (язык ответа, формат, правила).',
     'Размер контекста локальной модели автоматически ограничивается под объём ОЗУ устройства — защита от вылетов при слишком большом контексте.',
     '«Жидкое стекло» переименовано в «Liquid Glass».',
   ]),
@@ -8751,6 +8779,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
   late final TextEditingController _rpAiName;
   late final TextEditingController _rpSystemPrompt;
   late final TextEditingController _rpScenario;
+  late final TextEditingController _rpModelDirectives;
   late final TextEditingController _rpStopSeq;
 
   @override
@@ -8775,6 +8804,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     _rpAiName = TextEditingController(text: rp.aiCharacterName);
     _rpSystemPrompt = TextEditingController(text: rp.systemPrompt);
     _rpScenario = TextEditingController(text: rp.scenario);
+    _rpModelDirectives = TextEditingController(text: rp.modelDirectives);
     _rpStopSeq = TextEditingController();
   }
 
@@ -8794,6 +8824,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     _rpAiName.dispose();
     _rpSystemPrompt.dispose();
     _rpScenario.dispose();
+    _rpModelDirectives.dispose();
     _rpStopSeq.dispose();
     super.dispose();
   }
@@ -8820,6 +8851,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
       rp.aiCharacterName = _rpAiName.text;
       rp.systemPrompt = _rpSystemPrompt.text;
       rp.scenario = _rpScenario.text;
+      rp.modelDirectives = _rpModelDirectives.text;
       app.saveConversationRpConfig(widget.conversation!, rp);
     }
     Navigator.pop(context);
@@ -9499,6 +9531,15 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                 desc: app.t('rpPlaceholderExample'),
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _section(app.t('rpModelDirectives'), app.t('rpModelDirectivesDesc')),
+        _card2(
+          child: _field(
+            _rpModelDirectives,
+            app.t('rpModelDirectivesHint'),
+            maxLines: 4,
           ),
         ),
         const SizedBox(height: 20),
