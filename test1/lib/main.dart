@@ -16,6 +16,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:fllama/fllama.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:system_info_plus/system_info_plus.dart';
 
 import 'local_model_stub.dart' if (dart.library.io) 'local_model_io.dart';
 
@@ -58,6 +59,10 @@ const Map<String, Map<String, String>> _i18n = {
     'createImageHint':
         'Создание изображения — отправьте запрос модели изображений',
     'loadingModels': 'Загрузка моделей…',
+    'loadingShort': 'Загрузка',
+    'gettingReady': 'Готовим…',
+    'loadingYourModel': 'Загружаем модель — секунду.',
+    'preparingModel': 'Подготовка модели',
     'noModelsFound': 'Модели не найдены',
     'noModelsAvailable': 'Нет доступных моделей',
     'refreshModels': 'Обновить список моделей',
@@ -251,7 +256,7 @@ const Map<String, Map<String, String>> _i18n = {
     'appStyle': 'Стиль приложения',
     'appStyleDialogTitle': 'Стиль приложения',
     'appStyleStandard': 'Обычный',
-    'appStyleGlass': 'Жидкое стекло',
+    'appStyleGlass': 'Liquid Glass',
     'showChips': 'Показывать подсказки',
     'fontSize': 'Размер шрифта',
     'deleteHistory': 'Удалить историю диалогов',
@@ -362,6 +367,7 @@ const Map<String, Map<String, String>> _i18n = {
     'contextSizeDesc':
         'Сколько диалога помнит локальная модель. Больше — лучше память, но выше нагрузка на устройство и медленнее ответы.',
     'contextSizeMaxFor': 'Максимум для',
+    'contextSizeMaxForDevice': 'Максимум для этого устройства',
     'contextSizeMovedToRp':
         'Для этого чата размер контекста настраивается во вкладке «Ролевая игра» — там же, где лимит контекста и параметры генерации.',
     'persProfile': 'О вас',
@@ -420,6 +426,10 @@ const Map<String, Map<String, String>> _i18n = {
     'createImage': 'Create Image',
     'createImageHint': 'Create Image — send a request to an image model',
     'loadingModels': 'Loading models…',
+    'loadingShort': 'Loading',
+    'gettingReady': 'Getting ready…',
+    'loadingYourModel': 'Loading your model — just a moment.',
+    'preparingModel': 'Preparing model',
     'noModelsFound': 'No models found',
     'noModelsAvailable': 'No models available',
     'refreshModels': 'Refresh model list',
@@ -722,6 +732,7 @@ const Map<String, Map<String, String>> _i18n = {
     'contextSizeDesc':
         "How much of the conversation the local model remembers. Higher means better memory, but more load on the device and slower replies.",
     'contextSizeMaxFor': 'Maximum for',
+    'contextSizeMaxForDevice': 'Maximum for this device',
     'contextSizeMovedToRp':
         'For this chat, context size is configured in the "Roleplay" tab — alongside the context limit and generation settings.',
     'persProfile': 'About you',
@@ -1757,6 +1768,13 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.14.2', [
+    'Экран «Подготовка модели»: при открытии чата с локальной моделью она заранее прогревается — видна карточка загрузки, поле ввода блокируется до готовности (первый ответ быстрее).',
+    'Все всплывающие окна в стеклянном стиле теперь оформлены как Liquid Glass (полупрозрачные с размытием).',
+    'Окно «Управление моделями» теперь открывается по центру экрана в общем стиле, а не выезжает снизу.',
+    'Размер контекста локальной модели автоматически ограничивается под объём ОЗУ устройства — защита от вылетов при слишком большом контексте.',
+    '«Жидкое стекло» переименовано в «Liquid Glass».',
+  ]),
   ChangelogEntry('2.14.1', [
     'На iPhone — системный шрифт iOS (San Francisco), как в самой системе. На Android/ПК остаётся Nunito.',
     'Мелкие правки оформления: точки «печатает…» выровнены по центру пузыря; область названия модели в шапке — по размеру текста.',
@@ -1990,6 +2008,12 @@ abstract class ILLMService {
   /// call is currently in flight on this instance. Safe to call when
   /// nothing is running.
   Future<void> stopGeneration();
+
+  /// Proactively load the model into memory so the first real reply is fast
+  /// (and so the UI can show a "preparing model" state). Local: runs a tiny
+  /// 1-token inference to force the GGUF to load. Remote: no-op (nothing to
+  /// preload). Resolves when the model is ready (or immediately on failure).
+  Future<void> warmUp(String modelKey);
 }
 
 // RP-mode chats lock in whichever model was selected the first time RP
@@ -2084,7 +2108,13 @@ class LocalLLMService implements ILLMService {
     // instead of the persona's localContextSize (Memory tab) -- showing both
     // controls for the same chat used to let them disagree.
     final spec = app.localSpecFor(_effectiveModelFor(app, conv));
-    final maxLocalContextSize = spec?.maxLocalContextSize ?? 4096;
+    // Clamp to the smaller of the model's native ceiling and what the device's
+    // RAM can safely hold — this also rescues an already-saved oversized value
+    // (e.g. 16384/32768 from before this cap existed) that would OOM-crash.
+    final maxLocalContextSize = math.min(
+      spec?.maxLocalContextSize ?? 4096,
+      app.ramContextCeiling,
+    );
     final requestedContextSize = rpActive
         ? conv.rpConfig!.contextWindowLimit
         : effectivePersona.localContextSize;
@@ -2166,6 +2196,34 @@ class LocalLLMService implements ILLMService {
   Future<void> stopGeneration() async {
     final id = _activeRequestId;
     if (id != null) fllamaCancelInference(id);
+  }
+
+  @override
+  Future<void> warmUp(String modelKey) async {
+    final spec = app.localSpecFor(modelKey);
+    if (spec == null) return;
+    final dir = await localModelsDirPath();
+    final modelPath = '$dir/${spec.fileName}';
+    if (!await localModelFileExists(modelPath)) return;
+    final completer = Completer<void>();
+    try {
+      // Minimal 1-token request just to force the GGUF to load into memory
+      // (and warm the OS file cache). We don't care about the output.
+      await fllamaChat(
+        OpenAiRequest(
+          messages: [Message(Role.user, '.')],
+          modelPath: modelPath,
+          contextSize: 256,
+          maxTokens: 1,
+        ),
+        (response, openaiJson, done) {
+          if (done && !completer.isCompleted) completer.complete();
+        },
+      );
+    } catch (_) {
+      if (!completer.isCompleted) completer.complete();
+    }
+    return completer.future;
   }
 }
 
@@ -2347,6 +2405,9 @@ class RemoteLLMService implements ILLMService {
   Future<void> stopGeneration() async {
     _activeClient?.close();
   }
+
+  @override
+  Future<void> warmUp(String modelKey) async {}
 }
 
 /// Picks the active backend purely off [isLocal] — re-evaluated on every
@@ -2374,6 +2435,9 @@ class LLMServiceFactory {
   // enough for them, it only reflects the global selector.
   ILLMService forConversation(Conversation conv) =>
       _app.isLocalModel(_effectiveModelFor(_app, conv)) ? _local : _remote;
+
+  Future<void> warmUp(String key) =>
+      _app.isLocalModel(key) ? _local.warmUp(key) : _remote.warmUp(key);
 }
 
 /// Lightweight token-count approximation for context-budget purposes —
@@ -2456,6 +2520,84 @@ class AppState extends ChangeNotifier {
   void Function()? _cancelGeneration;
   void cancelGeneration() => _cancelGeneration?.call();
 
+  // Proactive local-model warm-up state: true while a downloaded local model
+  // is being loaded into memory (via a tiny warm-up inference) so the UI can
+  // show a "preparing model" screen. fllama gives no real load-progress on
+  // native, so this is an indeterminate state whose start/end track the
+  // actual warm-up. `_warmedModelKey` avoids re-warming the same model within
+  // a session; `_warmupSeq` ignores stale completions after a model switch.
+  bool isModelLoading = false;
+  String? loadingModelKey;
+  String? _warmedModelKey;
+  int _warmupSeq = 0;
+
+  Future<void> warmUpModelFor(Conversation? conv) async {
+    final key = conv != null ? _effectiveModelFor(this, conv) : selectedModel;
+    if (!isLocalModel(key)) {
+      if (isModelLoading) {
+        isModelLoading = false;
+        notifyListeners();
+      }
+      return;
+    }
+    final spec = localSpecFor(key);
+    if (spec == null) return;
+    if (_warmedModelKey == key || isGenerating || isModelLoading) return;
+    final dir = await localModelsDirPath();
+    if (!await localModelFileExists('$dir/${spec.fileName}')) return;
+    final seq = ++_warmupSeq;
+    isModelLoading = true;
+    loadingModelKey = key;
+    notifyListeners();
+    try {
+      await _llmFactory.warmUp(key);
+      _warmedModelKey = key;
+    } catch (_) {
+    } finally {
+      if (seq == _warmupSeq) {
+        isModelLoading = false;
+        loadingModelKey = null;
+        notifyListeners();
+      }
+    }
+  }
+
+  // Total device RAM in MB (via system_info_plus), detected once at startup.
+  // Null until detected or if the platform/plugin can't report it.
+  int? deviceRamMb;
+
+  Future<void> _detectDeviceRam() async {
+    try {
+      final mb = await SystemInfoPlus.physicalMemory;
+      if (mb != null && mb > 0) {
+        deviceRamMb = mb;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Plugin/platform may not report memory — leave null, fall back to the
+      // safe default ceiling below.
+    }
+  }
+
+  // Safe upper bound for the user-facing local-model context size (BEFORE the
+  // fllama ×4 multiplier), derived from device RAM. The model's own native
+  // ceiling (LocalModelSpec.maxLocalContextSize) can be far larger than the
+  // phone can actually hold: e.g. Llama 3.2 3B advertises 131072, so the
+  // control offered up to 32768 and 16384/32768 → n_ctx 65k/131k → OOM crash.
+  // KV cache for a ~3B model is ≈112 KB/token and weights ≈2 GB, so we aim to
+  // keep weights+KV well under ~65% of RAM. Tuned conservatively around the
+  // user's data point (6 GB-class iPhone: 4096 ok, 16384 crashed).
+  int get ramContextCeiling {
+    final mb = deviceRamMb;
+    if (mb == null) return 4096; // RAM unknown → safe middle ground.
+    if (mb < 3500) return 1024; // ~3 GB
+    if (mb < 5500) return 2048; // 4 GB
+    if (mb < 7500) return 4096; // 6 GB (user's known-good)
+    if (mb < 9500) return 8192; // 8 GB
+    if (mb < 13000) return 16384; // 12 GB
+    return 32768; // 16 GB+
+  }
+
   // LLM provider pattern (see ILLMService above) — one instance of each
   // backend, picked per-call by the factory based on the currently
   // selected model. Kept as fields (not created fresh per call) so a
@@ -2507,6 +2649,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> load() async {
+    // Detect device RAM in the background (no await — the context-size ceiling
+    // falls back to a safe default until it resolves).
+    unawaited(_detectDeviceRam());
     lang = prefs.getString('lang') ?? 'ru';
     final tm = prefs.getString('themeMode') ?? 'system';
     themeMode = AppThemeMode.values.firstWhere(
@@ -2764,6 +2909,9 @@ class AppState extends ChangeNotifier {
     selectedModel = m;
     _save();
     notifyListeners();
+    // Warm up the newly selected local model so its "preparing" screen shows
+    // right away (a different model isn't warmed yet, so the guard passes).
+    if (isLocalModel(m)) unawaited(warmUpModelFor(current));
   }
 
   void addModel(String m) {
@@ -3786,6 +3934,69 @@ class AmbientGlow extends StatelessWidget {
   }
 }
 
+// Dialog that adopts the Liquid Glass look (translucent blurred surface) when
+// the glass style is on, and the normal solid AlertDialog otherwise. Mirrors
+// the AlertDialog API (title/content/actions/backgroundColor) so call sites
+// are a drop-in swap.
+class _AppDialog extends StatelessWidget {
+  final Widget? title;
+  final Widget? content;
+  final List<Widget>? actions;
+  final Color? backgroundColor;
+  const _AppDialog({
+    this.title,
+    this.content,
+    this.actions,
+    this.backgroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isGlass(context)) {
+      return AlertDialog(
+        title: title,
+        content: content,
+        actions: actions,
+        backgroundColor: backgroundColor ?? _card(context),
+      );
+    }
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      child: GlassSurface(
+        borderRadius: BorderRadius.circular(28),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title != null)
+              DefaultTextStyle.merge(
+                style: TextStyle(
+                  color: _txt(context),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+                child: title!,
+              ),
+            if (title != null && content != null) const SizedBox(height: 14),
+            if (content != null)
+              Flexible(child: SingleChildScrollView(child: content!)),
+            if (actions != null && actions!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: actions!,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class GlassTab {
   final String label;
   final IconData icon;
@@ -4476,6 +4687,9 @@ class _ChatScreenState extends State<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final app = context.read<AppState>();
+      // Preload the current chat's local model so the "preparing model"
+      // screen shows on open (no-op for remote / already-warmed models).
+      unawaited(app.warmUpModelFor(app.current));
       if (app.showKeyboardOnLaunch) {
         _inputFocus.requestFocus();
       }
@@ -4483,7 +4697,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!mounted || entry == null) return;
       showDialog(
         context: context,
-        builder: (dialogContext) => AlertDialog(
+        builder: (dialogContext) => _AppDialog(
           title: Text('${app.t('whatsNewTitle')} ${entry.version}'),
           content: SingleChildScrollView(
             child: Column(
@@ -4606,7 +4820,11 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     final app = context.read<AppState>();
     final text = (preset ?? _controller.text).trim();
-    if ((text.isEmpty && _pendingAttachments.isEmpty) || _sending) return;
+    if ((text.isEmpty && _pendingAttachments.isEmpty) ||
+        _sending ||
+        app.isModelLoading) {
+      return;
+    }
     app.buzz();
     _controller.clear();
     final attachments = List<String>.from(_pendingAttachments);
@@ -4722,6 +4940,7 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Column(
             children: [
               _topBar(app),
+              if (app.isModelLoading) _modelLoadingCard(app),
               Expanded(
                 child: hasMessages
                     ? _messageList(conv, app)
@@ -4740,6 +4959,59 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Top "Preparing <model>" card with an indeterminate bar, shown while the
+  // local model warms up (see AppState.warmUpModelFor).
+  Widget _modelLoadingCard(AppState app) {
+    final spec = app.loadingModelKey != null
+        ? app.localSpecFor(app.loadingModelKey!)
+        : null;
+    final label = spec != null
+        ? '${app.t('preparingModel')} ${spec.shortName}'
+        : app.t('preparingModel');
+    final row = Row(
+      children: [
+        Icon(Icons.auto_awesome, size: 18, color: _sub(context)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _txt(context),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  minHeight: 4,
+                  backgroundColor: _sub(context).withValues(alpha: 0.15),
+                  valueColor: const AlwaysStoppedAnimation(Color(0xFF2F8DFF)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: _glassCard(
+        context,
+        radius: 16,
+        alpha: 0.6,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: row,
       ),
     );
   }
@@ -4797,10 +5069,12 @@ class _ChatScreenState extends State<ChatScreen> {
                       ] else ...[
                         Flexible(
                           child: Text(
-                            app.modelDisplayName(
-                              lockedModel ?? app.selectedModel,
-                              withSuffix: false,
-                            ),
+                            app.isModelLoading
+                                ? app.t('loadingShort')
+                                : app.modelDisplayName(
+                                    lockedModel ?? app.selectedModel,
+                                    withSuffix: false,
+                                  ),
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: _txt(context),
@@ -4938,7 +5212,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             const SizedBox(height: 20),
             Text(
-              app.t('howCanIHelp'),
+              app.isModelLoading ? app.t('gettingReady') : app.t('howCanIHelp'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: _txt(context),
@@ -4950,7 +5224,9 @@ class _ChatScreenState extends State<ChatScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 40),
               child: Text(
-                app.t('subtitle'),
+                app.isModelLoading
+                    ? app.t('loadingYourModel')
+                    : app.t('subtitle'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: _sub(context),
@@ -5308,7 +5584,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
+        builder: (dialogContext, setDialogState) => _AppDialog(
           backgroundColor: _card(context),
           title: Text(
             app.t('chooseMemoryCategory'),
@@ -5570,13 +5846,16 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: TextField(
                   controller: _controller,
                   focusNode: _inputFocus,
+                  enabled: !app.isModelLoading,
                   style: TextStyle(color: _txt(context), fontSize: 16),
                   minLines: 1,
                   maxLines: 5,
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => _send(),
                   decoration: InputDecoration(
-                    hintText: app.t('askAnything'),
+                    hintText: app.isModelLoading
+                        ? app.t('preparingModel')
+                        : app.t('askAnything'),
                     hintStyle: TextStyle(color: _sub(context), fontSize: 16),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -7337,7 +7616,7 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
     final ctrl = TextEditingController(text: c.title);
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => _AppDialog(
         backgroundColor: _isGlass(context)
             ? _card(context).withValues(alpha: 0.9)
             : _card(context),
@@ -7714,7 +7993,7 @@ class SettingsSheet extends StatelessWidget {
         final error = app.updateCheckError;
         showDialog(
           context: context,
-          builder: (dialogContext) => AlertDialog(
+          builder: (dialogContext) => _AppDialog(
             title: Text(app.t('checkForUpdates')),
             content: Text(
               error ??
@@ -7802,7 +8081,7 @@ class SettingsSheet extends StatelessWidget {
     return ListTile(
       onTap: () => showDialog(
         context: c,
-        builder: (_) => AlertDialog(
+        builder: (_) => _AppDialog(
           backgroundColor: _card(c),
           title: Text(app.t('deleteHistory'), style: TextStyle(color: _txt(c))),
           content: Text(app.t('cantUndo'), style: TextStyle(color: _sub(c))),
@@ -7837,7 +8116,7 @@ class SettingsSheet extends StatelessWidget {
     double tempSize = app.fontSize;
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => _AppDialog(
         backgroundColor: _card(context),
         title: Text(app.t('fontSize'), style: TextStyle(color: _txt(context))),
         content: StatefulBuilder(
@@ -7903,7 +8182,7 @@ class SettingsSheet extends StatelessWidget {
     final app = context.read<AppState>();
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => _AppDialog(
         backgroundColor: _card(context),
         title: Text(app.t('themeMode'), style: TextStyle(color: _txt(context))),
         content: RadioGroup<AppThemeMode>(
@@ -7939,7 +8218,7 @@ class SettingsSheet extends StatelessWidget {
     final app = context.read<AppState>();
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => _AppDialog(
         backgroundColor: _card(context),
         title: Text(
           app.t('appStyleDialogTitle'),
@@ -7976,7 +8255,7 @@ class SettingsSheet extends StatelessWidget {
     final app = context.read<AppState>();
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => _AppDialog(
         backgroundColor: _card(context),
         title: Text(
           app.t('languageDialogTitle'),
@@ -8015,7 +8294,7 @@ class SettingsSheet extends StatelessWidget {
     final keyCtrl = TextEditingController(text: app.apiKey);
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => _AppDialog(
         backgroundColor: _card(context),
         title: Text(
           app.t('serverDialogTitle'),
@@ -8061,49 +8340,41 @@ class SettingsSheet extends StatelessWidget {
 
   void _openManageModels(BuildContext context) {
     final ctrl = TextEditingController();
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: _card(context),
-      isScrollControlled: true,
       builder: (_) => Consumer<AppState>(
-        builder: (ctx, app, child) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            left: 20,
-            right: 20,
-            top: 20,
+        builder: (ctx, app, child) => _AppDialog(
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  app.t('manageModelsItem'),
+                  style: TextStyle(
+                    color: _txt(ctx),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => app.fetchModels(),
+                icon: Icon(Icons.refresh, color: _txt(ctx)),
+                tooltip: app.t('refreshModels'),
+              ),
+            ],
           ),
-          child: Column(
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Text(
-                    app.t('manageModelsItem'),
-                    style: TextStyle(
-                      color: _txt(ctx),
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () {
-                      app.fetchModels();
-                    },
-                    icon: Icon(Icons.refresh, color: _txt(ctx)),
-                    tooltip: app.t('refreshModels'),
-                  ),
-                ],
-              ),
               if (app.loadingModels)
                 const Padding(
-                  padding: EdgeInsets.all(8),
+                  padding: EdgeInsets.only(bottom: 8),
                   child: LinearProgressIndicator(),
                 ),
               ...app.models.map(
                 (m) => ListTile(
+                  contentPadding: EdgeInsets.zero,
                   leading: Icon(
                     app.isLocalModel(m)
                         ? Icons.download_for_offline_outlined
@@ -8147,9 +8418,14 @@ class SettingsSheet extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(app.t('done')),
+            ),
+          ],
         ),
       ),
     );
@@ -8416,7 +8692,7 @@ class LocalModelsScreen extends StatelessWidget {
   void _confirmDelete(BuildContext context, AppState app, LocalModelSpec spec) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => _AppDialog(
         title: Text(app.t('deleteLocalModelTitle')),
         content: Text(app.t('deleteLocalModelBody')),
         actions: [
@@ -9147,7 +9423,12 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     final lockedModel = rp.lockedModel;
     final isLocal = lockedModel != null && app.isLocalModel(lockedModel);
     final localSpec = lockedModel != null ? app.localSpecFor(lockedModel) : null;
-    final localMax = localSpec?.maxLocalContextSize ?? 8192;
+    // Capped by device RAM too (see AppState.ramContextCeiling) so the option
+    // list drops sizes that would OOM-crash on this phone.
+    final localMax = math.min(
+      localSpec?.maxLocalContextSize ?? 8192,
+      app.ramContextCeiling,
+    );
     final contextOptions = isLocal
         ? const [
             2048,
@@ -9634,7 +9915,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
   void _confirmDeleteAllMemories(BuildContext context, AppState app) {
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => _AppDialog(
         backgroundColor: _card(context),
         title: Text(
           app.t('deleteAllMemories'),
@@ -9768,7 +10049,9 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
         ? _effectiveModelFor(app, widget.conversation!)
         : app.selectedModel;
     final spec = app.localSpecFor(modelKey);
-    final maxSize = spec?.maxLocalContextSize ?? 4096;
+    // Cap by the smaller of the model's native ceiling and the device-RAM-safe
+    // ceiling, so the control can never offer a size that OOM-crashes.
+    final maxSize = math.min(spec?.maxLocalContextSize ?? 4096, app.ramContextCeiling);
     final displaySize = p.localContextSize < minSize
         ? minSize
         : (p.localContextSize > maxSize ? maxSize : p.localContextSize);
@@ -9826,6 +10109,16 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
             '${app.t('contextSizeMaxFor')} ${spec.shortName}: $maxSize',
             style: TextStyle(color: _sub(context), fontSize: 12, height: 1.3),
           ),
+          // Surface the device-RAM ceiling only when it's the binding limit,
+          // so the user understands why the max is lower than the model's
+          // native context window.
+          if (app.ramContextCeiling < spec.maxLocalContextSize) ...[
+            const SizedBox(height: 2),
+            Text(
+              '${app.t('contextSizeMaxForDevice')}: ${app.ramContextCeiling}',
+              style: TextStyle(color: _sub(context), fontSize: 12, height: 1.3),
+            ),
+          ],
         ],
       ],
     );
