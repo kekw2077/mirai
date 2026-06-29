@@ -44,7 +44,193 @@ void main() async {
 
 const Map<String, Map<String, String>> _i18n = {
   'ru': {
-    'appName': 'Mirai',
+    'appName': 'EVS',
+    // EVS desktop UI
+    'yesterday': 'Вчера',
+    'microphone': 'Микрофон',
+    'ready': 'Готов',
+    'statusLocalModel': 'Локальная нейросеть',
+    'statusRemoteModel': 'Удалённая нейросеть',
+    'statusOnline': 'онлайн',
+    'navGeneral': 'Общие',
+    'navGeneralSub': 'настройки приложения',
+    'navVoiceInput': 'Голосовой ввод',
+    'navVoiceInputSub': 'распознавание и микрофон',
+    'navVoiceCommands': 'Голосовые команды',
+    'navVoiceCommandsSub': 'управление компьютером',
+    'navModel': 'Модель и инференс',
+    'navModelSub': 'нейросеть и подключение',
+    'navPersona': 'Личность и память',
+    'navPersonaSub': 'персонализация ассистента',
+    'navPrivacy': 'Приватность',
+    'navPrivacySub': 'данные и доступ',
+    'navAbout': 'О приложении',
+    'navAboutSub': 'версия и обновления',
+    'sectionStub': 'Раздел в разработке — скоро здесь появятся настройки.',
+    'cardLangLoc': 'Язык и локализация',
+    'interfaceLanguage': 'Язык интерфейса',
+    'interfaceLanguageDesc': 'Язык меню, кнопок и уведомлений',
+    'recognitionLanguage': 'Язык распознавания (STT)',
+    'recognitionLanguageDesc': 'По умолчанию совпадает с языком интерфейса',
+    'cardAppearance': 'Внешний вид',
+    'appStyleDesc': 'Liquid Glass — размытие и акриловые эффекты',
+    'styleClassic': 'Классический',
+    'fontSizeDesc': 'Влияет на размер шрифта и элементов',
+    'cardStartup': 'Запуск и поведение',
+    'autostart': 'Автозапуск с Windows',
+    'autostartDesc': 'Запускать EVS при входе в систему',
+    'minimizeToTray': 'Сворачивать в трей',
+    'minimizeToTrayDesc': 'Убирать в значок при сворачивании',
+    'notifications': 'Уведомления',
+    'notificationsDesc': 'Показывать системные уведомления Windows',
+    'uiAnimations': 'Анимации интерфейса',
+    'uiAnimationsDesc': 'Плавные переходы и эффекты',
+    'cardStt': 'Движок STT',
+    'sttEngine': 'Движок распознавания',
+    'sttEngineDesc': 'Whisper работает офлайн на вашем железе',
+    'whisperOffline': 'Whisper (офлайн)',
+    'whisperModel': 'Модель Whisper',
+    'whisperModelDesc': 'Влияет на качество и скорость распознавания',
+    'cardInputDevice': 'Устройство ввода',
+    'inputDevice': 'Устройство ввода',
+    'inputDeviceDesc': 'Микрофон, используемый для записи',
+    'defaultDevice': 'По умолчанию',
+    'micTest': 'Тест микрофона',
+    'micTestDesc': 'Проверьте уровень и качество сигнала',
+    'runTest': 'Запустить тест',
+    'inputLevel': 'Уровень входного сигнала',
+    'cardListenMode': 'Режим прослушивания',
+    'activationMode': 'Режим активации',
+    'activationModeDesc': 'Push-to-talk требует удержания клавиши',
+    'continuous': 'Непрерывное',
+    'autoSendPause': 'Авто-отправка по паузе',
+    'autoSendPauseDesc': 'Отправлять текст автоматически после тишины',
+    'pauseDuration': 'Длительность паузы',
+    'pauseDurationDesc': 'Через сколько секунд считать фразу завершённой',
+    'secShort': 'с',
+    'showPartial': 'Показывать частичный текст',
+    'showPartialDesc': 'Отображать распознанное прямо во время речи',
+    'cardVoiceViz': 'Визуализация голоса',
+    'vizType': 'Тип визуализации',
+    'vizTypeDesc': 'Анимация, реагирующая на уровень голоса',
+    'vizSphere': 'Сфера',
+    'vizWaves': 'Волны',
+    'vizBars': 'Бары',
+    'vizNone': 'Нет',
+    'showVizBg': 'Показывать в фоне',
+    'showVizBgDesc': 'Отображать визуализацию на главном экране',
+    'cardCmdExec': 'Выполнение команд',
+    'cmdAllow': 'Разрешить выполнение команд',
+    'cmdAllowDesc':
+        'EVS сможет запускать приложения, открывать сайты и управлять системой',
+    'cardCmdRecognition': 'Распознавание команд',
+    'cmdMode': 'Режим распознавания',
+    'cmdModeDesc': 'Как EVS понимает, что это команда, а не текст для ввода',
+    'cmdModeWake': 'Слово-активатор',
+    'cmdModeSeparate': 'Отдельный режим',
+    'cmdModeFirst': 'Сначала команда',
+    'cmdActivator': 'Слово-активатор',
+    'cmdActivatorDesc': 'Скажите «EVS» перед командой, напр. «EVS, открой браузер»',
+    'cmdInterpreter': 'Нейросеть-интерпретатор',
+    'cmdInterpreterDesc': 'Использовать LLM для нечёткого понимания команд',
+    'cmdModel': 'Модель для команд',
+    'cmdModelDesc': 'Рекомендуется быстрая модель (3–7B)',
+    'cardSecurity': 'Безопасность',
+    'cmdThreshold': 'Порог совпадения фразы',
+    'cmdThresholdDesc': 'Насколько точно фраза должна совпасть с командой',
+    'cmdConfirm': 'Подтверждение перед выполнением',
+    'cmdConfirmAlways': 'Всегда',
+    'cmdConfirmRisky': 'Только опасные',
+    'cmdConfirmNever': 'Никогда',
+    'cardCatalog': 'Каталог команд',
+    'cmdEmpty': 'Пока нет команд — добавьте первую.',
+    'cmdAdd': 'Добавить команду',
+    'cmdPhrase': 'Фраза-триггер',
+    'cmdValue': 'Значение (путь, URL, действие)',
+    'typeApp': 'Приложение',
+    'typeFile': 'Файл',
+    'typeWeb': 'Сайт',
+    'typeSystem': 'Системное',
+    'typeMedia': 'Медиа',
+    'add': 'Добавить',
+    'cardConnMode': 'Режим подключения',
+    'modeOnDevice': 'Локально на устройстве (on-device)',
+    'modeOnDeviceDesc':
+        'Модель работает прямо на вашем компьютере. Максимальная приватность, нет зависимости от сети.',
+    'modeLocalServer': 'Локальный сервер (Ollama / LAN)',
+    'modeLocalServerDesc':
+        'Подключение к серверу в локальной сети. Данные не выходят за пределы вашей сети.',
+    'modeRemote': 'Удалённый сервер (OpenAI-совместимый)',
+    'modeRemoteDesc':
+        'Запросы уходят в интернет. Поддерживаются любые OpenAI-совместимые API.',
+    'cardModelPick': 'Выбор модели',
+    'noModelsYet': 'Нет загруженных моделей — скачайте модель ниже.',
+    'modelActive': 'активна',
+    'cardGenParams': 'Параметры генерации',
+    'temperatureDesc': 'Выше — креативнее, ниже — точнее',
+    'topPDesc': 'Вероятностный порог выборки токенов',
+    'cardStyle': 'Стиль ответов',
+    'formality': 'Формальность',
+    'formalLeft': 'Официально',
+    'formalRight': 'Дружески',
+    'empathy': 'Эмпатия',
+    'empathyLeft': 'Нейтрально',
+    'empathyRight': 'Высокая',
+    'verbosity': 'Многословность',
+    'verbosityLeft': 'Лаконично',
+    'verbosityRight': 'Подробно',
+    'humor': 'Юмор',
+    'humorLeft': 'Серьёзно',
+    'humorRight': 'С юмором',
+    'creativity': 'Креативность',
+    'creativityLeft': 'Буквально',
+    'creativityRight': 'Творчески',
+    'cardAssistant': 'Личность ассистента',
+    'assistantNameLabel': 'Имя ассистента',
+    'assistantNameDesc': 'Как ассистент будет называть себя',
+    'emojiPolicy': 'Политика эмодзи',
+    'emojiPolicyDesc': 'Как часто использовать эмодзи в ответах',
+    'emojiNever': 'Никогда',
+    'emojiSometimes': 'Иногда',
+    'emojiAlways': 'Часто',
+    'cardMemory': 'Память',
+    'autoSaveFacts': 'Автосохранение фактов',
+    'autoSaveFactsDesc': 'EVS сам запоминает важные детали из разговора',
+    'askBeforeRemember': 'Спрашивать перед «Запомнить»',
+    'askBeforeRememberDesc': 'Показывать запрос перед добавлением воспоминания',
+    'clearMemory': 'Очистить память',
+    'cardCmdScope': 'Область действия команд',
+    'permFiles': 'Файлы и папки',
+    'permBrowser': 'Браузер и сайты',
+    'permMedia': 'Медиа и звук',
+    'permSystem': 'Системные настройки',
+    'permNetwork': 'Сетевые запросы',
+    'permRegistry': 'Реестр Windows',
+    'cardNetSec': 'Сетевая безопасность',
+    'offlineMode': 'Офлайн-режим',
+    'offlineModeDesc': 'Запретить все сетевые запросы (модель + обновления)',
+    'noTelemetry': 'Запретить телеметрию',
+    'noTelemetryDesc': 'Не отправлять анонимную статистику использования',
+    'noModelNet': 'Запретить сетевые запросы модели',
+    'noModelNetDesc': 'Только локальный инференс, без API',
+    'cardBlacklist': 'Чёрный список фраз',
+    'cardData': 'Данные и конфиденциальность',
+    'clearHistory': 'Очистить историю чатов',
+    'clearHistoryDesc':
+        'Удалить все сеансы и переписки без возможности восстановления',
+    'resetMemory': 'Сбросить память и профиль',
+    'resetMemoryDesc': 'Удалить все воспоминания, профиль пользователя и заметку',
+    'resetAll': 'Сбросить все настройки',
+    'resetAllDesc': 'Вернуть EVS к заводским настройкам. Действие необратимо.',
+    'fullReset': 'Полный сброс',
+    'versionLabel': 'Версия',
+    'platform': 'Платформа',
+    'changelog': 'Список изменений',
+    'updates': 'Обновления',
+    'autoCheck': 'Автоматическая проверка',
+    'autoCheckDesc': 'Проверять обновления при запуске',
+    'checkNow': 'Проверить сейчас',
+    'checkUpdate': 'Обновить',
     'howCanIHelp': 'Чем могу помочь?',
     'subtitle':
         'Приватный ИИ для письма, планирования, кода и повседневных вопросов.',
@@ -81,7 +267,7 @@ const Map<String, Map<String, String>> _i18n = {
     'micPauseDuration': 'Длительность паузы перед отправкой',
     'send': 'Отправить',
     'speakNaturally':
-        'Говорите свободно. Mirai ответит, как только вы сделаете паузу.',
+        'Говорите свободно. EVS ответит, как только вы сделаете паузу.',
     'conversations': 'Беседы',
     'chats': 'Чаты',
     'chatsDesc':
@@ -130,7 +316,7 @@ const Map<String, Map<String, String>> _i18n = {
     'dAgo': 'дн назад',
     'settings': 'Настройки',
     'settingsDesc':
-        'Настройте Mirai, управляйте поведением приложения и просматривайте сведения в одном месте.',
+        'Настройте EVS, управляйте поведением приложения и просматривайте сведения в одном месте.',
     'sectionApp': 'Приложение',
     'sectionTheme': 'Оформление',
     'sectionAbout': 'О приложении',
@@ -295,7 +481,7 @@ const Map<String, Map<String, String>> _i18n = {
     'tabMemory': 'Память',
     'persDesc': 'Настройте личность, поведение и контекст ассистента под себя.',
     'memoryDesc':
-        'Управляйте тем, что Mirai запоминает о вас, и сколько контекста диалога видят локальные модели.',
+        'Управляйте тем, что EVS запоминает о вас, и сколько контекста диалога видят локальные модели.',
     'persPersona': 'Личность и стиль общения',
     'persPreset': 'Готовая персона',
     'persPresetDesc':
@@ -412,7 +598,192 @@ const Map<String, Map<String, String>> _i18n = {
     'customPromptHint': 'Прямая инструкция ассистенту…',
   },
   'en': {
-    'appName': 'Mirai',
+    'appName': 'EVS',
+    // EVS desktop UI
+    'yesterday': 'Yesterday',
+    'microphone': 'Microphone',
+    'ready': 'Ready',
+    'statusLocalModel': 'Local model',
+    'statusRemoteModel': 'Remote model',
+    'statusOnline': 'online',
+    'navGeneral': 'General',
+    'navGeneralSub': 'application settings',
+    'navVoiceInput': 'Voice input',
+    'navVoiceInputSub': 'recognition & microphone',
+    'navVoiceCommands': 'Voice commands',
+    'navVoiceCommandsSub': 'computer control',
+    'navModel': 'Model & inference',
+    'navModelSub': 'neural net & connection',
+    'navPersona': 'Personality & memory',
+    'navPersonaSub': 'assistant personalization',
+    'navPrivacy': 'Privacy',
+    'navPrivacySub': 'data & access',
+    'navAbout': 'About',
+    'navAboutSub': 'version & updates',
+    'sectionStub': 'Section under construction — settings coming soon.',
+    'cardLangLoc': 'Language & localization',
+    'interfaceLanguage': 'Interface language',
+    'interfaceLanguageDesc': 'Language of menus, buttons and notifications',
+    'recognitionLanguage': 'Recognition language (STT)',
+    'recognitionLanguageDesc': 'Defaults to the interface language',
+    'cardAppearance': 'Appearance',
+    'appStyleDesc': 'Liquid Glass — blur and acrylic effects',
+    'styleClassic': 'Classic',
+    'fontSizeDesc': 'Affects font and element sizes',
+    'cardStartup': 'Startup & behavior',
+    'autostart': 'Launch at startup',
+    'autostartDesc': 'Start EVS when you sign in',
+    'minimizeToTray': 'Minimize to tray',
+    'minimizeToTrayDesc': 'Hide to the tray icon when minimized',
+    'notifications': 'Notifications',
+    'notificationsDesc': 'Show Windows system notifications',
+    'uiAnimations': 'UI animations',
+    'uiAnimationsDesc': 'Smooth transitions and effects',
+    'cardStt': 'STT engine',
+    'sttEngine': 'Recognition engine',
+    'sttEngineDesc': 'Whisper runs offline on your hardware',
+    'whisperOffline': 'Whisper (offline)',
+    'whisperModel': 'Whisper model',
+    'whisperModelDesc': 'Affects recognition quality and speed',
+    'cardInputDevice': 'Input device',
+    'inputDevice': 'Input device',
+    'inputDeviceDesc': 'Microphone used for recording',
+    'defaultDevice': 'Default',
+    'micTest': 'Microphone test',
+    'micTestDesc': 'Check the level and signal quality',
+    'runTest': 'Run test',
+    'inputLevel': 'Input signal level',
+    'cardListenMode': 'Listening mode',
+    'activationMode': 'Activation mode',
+    'activationModeDesc': 'Push-to-talk requires holding a key',
+    'continuous': 'Continuous',
+    'autoSendPause': 'Auto-send on pause',
+    'autoSendPauseDesc': 'Send text automatically after silence',
+    'pauseDuration': 'Pause duration',
+    'pauseDurationDesc': 'How many seconds of silence end a phrase',
+    'secShort': 's',
+    'showPartial': 'Show partial text',
+    'showPartialDesc': 'Display recognized text live while speaking',
+    'cardVoiceViz': 'Voice visualization',
+    'vizType': 'Visualization type',
+    'vizTypeDesc': 'Animation reacting to your voice level',
+    'vizSphere': 'Sphere',
+    'vizWaves': 'Waves',
+    'vizBars': 'Bars',
+    'vizNone': 'None',
+    'showVizBg': 'Show in background',
+    'showVizBgDesc': 'Display the visualization on the home screen',
+    'cardCmdExec': 'Command execution',
+    'cmdAllow': 'Allow command execution',
+    'cmdAllowDesc':
+        'EVS can launch apps, open sites and control the system',
+    'cardCmdRecognition': 'Command recognition',
+    'cmdMode': 'Recognition mode',
+    'cmdModeDesc': 'How EVS tells a command apart from dictation',
+    'cmdModeWake': 'Wake word',
+    'cmdModeSeparate': 'Separate mode',
+    'cmdModeFirst': 'Command first',
+    'cmdActivator': 'Wake word',
+    'cmdActivatorDesc': 'Say “EVS” before a command, e.g. “EVS, open browser”',
+    'cmdInterpreter': 'Neural interpreter',
+    'cmdInterpreterDesc': 'Use the LLM for fuzzy command understanding',
+    'cmdModel': 'Model for commands',
+    'cmdModelDesc': 'A fast model (3–7B) is recommended',
+    'cardSecurity': 'Security',
+    'cmdThreshold': 'Phrase match threshold',
+    'cmdThresholdDesc': 'How closely a phrase must match a command',
+    'cmdConfirm': 'Confirm before running',
+    'cmdConfirmAlways': 'Always',
+    'cmdConfirmRisky': 'Risky only',
+    'cmdConfirmNever': 'Never',
+    'cardCatalog': 'Command catalog',
+    'cmdEmpty': 'No commands yet — add the first one.',
+    'cmdAdd': 'Add command',
+    'cmdPhrase': 'Trigger phrase',
+    'cmdValue': 'Value (path, URL, action)',
+    'typeApp': 'App',
+    'typeFile': 'File',
+    'typeWeb': 'Site',
+    'typeSystem': 'System',
+    'typeMedia': 'Media',
+    'add': 'Add',
+    'cardConnMode': 'Connection mode',
+    'modeOnDevice': 'On-device (local)',
+    'modeOnDeviceDesc':
+        'The model runs right on your PC. Maximum privacy, no network dependency.',
+    'modeLocalServer': 'Local server (Ollama / LAN)',
+    'modeLocalServerDesc':
+        'Connect to a server on your local network. Data stays inside your network.',
+    'modeRemote': 'Remote server (OpenAI-compatible)',
+    'modeRemoteDesc':
+        'Requests go to the internet. Any OpenAI-compatible API is supported.',
+    'cardModelPick': 'Model selection',
+    'noModelsYet': 'No downloaded models — download one below.',
+    'modelActive': 'active',
+    'cardGenParams': 'Generation parameters',
+    'temperatureDesc': 'Higher — more creative, lower — more precise',
+    'topPDesc': 'Probability threshold for token sampling',
+    'cardStyle': 'Reply style',
+    'formality': 'Formality',
+    'formalLeft': 'Formal',
+    'formalRight': 'Friendly',
+    'empathy': 'Empathy',
+    'empathyLeft': 'Neutral',
+    'empathyRight': 'High',
+    'verbosity': 'Verbosity',
+    'verbosityLeft': 'Concise',
+    'verbosityRight': 'Detailed',
+    'humor': 'Humor',
+    'humorLeft': 'Serious',
+    'humorRight': 'Playful',
+    'creativity': 'Creativity',
+    'creativityLeft': 'Literal',
+    'creativityRight': 'Creative',
+    'cardAssistant': 'Assistant personality',
+    'assistantNameLabel': 'Assistant name',
+    'assistantNameDesc': 'What the assistant calls itself',
+    'emojiPolicy': 'Emoji policy',
+    'emojiPolicyDesc': 'How often to use emoji in replies',
+    'emojiNever': 'Never',
+    'emojiSometimes': 'Sometimes',
+    'emojiAlways': 'Often',
+    'cardMemory': 'Memory',
+    'autoSaveFacts': 'Auto-save facts',
+    'autoSaveFactsDesc': 'EVS remembers important details from the conversation',
+    'askBeforeRemember': 'Ask before “Remember”',
+    'askBeforeRememberDesc': 'Show a prompt before adding a memory',
+    'clearMemory': 'Clear memory',
+    'cardCmdScope': 'Command scope',
+    'permFiles': 'Files & folders',
+    'permBrowser': 'Browser & sites',
+    'permMedia': 'Media & sound',
+    'permSystem': 'System settings',
+    'permNetwork': 'Network requests',
+    'permRegistry': 'Windows registry',
+    'cardNetSec': 'Network security',
+    'offlineMode': 'Offline mode',
+    'offlineModeDesc': 'Block all network requests (model + updates)',
+    'noTelemetry': 'Disable telemetry',
+    'noTelemetryDesc': 'Do not send anonymous usage statistics',
+    'noModelNet': 'Disable model network',
+    'noModelNetDesc': 'Local inference only, no API',
+    'cardBlacklist': 'Phrase blacklist',
+    'cardData': 'Data & privacy',
+    'clearHistory': 'Clear chat history',
+    'clearHistoryDesc': 'Delete all sessions and chats permanently',
+    'resetMemory': 'Reset memory & profile',
+    'resetMemoryDesc': 'Delete all memories, the user profile and the note',
+    'resetAll': 'Reset all settings',
+    'resetAllDesc': 'Return EVS to factory defaults. This cannot be undone.',
+    'fullReset': 'Full reset',
+    'versionLabel': 'Version',
+    'platform': 'Platform',
+    'changelog': 'Changelog',
+    'updates': 'Updates',
+    'autoCheck': 'Automatic check',
+    'autoCheckDesc': 'Check for updates on launch',
+    'checkNow': 'Check now',
+    'checkUpdate': 'Update',
     'howCanIHelp': 'How can I help?',
     'subtitle':
         'Private AI for writing, planning, coding, and everyday questions.',
@@ -448,7 +819,7 @@ const Map<String, Map<String, String>> _i18n = {
     'micPauseDuration': 'Pause duration before sending',
     'send': 'Send',
     'speakNaturally':
-        'Speak naturally. Mirai will respond as soon as you pause.',
+        'Speak naturally. EVS will respond as soon as you pause.',
     'conversations': 'Conversations',
     'chats': 'Chats',
     'chatsDesc':
@@ -497,7 +868,7 @@ const Map<String, Map<String, String>> _i18n = {
     'dAgo': 'd ago',
     'settings': 'Settings',
     'settingsDesc':
-        'Personalize Mirai, manage device behavior, and review the app details in one place.',
+        'Personalize EVS, manage device behavior, and review the app details in one place.',
     'sectionApp': 'App',
     'sectionTheme': 'Theme',
     'sectionAbout': 'About',
@@ -660,7 +1031,7 @@ const Map<String, Map<String, String>> _i18n = {
     'tabMemory': 'Memory',
     'persDesc': "Tailor the assistant's personality, behavior and context.",
     'memoryDesc':
-        "Control what Mirai remembers about you, and how much conversation context local models can see.",
+        "Control what EVS remembers about you, and how much conversation context local models can see.",
     'persPersona': 'Character & vibe',
     'persPreset': 'Persona preset',
     'persPresetDesc':
@@ -941,6 +1312,9 @@ class Personalization {
   String reasoning = 'rs_fast';
   String tone = 'tone_neutral';
   String customPrompt = '';
+  // Name the assistant refers to itself by (used at the top of the system
+  // prompt). Editable in the desktop Personality settings; defaults to EVS.
+  String assistantName = 'EVS';
   // Effective context window (in tokens) handed to local on-device models.
   // fllama internally hardcodes n_parallel=4 and splits the requested
   // contextSize across 4 slots, so callers must request 4x this value to
@@ -978,6 +1352,7 @@ class Personalization {
     'reasoning': reasoning,
     'tone': tone,
     'customPrompt': customPrompt,
+    'assistantName': assistantName,
     'localContextSize': localContextSize,
   };
 
@@ -1019,6 +1394,7 @@ class Personalization {
     p.reasoning = (j['reasoning'] as String?) ?? p.reasoning;
     p.tone = (j['tone'] as String?) ?? p.tone;
     p.customPrompt = (j['customPrompt'] as String?) ?? p.customPrompt;
+    p.assistantName = (j['assistantName'] as String?) ?? p.assistantName;
     p.localContextSize =
         (j['localContextSize'] as num?)?.toInt() ?? p.localContextSize;
     return p;
@@ -1159,7 +1535,8 @@ class Personalization {
 
   String buildSystemPrompt() {
     final b = StringBuffer();
-    b.writeln('You are Mirai, a helpful AI assistant.');
+    final who = assistantName.trim().isEmpty ? 'EVS' : assistantName.trim();
+    b.writeln('You are $who, a helpful AI assistant.');
 
     _writeStyleFacts(b);
 
@@ -1242,7 +1619,7 @@ class Personalization {
   String buildLocalSystemPrompt() {
     final b = StringBuffer();
     b.writeln(
-      'You are Mirai, a helpful assistant. Answer naturally and directly.',
+      'You are EVS, a helpful assistant. Answer naturally and directly.',
     );
     if (defaultLength == 'len_short') {
       b.writeln('Keep answers short.');
@@ -1768,6 +2145,10 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('1.0.0', [
+    'Проект переименован из «Mirai» в «EVS» (Enhanced Voice System — система усовершенствованного голосового управления): новое отображаемое имя, заголовок окна, имя ассистента и метаданные приложения; исполняемый файл теперь evs.exe.',
+    'EVS — это десктоп-ответвление (только Windows) от разработки Mirai; нумерация версий начинается заново с 1.0.0.',
+  ]),
   ChangelogEntry('2.14.2', [
     'Экран «Подготовка модели»: при открытии чата с локальной моделью она заранее прогревается — видна карточка загрузки, поле ввода блокируется до готовности (первый ответ быстрее).',
     'Все всплывающие окна в стеклянном стиле теперь оформлены как Liquid Glass (полупрозрачные с размытием).',
@@ -2621,6 +3002,15 @@ class AppState extends ChangeNotifier {
 
   Personalization persona = Personalization();
 
+  // EVS desktop additions.
+  // How the model is reached: 'local' (on-device), 'localServer' (Ollama/LAN),
+  // 'remote' (internet). localServer/remote both use serverUrl; this just
+  // drives the Model settings UI and which fields apply.
+  String inferenceMode = 'local';
+  // User-defined voice commands (catalog). Execution lands in the native
+  // phase; for now they are stored and editable.
+  List<VoiceCommand> voiceCommands = [];
+
   List<Conversation> conversations = [];
   Conversation? current;
 
@@ -2686,6 +3076,18 @@ class AppState extends ChangeNotifier {
     downloadedLocalModelIds =
         (prefs.getStringList('downloadedLocalModelIds') ?? []).toSet();
     lastSeenVersion = prefs.getString('lastSeenVersion');
+    inferenceMode = prefs.getString('inferenceMode') ?? 'local';
+    final vcRaw = prefs.getString('voiceCommands');
+    if (vcRaw != null) {
+      try {
+        final decoded = jsonDecode(vcRaw);
+        if (decoded is List) {
+          voiceCommands = decoded
+              .map((e) => VoiceCommand.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+      } catch (_) {}
+    }
 
     final pj = prefs.getString('persona');
     if (pj != null) {
@@ -2733,10 +3135,33 @@ class AppState extends ChangeNotifier {
       downloadedLocalModelIds.toList(),
     );
     await prefs.setString('persona', jsonEncode(persona.toJson()));
+    await prefs.setString('inferenceMode', inferenceMode);
+    await prefs.setString(
+      'voiceCommands',
+      jsonEncode(voiceCommands.map((c) => c.toJson()).toList()),
+    );
     await prefs.setString(
       'conversations',
       jsonEncode(conversations.map((c) => c.toJson()).toList()),
     );
+  }
+
+  void setInferenceMode(String v) {
+    inferenceMode = v;
+    _save();
+    notifyListeners();
+  }
+
+  void addVoiceCommand(VoiceCommand c) {
+    voiceCommands.add(c);
+    _save();
+    notifyListeners();
+  }
+
+  void removeVoiceCommand(VoiceCommand c) {
+    voiceCommands.remove(c);
+    _save();
+    notifyListeners();
   }
 
   void buzz() {
@@ -3421,7 +3846,7 @@ class MiraiApp extends StatelessWidget {
     final app = context.watch<AppState>();
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Mirai',
+      title: 'EVS',
       theme: _buildTheme(false),
       darkTheme: app.themeMode == AppThemeMode.gray
           ? _buildGrayTheme()
@@ -3541,10 +3966,10 @@ class _ImmersiveSplashState extends State<ImmersiveSplash>
 
   @override
   Widget build(BuildContext context) {
-    if (_done) return const ChatScreen();
+    if (_done) return const _RootHome();
     return Stack(
       children: [
-        const ChatScreen(),
+        const _RootHome(),
         Positioned.fill(
           child: GestureDetector(
             onTap: _skip,
@@ -4663,8 +5088,2354 @@ class _AnimatedBorderState extends State<AnimatedBorder>
 
 /* ============================ ГЛАВНЫЙ ЭКРАН ============================ */
 
+/* ======================= EVS DESKTOP UI (Windows) =======================
+   Desktop shell from the EVS mockups (evs_ui.html / evs_s*.html): a left
+   sidebar (history + System/Mic widgets) plus the existing chat screen
+   embedded on the right (ChatScreen(desktop: true)), so the animated
+   composer, the particle orb and all send/voice logic are reused as-is. */
+
+// Mockup palette: violet accent + blue→purple→pink gradient on near-black.
+const Color _evsGBlue = Color(0xFF5068D8);
+const Color _evsGMid = Color(0xFF8855CC);
+const Color _evsGPink = Color(0xFFC060D8);
+const Color _evsViolet = Color(0xFF8A7BE0);
+const Color _evsViolet2 = Color(0xFFB0A8F0);
+const Color _evsStroke = Color(0x0DFFFFFF);
+const Color _evsBgSolid = Color(0xFF09090F);
+
+// Desktop window background — the radial gradient from the mockups.
+const BoxDecoration _evsBgDecoration = BoxDecoration(
+  gradient: RadialGradient(
+    center: Alignment(0.2, -0.7),
+    radius: 1.2,
+    colors: [Color(0xFF13151E), Color(0xFF0D0E16), _evsBgSolid],
+    stops: [0.0, 0.45, 1.0],
+  ),
+);
+
+// The conic-gradient "bead" logo used across desktop screens.
+class _EvsLogoMark extends StatelessWidget {
+  final double size;
+  const _EvsLogoMark({this.size = 30});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: SweepGradient(
+          transform: GradientRotation(2.79),
+          colors: [_evsGBlue, _evsGMid, _evsGPink, _evsGBlue],
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Container(
+        width: size * 0.46,
+        height: size * 0.46,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: _evsBgSolid,
+        ),
+      ),
+    );
+  }
+}
+
+String _evsRelTime(AppState app, DateTime dt) {
+  final now = DateTime.now();
+  if (now.difference(dt).inMinutes < 1) return app.t('justNow');
+  final today = DateTime(now.year, now.month, now.day);
+  final that = DateTime(dt.year, dt.month, dt.day);
+  String two(int n) => n.toString().padLeft(2, '0');
+  if (that == today) return '${two(dt.hour)}:${two(dt.minute)}';
+  if (that == today.subtract(const Duration(days: 1))) return app.t('yesterday');
+  return '${dt.day}.${two(dt.month)}';
+}
+
+// On Windows the EVS desktop shell is the root; every other platform keeps
+// the existing mobile ChatScreen. Uses defaultTargetPlatform (not dart:io)
+// so the shared file still compiles for web.
+class _RootHome extends StatelessWidget {
+  const _RootHome();
+  @override
+  Widget build(BuildContext context) =>
+      defaultTargetPlatform == TargetPlatform.windows
+      ? const DesktopHome()
+      : const ChatScreen();
+}
+
+class DesktopHome extends StatelessWidget {
+  const DesktopHome({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _evsBgSolid,
+      body: Container(
+        decoration: _evsBgDecoration,
+        child: const Row(
+          children: [
+            _DesktopSidebar(),
+            Expanded(child: ChatScreen(desktop: true)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopSidebar extends StatelessWidget {
+  const _DesktopSidebar();
+
+  void _openSettings(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const DesktopSettings()),
+    );
+  }
+
+  Widget _iconBtn(BuildContext context, IconData icon, VoidCallback onTap,
+      {String? tooltip}) {
+    final btn = InkResponse(
+      radius: 22,
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withValues(alpha: 0.042),
+          border: Border.all(color: const Color(0x14FFFFFF)),
+        ),
+        child: Icon(icon, size: 15, color: const Color(0xFFAAB0C0)),
+      ),
+    );
+    return tooltip == null ? btn : Tooltip(message: tooltip, child: btn);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final convs = app.conversations;
+    return Container(
+      width: 264,
+      decoration: const BoxDecoration(
+        border: Border(right: BorderSide(color: _evsStroke)),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF0B0C14), _evsBgSolid],
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 20, 14, 16),
+              child: Row(
+                children: [
+                  const _EvsLogoMark(),
+                  const SizedBox(width: 9),
+                  const Text(
+                    'EVS',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                  _iconBtn(context, Icons.settings_outlined,
+                      () => _openSettings(context),
+                      tooltip: app.t('settings')),
+                  const SizedBox(width: 8),
+                  _iconBtn(context, Icons.add, () {
+                    app.buzz();
+                    app.newChat();
+                  }, tooltip: app.t('newChat')),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(18, 0, 18, 10),
+              child: Text(
+                'ИСТОРИЯ',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.9,
+                  color: Color(0xFF4A4F5E),
+                ),
+              ),
+            ),
+            Expanded(
+              child: convs.isEmpty
+                  ? const SizedBox.shrink()
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      itemCount: convs.length,
+                      itemBuilder: (_, i) {
+                        final c = convs[i];
+                        final active = c.id == app.current?.id;
+                        return _historyItem(app, c, active);
+                      },
+                    ),
+            ),
+            const Divider(color: _evsStroke, height: 1, indent: 10, endIndent: 10),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(10, 14, 10, 0),
+              child: _DesktopSystemWidget(),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(10, 10, 10, 12),
+              child: _DesktopMicWidget(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _historyItem(AppState app, Conversation c, bool active) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            app.buzz();
+            app.openChat(c);
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: active ? const Color(0x12FFFFFF) : Colors.transparent,
+              border: Border.all(
+                color: active ? const Color(0x338A7BE0) : Colors.transparent,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(9),
+                    color: Colors.white.withValues(alpha: 0.042),
+                  ),
+                  child: const Icon(Icons.chat_bubble_outline,
+                      size: 13, color: Color(0xFF9691C0)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        c.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFD4D7E2),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _evsRelTime(app, c.updatedAt),
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: Color(0xFF6E7280),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// System monitor widget — STUB for Phase 1 (static values). Real CPU/RAM via
+// FFI/PowerShell comes in the native phase (see plan: монитор системы).
+class _DesktopSystemWidget extends StatelessWidget {
+  const _DesktopSystemWidget();
+
+  Widget _bar(String name, String value, double frac, List<Color> grad,
+      Color numColor) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(name,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6E7280))),
+              Text(value,
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: numColor)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: frac,
+              minHeight: 5,
+              backgroundColor: const Color(0x12FFFFFF),
+              valueColor: AlwaysStoppedAnimation(grad.first),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withValues(alpha: 0.042),
+        border: Border.all(color: _evsStroke),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(bottom: 9),
+            child: Text('СИСТЕМА',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                    color: Color(0xFF6E7280))),
+          ),
+          _bar('CPU', '—', 0.0, const [_evsViolet], const Color(0xFFA99DE8)),
+          _bar('RAM', '—', 0.0, const [Color(0xFF5DE0D8)], const Color(0xFF5DE0D8)),
+          _bar('VRAM', '—', 0.0, const [Color(0xFFE08A5D)], const Color(0xFFE08A5D)),
+        ],
+      ),
+    );
+  }
+}
+
+// Microphone widget — animated equalizer bars (decorative for Phase 1).
+class _DesktopMicWidget extends StatefulWidget {
+  const _DesktopMicWidget();
+  @override
+  State<_DesktopMicWidget> createState() => _DesktopMicWidgetState();
+}
+
+class _DesktopMicWidgetState extends State<_DesktopMicWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(seconds: 2))
+        ..repeat();
+  static const _n = 22;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.read<AppState>();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withValues(alpha: 0.042),
+        border: Border.all(color: _evsStroke),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.mic_none,
+                        size: 13, color: Color(0xFF6E7280)),
+                    const SizedBox(width: 6),
+                    Text(app.t('microphone'),
+                        style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF6E7280))),
+                  ],
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    color: const Color(0x1A54E08A),
+                    border: Border.all(color: const Color(0x4054E08A)),
+                  ),
+                  child: Text(app.t('ready'),
+                      style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF7BE8AD))),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 28,
+            child: AnimatedBuilder(
+              animation: _c,
+              builder: (_, __) {
+                final t = _c.value * 2 * math.pi * 3;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (int i = 0; i < _n; i++) ...[
+                      Expanded(
+                        child: Container(
+                          height: 6 + ((math.sin(t + i * 0.5) + 1) / 2) * 22,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(2),
+                            gradient: const LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [_evsViolet, Color(0xFFB681E6)],
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (i < _n - 1) const SizedBox(width: 2.5),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/* ----------------------- EVS DESKTOP SETTINGS ----------------------------
+   Left-nav settings with 7 sections (evs_s1..s7.html). Controls bind to the
+   existing AppState/Personalization; genuinely-new areas are shown as UI with
+   stub state until their native phase lands. */
+
+// A user-defined voice command (Voice Commands catalog). Execution comes in
+// the native phase; the type maps to how `value` is interpreted.
+enum VoiceCommandType { app, file, url, shell, system, media }
+
+class VoiceCommand {
+  String phrase;
+  VoiceCommandType type;
+  String value;
+  VoiceCommand({
+    required this.phrase,
+    required this.type,
+    required this.value,
+  });
+
+  Map<String, dynamic> toJson() =>
+      {'phrase': phrase, 'type': type.name, 'value': value};
+
+  factory VoiceCommand.fromJson(Map<String, dynamic> j) => VoiceCommand(
+        phrase: j['phrase'] as String? ?? '',
+        type: VoiceCommandType.values.firstWhere(
+          (e) => e.name == j['type'],
+          orElse: () => VoiceCommandType.app,
+        ),
+        value: j['value'] as String? ?? '',
+      );
+}
+
+// A settings card occupying one or both grid columns.
+class _CardSpec {
+  final Widget child;
+  final bool full;
+  const _CardSpec(this.child, {this.full = false});
+}
+
+class DesktopSettings extends StatefulWidget {
+  const DesktopSettings({super.key});
+  @override
+  State<DesktopSettings> createState() => _DesktopSettingsState();
+}
+
+class _DesktopSettingsState extends State<DesktopSettings> {
+  int _section = 0;
+  // Phase-1 placeholders for not-yet-wired desktop toggles (autostart, tray…).
+  final Map<String, bool> _stub = {
+    'autostart': true,
+    'tray': true,
+    'closeToTray': true,
+    'startShown': false,
+    'notifications': true,
+    'animations': true,
+    'autoUpdate': true,
+    'showPartial': true,
+    'showVizBg': true,
+    'cmdEnabled': true,
+    'cmdInterpreter': true,
+    'permFiles': true,
+    'permBrowser': true,
+    'permMedia': true,
+    'permSystem': false,
+    'permNetwork': true,
+    'permRegistry': false,
+    'offline': false,
+    'noTelemetry': true,
+    'noModelNet': false,
+  };
+  final Map<String, double> _stubNum = {
+    'threshold': 65,
+    'temp': 0.7,
+    'topp': 0.9,
+    'maxtok': 1024,
+  };
+  final List<String> _blacklist = [
+    'удали все файлы',
+    'форматируй диск',
+    'shutdown /s',
+  ];
+  final TextEditingController _activatorCtrl =
+      TextEditingController(text: 'EVS');
+  // Stub single-choice values for not-yet-wired desktop controls.
+  final Map<String, String> _stubSel = {
+    'sttEngine': 'windows',
+    'activation': 'continuous',
+    'vizType': 'sphere',
+    'cmdMode': 'wakeword',
+    'confirm': 'risky',
+  };
+
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _promptCtrl;
+  bool _ctrlInit = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_ctrlInit) return;
+    _ctrlInit = true;
+    final p = context.read<AppState>().persona;
+    _nameCtrl = TextEditingController(text: p.assistantName);
+    _promptCtrl = TextEditingController(text: p.customPrompt);
+  }
+
+  @override
+  void dispose() {
+    if (_ctrlInit) {
+      _nameCtrl.dispose();
+      _promptCtrl.dispose();
+    }
+    _activatorCtrl.dispose();
+    super.dispose();
+  }
+
+  void _persona(void Function(Personalization) mut) {
+    final app = context.read<AppState>();
+    mut(app.persona);
+    app.savePersona(app.persona);
+  }
+
+  late final List<(IconData, String, String)> _sections = const [
+    (Icons.settings_outlined, 'navGeneral', 'navGeneralSub'),
+    (Icons.mic_none, 'navVoiceInput', 'navVoiceInputSub'),
+    (Icons.bolt_outlined, 'navVoiceCommands', 'navVoiceCommandsSub'),
+    (Icons.memory, 'navModel', 'navModelSub'),
+    (Icons.chat_bubble_outline, 'navPersona', 'navPersonaSub'),
+    (Icons.lock_outline, 'navPrivacy', 'navPrivacySub'),
+    (Icons.info_outline, 'navAbout', 'navAboutSub'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return Scaffold(
+      backgroundColor: _evsBgSolid,
+      body: Container(
+        decoration: _evsBgDecoration,
+        child: Row(
+          children: [
+            _nav(app),
+            Expanded(child: _sectionScaffold(app)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // -------- left nav rail --------
+  Widget _nav(AppState app) {
+    return Container(
+      width: 244,
+      decoration: const BoxDecoration(
+        border: Border(right: BorderSide(color: _evsStroke)),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF0B0C14), _evsBgSolid],
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 20, 14, 18),
+              child: Row(
+                children: [
+                  InkResponse(
+                    radius: 22,
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.042),
+                        border: Border.all(color: const Color(0x14FFFFFF)),
+                      ),
+                      child: const Icon(Icons.arrow_back,
+                          size: 15, color: Color(0xFF9AA0B0)),
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  const _EvsLogoMark(size: 28),
+                  const SizedBox(width: 9),
+                  const Text('EVS',
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: Colors.white)),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(18, 0, 18, 8),
+              child: Text('РАЗДЕЛЫ',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                      color: Color(0xFF4A4F5E))),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                itemCount: _sections.length,
+                itemBuilder: (_, i) {
+                  final s = _sections[i];
+                  final active = i == _section;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(13),
+                        onTap: () => setState(() => _section = i),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 11, vertical: 10),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(13),
+                            color: active
+                                ? const Color(0x218A7BE0)
+                                : Colors.transparent,
+                            border: Border.all(
+                              color: active
+                                  ? const Color(0x388A7BE0)
+                                  : Colors.transparent,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 31,
+                                height: 31,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(9),
+                                  color: active
+                                      ? const Color(0x338A7BE0)
+                                      : Colors.white.withValues(alpha: 0.042),
+                                ),
+                                child: Icon(s.$1,
+                                    size: 14,
+                                    color: active
+                                        ? _evsViolet2
+                                        : const Color(0xFF9691C0)),
+                              ),
+                              const SizedBox(width: 11),
+                              Expanded(
+                                child: Text(app.t(s.$2),
+                                    style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: active
+                                            ? const Color(0xFFD4CFF0)
+                                            : const Color(0xFF6E7280))),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // -------- right pane: section topbar + card grid --------
+  Widget _sectionScaffold(AppState app) {
+    final s = _sections[_section];
+    return SafeArea(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 18, 28, 14),
+            child: Row(
+              children: [
+                Text(app.t(s.$2),
+                    style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                        color: Colors.white)),
+                const SizedBox(width: 10),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('— ${app.t(s.$3)}',
+                      style: const TextStyle(
+                          fontSize: 13, color: Color(0xFF6E7280))),
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: _evsStroke, height: 1),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (ctx, cons) {
+                const gap = 14.0;
+                final colW = (cons.maxWidth - 56 - gap) / 2;
+                final cards = _cardsFor(app);
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(28, 22, 28, 28),
+                  child: Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
+                    children: [
+                      for (final c in cards)
+                        SizedBox(
+                          width: c.full ? cons.maxWidth - 56 : colW,
+                          child: c.child,
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_CardSpec> _cardsFor(AppState app) {
+    switch (_section) {
+      case 0:
+        return _generalCards(app);
+      case 1:
+        return _voiceInputCards(app);
+      case 2:
+        return _voiceCommandCards(app);
+      case 3:
+        return _modelCards(app);
+      case 4:
+        return _personaCards(app);
+      case 5:
+        return _privacyCards(app);
+      case 6:
+        return _aboutCards(app);
+      default:
+        return const [];
+    }
+  }
+
+  // =================== SECTION 0: GENERAL ===================
+  List<_CardSpec> _generalCards(AppState app) {
+    return [
+      _CardSpec(evsCard(
+        context,
+        icon: Icons.language,
+        title: app.t('cardLangLoc'),
+        rows: [
+          evsRow(
+            label: app.t('interfaceLanguage'),
+            desc: app.t('interfaceLanguageDesc'),
+            control: evsSegmented<String>(
+              const [('ru', 'RU'), ('en', 'EN')],
+              app.lang,
+              (v) => app.setLang(v),
+            ),
+          ),
+          evsRow(
+            label: app.t('recognitionLanguage'),
+            desc: app.t('recognitionLanguageDesc'),
+            control: evsSegmented<String>(
+              const [('auto', 'Авто'), ('ru', 'RU'), ('en', 'EN')],
+              'auto',
+              (_) {},
+            ),
+          ),
+        ],
+      )),
+      _CardSpec(evsCard(
+        context,
+        icon: Icons.light_mode_outlined,
+        title: app.t('cardAppearance'),
+        rows: [
+          evsRow(
+            label: app.t('themeMode'),
+            control: evsSegmented<AppThemeMode>(
+              [
+                (AppThemeMode.system, app.t('themeSystem')),
+                (AppThemeMode.light, app.t('themeLight')),
+                (AppThemeMode.dark, app.t('themeDark')),
+                (AppThemeMode.gray, app.t('themeGray')),
+              ],
+              app.themeMode,
+              (v) => app.setThemeMode(v),
+            ),
+          ),
+          evsRow(
+            label: app.t('appStyle'),
+            desc: app.t('appStyleDesc'),
+            control: evsSegmented<AppStyle>(
+              [
+                (AppStyle.liquidGlass, 'Liquid Glass'),
+                (AppStyle.standard, app.t('styleClassic')),
+              ],
+              app.appStyle,
+              (v) => app.setAppStyle(v),
+            ),
+          ),
+          evsRow(
+            label: app.t('fontSize'),
+            desc: app.t('fontSizeDesc'),
+            control: SizedBox(
+              width: 200,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      min: 0.75,
+                      max: 1.5,
+                      value: app.fontSize.clamp(0.75, 1.5),
+                      activeColor: _evsViolet,
+                      onChanged: (v) => app.setFontSize(v),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 44,
+                    child: Text('${(app.fontSize * 100).round()}%',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: _evsViolet)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      )),
+      _CardSpec(
+        evsCard(
+          context,
+          icon: Icons.desktop_windows_outlined,
+          title: app.t('cardStartup'),
+          rows: [
+            evsRow(
+              label: app.t('autostart'),
+              desc: app.t('autostartDesc'),
+              control: _stubToggle('autostart'),
+            ),
+            evsRow(
+              label: app.t('minimizeToTray'),
+              desc: app.t('minimizeToTrayDesc'),
+              control: _stubToggle('tray'),
+            ),
+            evsRow(
+              label: app.t('notifications'),
+              desc: app.t('notificationsDesc'),
+              control: _stubToggle('notifications'),
+            ),
+            evsRow(
+              label: app.t('uiAnimations'),
+              desc: app.t('uiAnimationsDesc'),
+              control: _stubToggle('animations'),
+            ),
+          ],
+        ),
+        full: true,
+      ),
+    ];
+  }
+
+  Widget _stubToggle(String key) => evsToggle(
+        _stub[key] ?? false,
+        (v) => setState(() => _stub[key] = v),
+      );
+
+  void _stubSnack(AppState app) =>
+      showAppSnackBar(context, app.t('sectionStub'));
+
+  Widget _inlineField(TextEditingController c,
+      {bool mono = false, int maxLines = 1, ValueChanged<String>? onChanged}) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 13, vertical: maxLines > 1 ? 10 : 0),
+      height: maxLines > 1 ? null : 36,
+      alignment: maxLines > 1 ? null : Alignment.centerLeft,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: Colors.white.withValues(alpha: 0.06),
+        border: Border.all(color: const Color(0x14FFFFFF)),
+      ),
+      child: TextField(
+        controller: c,
+        maxLines: maxLines,
+        onChanged: onChanged,
+        style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFFD0D4E2),
+            fontFamily: mono ? 'monospace' : null),
+        decoration: const InputDecoration(
+            isDense: true,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero),
+      ),
+    );
+  }
+
+  String _fmtSize(int bytes) => '${(bytes / 1e9).toStringAsFixed(1)} GB';
+
+  // =================== SECTION 2: VOICE COMMANDS ===================
+  List<_CardSpec> _voiceCommandCards(AppState app) {
+    final cmds = app.voiceCommands;
+    return [
+      _CardSpec(
+        evsCard(context, icon: Icons.bolt_outlined, title: app.t('cardCmdExec'), rows: [
+          evsRow(
+            label: app.t('cmdAllow'),
+            desc: app.t('cmdAllowDesc'),
+            control: _stubToggle('cmdEnabled'),
+          ),
+        ]),
+        full: true,
+      ),
+      _CardSpec(evsCard(context,
+          icon: Icons.schedule, title: app.t('cardCmdRecognition'), rows: [
+        evsRow(
+          label: app.t('cmdMode'),
+          desc: app.t('cmdModeDesc'),
+          control: _stubSegmented('cmdMode', [
+            ('wakeword', app.t('cmdModeWake')),
+            ('mode', app.t('cmdModeSeparate')),
+            ('first', app.t('cmdModeFirst')),
+          ]),
+        ),
+        evsRow(
+          label: app.t('cmdActivator'),
+          desc: app.t('cmdActivatorDesc'),
+          control: SizedBox(width: 110, child: _inlineField(_activatorCtrl, mono: true)),
+        ),
+        evsRow(
+          label: app.t('cmdInterpreter'),
+          desc: app.t('cmdInterpreterDesc'),
+          control: _stubToggle('cmdInterpreter'),
+        ),
+        evsRow(
+          label: app.t('cmdModel'),
+          desc: app.t('cmdModelDesc'),
+          control: evsSelectButton(
+              app.modelDisplayName(app.selectedModel, withSuffix: false)),
+        ),
+      ])),
+      _CardSpec(evsCard(context,
+          icon: Icons.shield_outlined, title: app.t('cardSecurity'), rows: [
+        evsRow(
+          label: app.t('cmdThreshold'),
+          desc: app.t('cmdThresholdDesc'),
+          control: evsSlider(
+            value: _stubNum['threshold']!,
+            min: 0,
+            max: 100,
+            divisions: 20,
+            label: '${_stubNum['threshold']!.round()}%',
+            onChanged: (v) => setState(() => _stubNum['threshold'] = v),
+          ),
+        ),
+        evsRow(
+          label: app.t('cmdConfirm'),
+          control: _stubSegmented('confirm', [
+            ('always', app.t('cmdConfirmAlways')),
+            ('risky', app.t('cmdConfirmRisky')),
+            ('never', app.t('cmdConfirmNever')),
+          ]),
+        ),
+      ])),
+      _CardSpec(
+        evsCard(context,
+            icon: Icons.format_list_bulleted, title: app.t('cardCatalog'), rows: [
+          if (cmds.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Text(app.t('cmdEmpty'),
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF6E7280))),
+            ),
+          for (final c in cmds) _cmdRow(app, c),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: evsAddButton(app.t('cmdAdd'), () => _addCommandDialog(app)),
+            ),
+          ),
+        ]),
+        full: true,
+      ),
+    ];
+  }
+
+  Widget _cmdRow(AppState app, VoiceCommand c) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0x09FFFFFF)))),
+      child: Row(
+        children: [
+          Expanded(
+              flex: 3,
+              child: Text(c.phrase,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFD0D4E2)))),
+          Expanded(
+              flex: 2,
+              child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _cmdTypeChip(app, c.type))),
+          Expanded(
+              flex: 3,
+              child: Text(c.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5, color: Color(0xFF6E7280)))),
+          InkResponse(
+            radius: 18,
+            onTap: () => app.removeVoiceCommand(c),
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0x14E05D5D)),
+              child: const Icon(Icons.delete_outline,
+                  size: 13, color: Color(0xFFE08080)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cmdTypeChip(AppState app, VoiceCommandType t) {
+    final (label, color) = switch (t) {
+      VoiceCommandType.app => (app.t('typeApp'), const Color(0xFF7BE0D8)),
+      VoiceCommandType.file => (app.t('typeFile'), const Color(0xFF7BE0D8)),
+      VoiceCommandType.url => (app.t('typeWeb'), const Color(0xFF8BE8B0)),
+      VoiceCommandType.shell => ('Shell', const Color(0xFFE0C07A)),
+      VoiceCommandType.system => (app.t('typeSystem'), _evsViolet2),
+      VoiceCommandType.media => (app.t('typeMedia'), const Color(0xFFE0A07A)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(7),
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 11.5, fontWeight: FontWeight.w700, color: color)),
+    );
+  }
+
+  Future<void> _addCommandDialog(AppState app) async {
+    final phrase = TextEditingController();
+    final value = TextEditingController();
+    var type = VoiceCommandType.app;
+    await showDialog(
+      context: context,
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx, setLocal) => AlertDialog(
+          backgroundColor: const Color(0xFF15151E),
+          title: Text(app.t('cmdAdd'),
+              style: const TextStyle(color: Colors.white, fontSize: 17)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: phrase,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(labelText: app.t('cmdPhrase')),
+              ),
+              const SizedBox(height: 12),
+              DropdownButton<VoiceCommandType>(
+                value: type,
+                isExpanded: true,
+                dropdownColor: const Color(0xFF1C1C26),
+                style: const TextStyle(color: Colors.white),
+                items: [
+                  for (final t in VoiceCommandType.values)
+                    DropdownMenuItem(value: t, child: Text(t.name)),
+                ],
+                onChanged: (v) => setLocal(() => type = v ?? type),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: value,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(labelText: app.t('cmdValue')),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dctx),
+                child: Text(app.t('cancel'))),
+            TextButton(
+              onPressed: () {
+                if (phrase.text.trim().isEmpty) return;
+                app.addVoiceCommand(VoiceCommand(
+                  phrase: phrase.text.trim(),
+                  type: type,
+                  value: value.text.trim(),
+                ));
+                Navigator.pop(dctx);
+              },
+              child: Text(app.t('add')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =================== SECTION 3: MODEL & INFERENCE ===================
+  List<_CardSpec> _modelCards(AppState app) {
+    final downloaded =
+        kLocalModels.where((s) => app.downloadedLocalModelIds.contains(s.id));
+    final maxCtx = app.ramContextCeiling < 1024 ? 1024 : app.ramContextCeiling;
+    return [
+      _CardSpec(
+        evsCard(context, icon: Icons.wifi, title: app.t('cardConnMode'), rows: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
+            child: Column(
+              children: [
+                evsRadioCard(
+                  selected: app.inferenceMode == 'local',
+                  title: app.t('modeOnDevice'),
+                  desc: app.t('modeOnDeviceDesc'),
+                  onTap: () => app.setInferenceMode('local'),
+                ),
+                const SizedBox(height: 8),
+                evsRadioCard(
+                  selected: app.inferenceMode == 'localServer',
+                  title: app.t('modeLocalServer'),
+                  desc: app.t('modeLocalServerDesc'),
+                  onTap: () => app.setInferenceMode('localServer'),
+                  extra: app.baseUrl,
+                ),
+                const SizedBox(height: 8),
+                evsRadioCard(
+                  selected: app.inferenceMode == 'remote',
+                  title: app.t('modeRemote'),
+                  desc: app.t('modeRemoteDesc'),
+                  onTap: () => app.setInferenceMode('remote'),
+                  extra: app.serverUrl.isEmpty ? null : app.baseUrl,
+                ),
+              ],
+            ),
+          ),
+        ]),
+        full: true,
+      ),
+      _CardSpec(evsCard(context,
+          icon: Icons.memory, title: app.t('cardModelPick'), rows: [
+        if (downloaded.isEmpty && app.models.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Text(app.t('noModelsYet'),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6E7280))),
+          ),
+        for (final s in downloaded)
+          _modelRow(app, s.modelKey, s.shortName, _fmtSize(s.sizeBytes)),
+        for (final m in app.models)
+          _modelRow(app, m, app.modelDisplayName(m, withSuffix: false), ''),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: evsAddButton(
+              app.t('downloadModel'),
+              () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LocalModelsScreen()),
+              ),
+              icon: Icons.download,
+            ),
+          ),
+        ),
+      ])),
+      _CardSpec(evsCard(context,
+          icon: Icons.tune, title: app.t('cardGenParams'), rows: [
+        evsNamedSlider(
+          label: app.t('contextSize'),
+          desc: app.t('contextSizeDesc'),
+          value: app.persona.localContextSize.toDouble(),
+          min: 512,
+          max: maxCtx.toDouble(),
+          valueLabel: '${app.persona.localContextSize} т.',
+          left: '512',
+          right: '$maxCtx',
+          onChanged: (v) => _persona((p) => p.localContextSize = v.round()),
+        ),
+        evsNamedSlider(
+          label: 'Temperature',
+          desc: app.t('temperatureDesc'),
+          value: _stubNum['temp']!,
+          min: 0,
+          max: 2,
+          valueLabel: _stubNum['temp']!.toStringAsFixed(2),
+          left: '0.0',
+          right: '2.0',
+          onChanged: (v) => setState(() => _stubNum['temp'] = v),
+        ),
+        evsNamedSlider(
+          label: 'Top-p',
+          desc: app.t('topPDesc'),
+          value: _stubNum['topp']!,
+          min: 0,
+          max: 1,
+          valueLabel: _stubNum['topp']!.toStringAsFixed(2),
+          left: '0.0',
+          right: '1.0',
+          onChanged: (v) => setState(() => _stubNum['topp'] = v),
+        ),
+      ])),
+    ];
+  }
+
+  Widget _modelRow(AppState app, String key, String name, String size) {
+    final active = app.selectedModel == key;
+    return InkWell(
+      onTap: () => app.selectModel(key),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+        decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Color(0x09FFFFFF)))),
+        child: Row(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: active ? _evsViolet : Colors.transparent,
+                border: Border.all(
+                    color: active ? _evsViolet : const Color(0x33FFFFFF),
+                    width: 2),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(name,
+                  style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFD0D4E2))),
+            ),
+            if (size.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(7),
+                    color: Colors.white.withValues(alpha: 0.06)),
+                child: Text(size,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF8890A8))),
+              ),
+            const SizedBox(width: 8),
+            Text(active ? app.t('modelActive') : '',
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700, color: _evsViolet2)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =================== SECTION 4: PERSONALITY & MEMORY ===================
+  List<_CardSpec> _personaCards(AppState app) {
+    final p = app.persona;
+    String pct(double v) => '${(v * 100).round()}%';
+    return [
+      _CardSpec(evsCard(context,
+          icon: Icons.chat_bubble_outline, title: app.t('cardStyle'), rows: [
+        evsNamedSlider(
+          label: app.t('formality'),
+          value: p.formality,
+          valueLabel: pct(p.formality),
+          left: app.t('formalLeft'),
+          right: app.t('formalRight'),
+          onChanged: (v) => _persona((x) => x.formality = v),
+        ),
+        evsNamedSlider(
+          label: app.t('empathy'),
+          value: p.empathy,
+          valueLabel: pct(p.empathy),
+          left: app.t('empathyLeft'),
+          right: app.t('empathyRight'),
+          onChanged: (v) => _persona((x) => x.empathy = v),
+        ),
+        evsNamedSlider(
+          label: app.t('verbosity'),
+          value: p.verbosity,
+          valueLabel: pct(p.verbosity),
+          left: app.t('verbosityLeft'),
+          right: app.t('verbosityRight'),
+          onChanged: (v) => _persona((x) => x.verbosity = v),
+        ),
+        evsNamedSlider(
+          label: app.t('humor'),
+          value: p.humor,
+          valueLabel: pct(p.humor),
+          left: app.t('humorLeft'),
+          right: app.t('humorRight'),
+          onChanged: (v) => _persona((x) => x.humor = v),
+        ),
+        evsNamedSlider(
+          label: app.t('creativity'),
+          value: p.creativity,
+          valueLabel: pct(p.creativity),
+          left: app.t('creativityLeft'),
+          right: app.t('creativityRight'),
+          onChanged: (v) => _persona((x) => x.creativity = v),
+        ),
+      ])),
+      _CardSpec(evsCard(context,
+          icon: Icons.person_outline, title: app.t('cardAssistant'), rows: [
+        evsRow(
+          label: app.t('assistantNameLabel'),
+          desc: app.t('assistantNameDesc'),
+          control: SizedBox(
+            width: 130,
+            child: _inlineField(_nameCtrl,
+                mono: true,
+                onChanged: (v) => _persona((x) => x.assistantName = v)),
+          ),
+        ),
+        evsRow(
+          label: app.t('emojiPolicy'),
+          desc: app.t('emojiPolicyDesc'),
+          control: evsSegmented<String>(
+            [
+              ('emoji_never', app.t('emojiNever')),
+              ('emoji_sometimes', app.t('emojiSometimes')),
+              ('emoji_always', app.t('emojiAlways')),
+            ],
+            p.emoji,
+            (v) => _persona((x) => x.emoji = v),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(app.t('systemPrompt'),
+                  style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFD0D4E2))),
+              const SizedBox(height: 2),
+              Text(app.t('systemPromptDesc'),
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF6E7280))),
+              const SizedBox(height: 8),
+              _inlineField(_promptCtrl,
+                  maxLines: 3,
+                  onChanged: (v) => _persona((x) => x.customPrompt = v)),
+            ],
+          ),
+        ),
+      ])),
+      _CardSpec(
+        evsCard(context, icon: Icons.access_time, title: app.t('cardMemory'), rows: [
+          evsRow(
+            label: app.t('autoSaveFacts'),
+            desc: app.t('autoSaveFactsDesc'),
+            control: evsToggle(
+                p.autoSaveMemories, (v) => _persona((x) => x.autoSaveMemories = v)),
+          ),
+          evsRow(
+            label: app.t('askBeforeRemember'),
+            desc: app.t('askBeforeRememberDesc'),
+            control: evsToggle(p.askBeforeRemembering,
+                (v) => _persona((x) => x.askBeforeRemembering = v)),
+          ),
+          for (final m in p.savedMemories) _memItem(app, m),
+          if (p.savedMemories.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: evsDangerButton(app.t('clearMemory'),
+                    () => _persona((x) => x.savedMemories.clear())),
+              ),
+            ),
+        ]),
+        full: true,
+      ),
+    ];
+  }
+
+  Widget _memItem(AppState app, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+      decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0x09FFFFFF)))),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: const Color(0x1F8A7BE0)),
+            child: const Icon(Icons.place_outlined, size: 12, color: _evsViolet2),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(fontSize: 13, color: Color(0xFFC0C4D4))),
+          ),
+          InkResponse(
+            radius: 16,
+            onTap: () => _persona((x) => x.savedMemories.remove(text)),
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(7),
+                  color: const Color(0x14E05D5D)),
+              child: const Icon(Icons.close, size: 11, color: Color(0xFFE08080)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =================== SECTION 5: PRIVACY ===================
+  List<_CardSpec> _privacyCards(AppState app) {
+    return [
+      _CardSpec(evsCard(context,
+          icon: Icons.shield_outlined, title: app.t('cardCmdScope'), rows: [
+        _permGrid(app, [
+          ('permFiles', app.t('permFiles')),
+          ('permBrowser', app.t('permBrowser')),
+          ('permMedia', app.t('permMedia')),
+          ('permSystem', app.t('permSystem')),
+          ('permNetwork', app.t('permNetwork')),
+          ('permRegistry', app.t('permRegistry')),
+        ]),
+      ])),
+      _CardSpec(evsCard(context,
+          icon: Icons.dns_outlined, title: app.t('cardNetSec'), rows: [
+        evsRow(
+            label: app.t('offlineMode'),
+            desc: app.t('offlineModeDesc'),
+            control: _stubToggle('offline')),
+        evsRow(
+            label: app.t('noTelemetry'),
+            desc: app.t('noTelemetryDesc'),
+            control: _stubToggle('noTelemetry')),
+        evsRow(
+            label: app.t('noModelNet'),
+            desc: app.t('noModelNetDesc'),
+            control: _stubToggle('noModelNet')),
+      ])),
+      _CardSpec(evsCard(context,
+          icon: Icons.warning_amber_outlined, title: app.t('cardBlacklist'), rows: [
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final t in _blacklist) _tag(t),
+              evsAddButton(app.t('add'),
+                  () => _stubSnack(app), small: true),
+            ],
+          ),
+        ),
+      ])),
+      _CardSpec(
+        evsCard(context, icon: Icons.delete_outline, title: app.t('cardData'), rows: [
+          evsRow(
+            label: app.t('clearHistory'),
+            desc: app.t('clearHistoryDesc'),
+            control: evsDangerButton(app.t('clearHistory'), () => _stubSnack(app)),
+          ),
+          evsRow(
+            label: app.t('resetMemory'),
+            desc: app.t('resetMemoryDesc'),
+            control: evsDangerButton(app.t('resetMemory'), () {
+              _persona((x) {
+                x.savedMemories.clear();
+                x.memoryNote = '';
+              });
+            }),
+          ),
+          evsRow(
+            label: app.t('resetAll'),
+            desc: app.t('resetAllDesc'),
+            control: evsDangerButton(app.t('fullReset'), () => _stubSnack(app)),
+          ),
+        ]),
+        full: true,
+      ),
+    ];
+  }
+
+  Widget _permGrid(AppState app, List<(String, String)> items) {
+    return Wrap(
+      children: [
+        for (final it in items)
+          SizedBox(
+            width: 200,
+            child: InkWell(
+              onTap: () => setState(
+                  () => _stub[it.$1] = !(_stub[it.$1] ?? false)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        color: (_stub[it.$1] ?? false)
+                            ? const Color(0x4D8A7BE0)
+                            : Colors.transparent,
+                        border: Border.all(
+                            color: const Color(0x668A7BE0), width: 2),
+                      ),
+                      child: (_stub[it.$1] ?? false)
+                          ? const Icon(Icons.check, size: 12, color: Color(0xFFD0CCF6))
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(it.$2,
+                        style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFD0D4E2))),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _tag(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: Colors.white.withValues(alpha: 0.06),
+        border: Border.all(color: _evsStroke),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(text,
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF9098B0))),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: () => setState(() => _blacklist.remove(text)),
+            child: const Icon(Icons.close, size: 13, color: Color(0xFF4A4F5E)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =================== SECTION 6: ABOUT ===================
+  List<_CardSpec> _aboutCards(AppState app) {
+    return [
+      _CardSpec(
+        evsCard(context, icon: Icons.info_outline, title: app.t('navAbout'), rows: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(18, 24, 18, 18),
+            child: Column(
+              children: [
+                _EvsLogoMark(size: 60),
+                SizedBox(height: 10),
+                Text('EVS',
+                    style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: Colors.white)),
+                SizedBox(height: 4),
+                Text('Enhanced Voice System',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6E7280))),
+              ],
+            ),
+          ),
+          _aboutRow(app.t('versionLabel'), const _VersionText()),
+          _aboutRow(app.t('platform'), const Text('Windows · x64',
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFC0C4D4)))),
+        ]),
+        full: true,
+      ),
+      _CardSpec(evsCard(context,
+          icon: Icons.description_outlined, title: app.t('changelog'), rows: [
+        for (final e in kChangelog.take(3)) _clItem(e),
+      ])),
+      _CardSpec(evsCard(context,
+          icon: Icons.refresh, title: app.t('updates'), rows: [
+        evsRow(
+            label: app.t('autoCheck'),
+            desc: app.t('autoCheckDesc'),
+            control: _stubToggle('autoUpdate')),
+        evsRow(
+            label: app.t('checkNow'),
+            control: evsGhostButton(app.t('checkUpdate'), Icons.refresh)),
+      ])),
+    ];
+  }
+
+  Widget _aboutRow(String label, Widget value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0x09FFFFFF)))),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFD0D4E2))),
+          value,
+        ],
+      ),
+    );
+  }
+
+  Widget _clItem(ChangelogEntry e) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(e.version,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFD0D4E2))),
+          const SizedBox(height: 5),
+          for (final ch in e.changes)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text('·  $ch',
+                  style: const TextStyle(
+                      fontSize: 12.5, height: 1.5, color: Color(0xFF6E7280))),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stubSegmented(String key, List<(String, String)> options) =>
+      evsSegmented<String>(
+        options,
+        _stubSel[key] ?? options.first.$1,
+        (v) => setState(() => _stubSel[key] = v),
+      );
+
+  // =================== SECTION 1: VOICE INPUT ===================
+  List<_CardSpec> _voiceInputCards(AppState app) {
+    return [
+      _CardSpec(evsCard(
+        context,
+        icon: Icons.mic_none,
+        title: app.t('cardStt'),
+        rows: [
+          evsRow(
+            label: app.t('sttEngine'),
+            desc: app.t('sttEngineDesc'),
+            control: _stubSegmented('sttEngine', [
+              ('windows', 'Windows STT'),
+              ('whisper', app.t('whisperOffline')),
+            ]),
+          ),
+          evsRow(
+            label: app.t('whisperModel'),
+            desc: app.t('whisperModelDesc'),
+            control: evsSelectButton('small (244 MB)'),
+          ),
+          evsRow(
+            label: app.t('recognitionLanguage'),
+            desc: app.t('recognitionLanguageDesc'),
+            control: evsSelectButton(app.lang == 'ru' ? 'Русский' : 'English'),
+          ),
+        ],
+      )),
+      _CardSpec(evsCard(
+        context,
+        icon: Icons.settings_voice_outlined,
+        title: app.t('cardInputDevice'),
+        rows: [
+          evsRow(
+            label: app.t('inputDevice'),
+            desc: app.t('inputDeviceDesc'),
+            control: evsSelectButton(app.t('defaultDevice')),
+          ),
+          evsRow(
+            label: app.t('micTest'),
+            desc: app.t('micTestDesc'),
+            control: evsGhostButton(app.t('runTest'), Icons.play_arrow),
+          ),
+          evsRow(
+            label: app.t('inputLevel'),
+            control: const SizedBox(
+              width: 180,
+              child: ClipRRect(
+                borderRadius: BorderRadius.all(Radius.circular(3)),
+                child: LinearProgressIndicator(
+                  value: 0.0,
+                  minHeight: 6,
+                  backgroundColor: Color(0x14FFFFFF),
+                  valueColor: AlwaysStoppedAnimation(_evsGMid),
+                ),
+              ),
+            ),
+          ),
+        ],
+      )),
+      _CardSpec(evsCard(
+        context,
+        icon: Icons.headset_mic_outlined,
+        title: app.t('cardListenMode'),
+        rows: [
+          evsRow(
+            label: app.t('activationMode'),
+            desc: app.t('activationModeDesc'),
+            control: _stubSegmented('activation', [
+              ('continuous', app.t('continuous')),
+              ('ptt', 'Push-to-Talk'),
+            ]),
+          ),
+          evsRow(
+            label: app.t('autoSendPause'),
+            desc: app.t('autoSendPauseDesc'),
+            control: evsToggle(app.micAutoSend, (v) => app.setMicAutoSend(v)),
+          ),
+          evsRow(
+            label: app.t('pauseDuration'),
+            desc: app.t('pauseDurationDesc'),
+            control: evsSlider(
+              value: app.micPauseSeconds.toDouble().clamp(1, 10),
+              min: 1,
+              max: 10,
+              divisions: 9,
+              label: '${app.micPauseSeconds} ${app.t('secShort')}',
+              onChanged: (v) => app.setMicPauseSeconds(v.round()),
+            ),
+          ),
+          evsRow(
+            label: app.t('showPartial'),
+            desc: app.t('showPartialDesc'),
+            control: _stubToggle('showPartial'),
+          ),
+        ],
+      )),
+      _CardSpec(evsCard(
+        context,
+        icon: Icons.graphic_eq,
+        title: app.t('cardVoiceViz'),
+        rows: [
+          evsRow(
+            label: app.t('vizType'),
+            desc: app.t('vizTypeDesc'),
+            control: _stubSegmented('vizType', [
+              ('sphere', app.t('vizSphere')),
+              ('waves', app.t('vizWaves')),
+              ('bars', app.t('vizBars')),
+              ('none', app.t('vizNone')),
+            ]),
+          ),
+          evsRow(
+            label: app.t('showVizBg'),
+            desc: app.t('showVizBgDesc'),
+            control: _stubToggle('showVizBg'),
+          ),
+        ],
+      )),
+    ];
+  }
+}
+
+/* ---- shared desktop-settings building blocks (mockup styling) ---- */
+
+Widget evsCard(
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  required List<Widget> rows,
+}) {
+  return Container(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(18),
+      color: Colors.white.withValues(alpha: 0.033),
+      border: Border.all(color: _evsStroke),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(18, 13, 18, 11),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Color(0x0AFFFFFF))),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0x268A7BE0),
+                ),
+                child: Icon(icon, size: 13, color: _evsViolet2),
+              ),
+              const SizedBox(width: 9),
+              Text(title.toUpperCase(),
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF8890A8))),
+            ],
+          ),
+        ),
+        ...rows,
+      ],
+    ),
+  );
+}
+
+Widget evsRow({
+  required String label,
+  String? desc,
+  required Widget control,
+}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: Color(0x09FFFFFF))),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFD0D4E2))),
+              if (desc != null) ...[
+                const SizedBox(height: 2),
+                Text(desc,
+                    style: const TextStyle(
+                        fontSize: 12, height: 1.4, color: Color(0xFF6E7280))),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        control,
+      ],
+    ),
+  );
+}
+
+Widget evsSegmented<T>(
+  List<(T, String)> options,
+  T value,
+  ValueChanged<T> onChanged,
+) {
+  return Container(
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(11),
+      color: Colors.white.withValues(alpha: 0.055),
+      border: Border.all(color: _evsStroke),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final o in options)
+          GestureDetector(
+            onTap: () => onChanged(o.$1),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: o.$1 == value
+                    ? const Color(0x3D8A7BE0)
+                    : Colors.transparent,
+                border: Border.all(
+                  color: o.$1 == value
+                      ? const Color(0x478A7BE0)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Text(o.$2,
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: o.$1 == value
+                          ? const Color(0xFFD0CCF6)
+                          : const Color(0xFF6E7280))),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+Widget evsToggle(bool value, ValueChanged<bool> onChanged) {
+  return GestureDetector(
+    onTap: () => onChanged(!value),
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: 42,
+      height: 23,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        gradient: value
+            ? const LinearGradient(colors: [_evsGBlue, _evsGMid])
+            : null,
+        color: value ? null : const Color(0xFF1E1F2E),
+        border: Border.all(
+            color: value ? Colors.transparent : const Color(0x1AFFFFFF)),
+      ),
+      alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+      padding: const EdgeInsets.all(2),
+      child: Container(
+        width: 17,
+        height: 17,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+        ),
+      ),
+    ),
+  );
+}
+
+// Dropdown-styled display button (non-functional placeholder for stub selects).
+Widget evsSelectButton(String label, {double minWidth = 148, VoidCallback? onTap}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      constraints: BoxConstraints(minWidth: minWidth),
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: Colors.white.withValues(alpha: 0.06),
+        border: Border.all(color: const Color(0x14FFFFFF)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(label,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFD0D4E2))),
+          ),
+          const SizedBox(width: 7),
+          const Icon(Icons.keyboard_arrow_down,
+              size: 16, color: Color(0xFF6E7280)),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget evsGhostButton(String label, IconData icon, {VoidCallback? onTap}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.white.withValues(alpha: 0.042),
+        border: Border.all(color: const Color(0x14FFFFFF)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: const Color(0xFF6E7280)),
+          const SizedBox(width: 6),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6E7280))),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget evsSlider({
+  required double value,
+  required double min,
+  required double max,
+  int? divisions,
+  required String label,
+  required ValueChanged<double> onChanged,
+}) {
+  return SizedBox(
+    width: 210,
+    child: Row(
+      children: [
+        Expanded(
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            divisions: divisions,
+            activeColor: _evsViolet,
+            onChanged: onChanged,
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 46,
+          child: Text(label,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: _evsViolet)),
+        ),
+      ],
+    ),
+  );
+}
+
+// Full-width labelled slider (Style/Generation cards in the mockups).
+Widget evsNamedSlider({
+  required String label,
+  String? desc,
+  required double value,
+  double min = 0,
+  double max = 1,
+  String? valueLabel,
+  String? left,
+  String? right,
+  required ValueChanged<double> onChanged,
+}) {
+  return Container(
+    padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: Color(0x09FFFFFF))),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFD0D4E2))),
+            if (valueLabel != null)
+              Text(valueLabel,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: _evsViolet)),
+          ],
+        ),
+        if (desc != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(desc,
+                style: const TextStyle(fontSize: 11.5, color: Color(0xFF4A4F5E))),
+          ),
+        SliderTheme(
+          data: const SliderThemeData(
+            trackHeight: 4,
+            overlayShape: RoundSliderOverlayShape(overlayRadius: 14),
+          ),
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            activeColor: _evsViolet,
+            inactiveColor: const Color(0x1AFFFFFF),
+            onChanged: onChanged,
+          ),
+        ),
+        if (left != null || right != null)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(left ?? '',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF4A4F5E))),
+              Text(right ?? '',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF4A4F5E))),
+            ],
+          ),
+      ],
+    ),
+  );
+}
+
+// Selectable connection-mode card (Model section).
+Widget evsRadioCard({
+  required bool selected,
+  required String title,
+  required String desc,
+  required VoidCallback onTap,
+  String? extra,
+}) {
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(14),
+    child: Container(
+      padding: const EdgeInsets.fromLTRB(15, 13, 15, 13),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: selected ? const Color(0x1A8A7BE0) : Colors.white.withValues(alpha: 0.03),
+        border: Border.all(
+            color: selected ? const Color(0x4D8A7BE0) : const Color(0x0FFFFFFF)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 18,
+            height: 18,
+            margin: const EdgeInsets.only(top: 1),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color: selected ? _evsViolet : const Color(0x33FFFFFF), width: 2),
+            ),
+            alignment: Alignment.center,
+            child: selected
+                ? Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                        shape: BoxShape.circle, color: _evsViolet))
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: selected
+                            ? const Color(0xFFD4CFF0)
+                            : const Color(0xFFD0D4E2))),
+                const SizedBox(height: 2),
+                Text(desc,
+                    style: const TextStyle(
+                        fontSize: 12, height: 1.35, color: Color(0xFF6E7280))),
+                if (extra != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.white.withValues(alpha: 0.04),
+                        border: Border.all(color: _evsStroke),
+                      ),
+                      child: Text(extra,
+                          style: const TextStyle(
+                              fontSize: 12.5, color: Color(0xFF8890A8))),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget evsAddButton(String label, VoidCallback onTap,
+    {IconData icon = Icons.add, bool small = false}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: EdgeInsets.symmetric(horizontal: small ? 12 : 16, vertical: small ? 4 : 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: const Color(0x268A7BE0),
+        border: Border.all(color: const Color(0x408A7BE0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: small ? 12 : 13, color: const Color(0xFFC0B8F0)),
+          const SizedBox(width: 7),
+          Text(label,
+              style: TextStyle(
+                  fontSize: small ? 12 : 13,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFC0B8F0))),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget evsDangerButton(String label, VoidCallback onTap) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: const Color(0x1FE05D5D),
+        border: Border.all(color: const Color(0x40E05D5D)),
+      ),
+      child: Text(label,
+          style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFFF0A0A0))),
+    ),
+  );
+}
+
+// App version line for the About section (real data via package_info_plus).
+class _VersionText extends StatelessWidget {
+  const _VersionText();
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snap) {
+        final info = snap.data;
+        final text =
+            info == null ? '—' : '${info.version} · build ${info.buildNumber}';
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: const Color(0x1F8A7BE0),
+            border: Border.all(color: const Color(0x408A7BE0)),
+          ),
+          child: Text(text,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFC0B8F0))),
+        );
+      },
+    );
+  }
+}
+
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  // When true, the screen is embedded inside the desktop shell (DesktopHome):
+  // it drops its own drawer (the desktop sidebar replaces it) and renders the
+  // desktop top bar instead of the mobile one. The composer, message list and
+  // empty/hero state are reused unchanged.
+  final bool desktop;
+  const ChatScreen({super.key, this.desktop = false});
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
@@ -4879,11 +7650,124 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _openSettings() {
     if (!mounted) return;
+    if (widget.desktop) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const DesktopSettings()),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const SettingsSheet(),
+    );
+  }
+
+  // Desktop top bar (mockup): model pill on the left, an online status badge,
+  // and a profile button on the right. The settings entry lives in the
+  // sidebar (DesktopHome), so it is not repeated here.
+  Widget _desktopTopBar(AppState app) {
+    final lockedModel = app.current?.rpModeEnabled == true
+        ? app.current?.rpConfig?.lockedModel
+        : null;
+    final isLocal = app.isLocalModel(lockedModel ?? app.selectedModel);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 24, 12),
+      child: Row(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: () {
+              app.buzz();
+              if (lockedModel != null) {
+                showAppSnackBar(context, app.t('rpModelLockedToast'));
+                return;
+              }
+              _openModelMenu();
+            },
+            child: _modelBubbleWrap(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      app.loadingModels
+                          ? app.t('loadingModels')
+                          : app.modelDisplayName(
+                              lockedModel ?? app.selectedModel,
+                              withSuffix: false,
+                            ),
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _txt(context),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    lockedModel != null
+                        ? Icons.lock_outline
+                        : Icons.keyboard_arrow_down,
+                    color: _sub(context),
+                    size: lockedModel != null ? 16 : 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Spacer(),
+          _desktopStatusBadge(app, isLocal),
+          const SizedBox(width: 12),
+          _circleBtn(
+            Icons.manage_accounts_outlined,
+            _openChatPersonalization,
+            tooltip: app.t('persPersona'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _desktopStatusBadge(AppState app, bool isLocal) {
+    const green = Color(0xFF54E08A);
+    final label = isLocal
+        ? '${app.t('statusLocalModel')} · ${app.t('statusOnline')}'
+        : '${app.t('statusRemoteModel')} · ${app.t('statusOnline')}';
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: green.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: green.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: green,
+              boxShadow: [
+                BoxShadow(color: green, blurRadius: 9, spreadRadius: 1),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFB8E8C8),
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -4915,6 +7799,40 @@ class _ChatScreenState extends State<ChatScreen> {
     final conv = app.current;
     final hasMessages = conv != null && conv.messages.isNotEmpty;
 
+    final body = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: SafeArea(
+        top: !widget.desktop,
+        child: Column(
+          children: [
+            widget.desktop ? _desktopTopBar(app) : _topBar(app),
+            if (app.isModelLoading) _modelLoadingCard(app),
+            Expanded(
+              child: hasMessages ? _messageList(conv, app) : _emptyState(app),
+            ),
+            if (app.showPromptChips && !hasMessages) _promptChips(app),
+            if (conv != null &&
+                conv.rpModeEnabled &&
+                conv.rpConfig != null &&
+                RPMemoryManager.checkContextThreshold(
+                  conv.messages,
+                  conv.rpConfig!,
+                ))
+              _compressionBanner(conv, app),
+            _inputBar(app),
+          ],
+        ),
+      ),
+    );
+
+    // Desktop shell provides its own sidebar (DesktopHome) instead of the
+    // mobile edge-swipe drawer, and a transparent scaffold so the shell's
+    // gradient background shows through.
+    if (widget.desktop) {
+      return Scaffold(backgroundColor: Colors.transparent, body: body);
+    }
+
     return Scaffold(
       backgroundColor: _bg(context),
       // Full-width left drawer holds the chat list — opened by an edge swipe
@@ -4933,33 +7851,7 @@ class _ChatScreenState extends State<ChatScreen> {
         shape: const RoundedRectangleBorder(),
         child: const ConversationsSheet(embedded: true),
       ),
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _topBar(app),
-              if (app.isModelLoading) _modelLoadingCard(app),
-              Expanded(
-                child: hasMessages
-                    ? _messageList(conv, app)
-                    : _emptyState(app),
-              ),
-              if (app.showPromptChips && !hasMessages) _promptChips(app),
-              if (conv != null &&
-                  conv.rpModeEnabled &&
-                  conv.rpConfig != null &&
-                  RPMemoryManager.checkContextThreshold(
-                    conv.messages,
-                    conv.rpConfig!,
-                  ))
-                _compressionBanner(conv, app),
-              _inputBar(app),
-            ],
-          ),
-        ),
-      ),
+      body: body,
     );
   }
 
@@ -7895,7 +10787,7 @@ class SettingsSheet extends StatelessWidget {
         final info = snapshot.data;
         if (info == null) return const SizedBox.shrink();
         return Text(
-          'Mirai v${info.version} (${info.buildNumber})',
+          'EVS v${info.version} (${info.buildNumber})',
           style: TextStyle(color: _sub(context), fontSize: 12),
         );
       },

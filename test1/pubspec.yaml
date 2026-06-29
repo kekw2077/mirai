@@ -1,7 +1,7 @@
 name: mirai
-description: Mirai — local & remote AI chat client
+description: EVS — local & remote AI chat client
 publish_to: "none"
-version: 2.14.2+44
+version: 1.0.0+1
 
 environment:
   sdk: ">=3.10.0 <4.0.0"

@@ -20,12 +20,12 @@
 
 ```bash
 flutter run -d windows            # запуск/отладка на десктопе
-flutter build windows             # релизная сборка → build\windows\x64\runner\Release\mirai.exe
-flutter build windows --debug     # дебаг-сборка для смоука → ...\Debug\mirai.exe
+flutter build windows             # релизная сборка → build\windows\x64\runner\Release\evs.exe
+flutter build windows --debug     # дебаг-сборка для смоука → ...\Debug\evs.exe
 flutter analyze                   # линт/типы
 ```
 
-- Смоук-проверка: собрать debug, запустить `mirai.exe`, убедиться, что не падает.
+- Смоук-проверка: собрать debug, запустить `evs.exe`, убедиться, что не падает.
 - Android-окружение (NDK, Gradle, junction `C:\Android\sdk`) для десктопа **не нужно** — это всё про мобильную сборку.
 
 ## 3. Версии и changelog
