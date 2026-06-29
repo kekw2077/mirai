@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' as io;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -12,6 +13,10 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:record/record.dart';
+import 'package:window_manager/window_manager.dart';
+import 'package:tray_manager/tray_manager.dart';
+import 'package:hotkey_manager/hotkey_manager.dart';
+import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:uuid/uuid.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -29,9 +34,18 @@ const _minSplashDuration = Duration(milliseconds: 300);
 void main() async {
   final startedAt = DateTime.now();
   WidgetsFlutterBinding.ensureInitialized();
+  final isWindows = defaultTargetPlatform == TargetPlatform.windows;
+  if (isWindows) {
+    await windowManager.ensureInitialized();
+    await hotKeyManager.unregisterAll();
+  }
   final prefs = await SharedPreferences.getInstance();
   final app = AppState(prefs);
   await app.load();
+
+  if (isWindows) {
+    await DesktopIntegration.instance.init(app);
+  }
 
   final elapsed = DateTime.now().difference(startedAt);
   if (elapsed < _minSplashDuration) {
@@ -84,6 +98,12 @@ const Map<String, Map<String, String>> _i18n = {
     'autostartDesc': 'Запускать EVS при входе в систему',
     'minimizeToTray': 'Сворачивать в трей',
     'minimizeToTrayDesc': 'Убирать в значок при сворачивании',
+    'closeToTray': 'Закрывать в трей',
+    'closeToTrayDesc': 'При закрытии окна сворачивать в трей, а не выходить',
+    'globalHotkey': 'Глобальная горячая клавиша',
+    'globalHotkeyDesc': 'Показать окно EVS из любого приложения',
+    'trayShow': 'Показать EVS',
+    'trayQuit': 'Выход',
     'notifications': 'Уведомления',
     'notificationsDesc': 'Показывать системные уведомления Windows',
     'uiAnimations': 'Анимации интерфейса',
@@ -640,6 +660,12 @@ const Map<String, Map<String, String>> _i18n = {
     'autostartDesc': 'Start EVS when you sign in',
     'minimizeToTray': 'Minimize to tray',
     'minimizeToTrayDesc': 'Hide to the tray icon when minimized',
+    'closeToTray': 'Close to tray',
+    'closeToTrayDesc': 'Closing the window hides to tray instead of quitting',
+    'globalHotkey': 'Global hotkey',
+    'globalHotkeyDesc': 'Show the EVS window from any application',
+    'trayShow': 'Show EVS',
+    'trayQuit': 'Quit',
     'notifications': 'Notifications',
     'notificationsDesc': 'Show Windows system notifications',
     'uiAnimations': 'UI animations',
@@ -3015,6 +3041,10 @@ class AppState extends ChangeNotifier {
   // User-defined voice commands (catalog). Execution lands in the native
   // phase; for now they are stored and editable.
   List<VoiceCommand> voiceCommands = [];
+  // Desktop window/tray/startup preferences (applied by DesktopIntegration).
+  bool autostart = false;
+  bool minimizeToTray = true;
+  bool closeToTray = true;
 
   List<Conversation> conversations = [];
   Conversation? current;
@@ -3082,6 +3112,9 @@ class AppState extends ChangeNotifier {
         (prefs.getStringList('downloadedLocalModelIds') ?? []).toSet();
     lastSeenVersion = prefs.getString('lastSeenVersion');
     inferenceMode = prefs.getString('inferenceMode') ?? 'local';
+    autostart = prefs.getBool('autostart') ?? false;
+    minimizeToTray = prefs.getBool('minimizeToTray') ?? true;
+    closeToTray = prefs.getBool('closeToTray') ?? true;
     final vcRaw = prefs.getString('voiceCommands');
     if (vcRaw != null) {
       try {
@@ -3141,6 +3174,9 @@ class AppState extends ChangeNotifier {
     );
     await prefs.setString('persona', jsonEncode(persona.toJson()));
     await prefs.setString('inferenceMode', inferenceMode);
+    await prefs.setBool('autostart', autostart);
+    await prefs.setBool('minimizeToTray', minimizeToTray);
+    await prefs.setBool('closeToTray', closeToTray);
     await prefs.setString(
       'voiceCommands',
       jsonEncode(voiceCommands.map((c) => c.toJson()).toList()),
@@ -3153,6 +3189,24 @@ class AppState extends ChangeNotifier {
 
   void setInferenceMode(String v) {
     inferenceMode = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setAutostart(bool v) {
+    autostart = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setMinimizeToTray(bool v) {
+    minimizeToTray = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCloseToTray(bool v) {
+    closeToTray = v;
     _save();
     notifyListeners();
   }
@@ -5158,6 +5212,111 @@ String _evsRelTime(AppState app, DateTime dt) {
   return '${dt.day}.${two(dt.month)}';
 }
 
+// Windows desktop integration: system tray, minimize/close-to-tray, a global
+// "show window" hotkey (Ctrl+Shift+Space) and launch-at-startup. All calls are
+// guarded to Windows and wrapped in try/catch so an unsupported platform or a
+// missing capability never crashes startup.
+class DesktopIntegration with WindowListener, TrayListener {
+  DesktopIntegration._();
+  static final DesktopIntegration instance = DesktopIntegration._();
+
+  AppState? _app;
+
+  Future<void> init(AppState app) async {
+    if (defaultTargetPlatform != TargetPlatform.windows) return;
+    _app = app;
+    try {
+      launchAtStartup.setup(
+        appName: 'EVS',
+        appPath: io.Platform.resolvedExecutable,
+      );
+      await applyAutostart(app.autostart);
+
+      await trayManager.setIcon('assets/icon/app_icon.ico');
+      await trayManager.setToolTip('EVS');
+      await _rebuildTrayMenu();
+      trayManager.addListener(this);
+
+      await windowManager.setPreventClose(true);
+      windowManager.addListener(this);
+
+      await hotKeyManager.unregisterAll();
+      final hk = HotKey(
+        key: PhysicalKeyboardKey.space,
+        modifiers: [HotKeyModifier.control, HotKeyModifier.shift],
+        scope: HotKeyScope.system,
+      );
+      await hotKeyManager.register(hk, keyDownHandler: (_) => _show());
+    } catch (_) {}
+  }
+
+  Future<void> _rebuildTrayMenu() async {
+    final app = _app;
+    await trayManager.setContextMenu(Menu(items: [
+      MenuItem(key: 'show', label: app?.t('trayShow') ?? 'Show EVS'),
+      MenuItem.separator(),
+      MenuItem(key: 'quit', label: app?.t('trayQuit') ?? 'Quit'),
+    ]));
+  }
+
+  Future<void> applyAutostart(bool enable) async {
+    if (defaultTargetPlatform != TargetPlatform.windows) return;
+    try {
+      if (enable) {
+        await launchAtStartup.enable();
+      } else {
+        await launchAtStartup.disable();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _show() async {
+    try {
+      await windowManager.show();
+      await windowManager.focus();
+    } catch (_) {}
+  }
+
+  Future<void> _quit() async {
+    try {
+      await windowManager.setPreventClose(false);
+      await windowManager.destroy();
+    } catch (_) {}
+  }
+
+  @override
+  void onWindowClose() {
+    if (_app?.closeToTray ?? false) {
+      windowManager.hide();
+    } else {
+      _quit();
+    }
+  }
+
+  @override
+  void onWindowMinimize() {
+    if (_app?.minimizeToTray ?? false) windowManager.hide();
+  }
+
+  @override
+  void onTrayIconMouseDown() => _show();
+
+  @override
+  void onTrayIconRightMouseDown() => trayManager.popUpContextMenu();
+
+  @override
+  void onTrayMenuItemClick(MenuItem menuItem) {
+    switch (menuItem.key) {
+      case 'show':
+        _show();
+        break;
+      case 'quit':
+        _quit();
+        break;
+    }
+  }
+}
+
 // On Windows the EVS desktop shell is the root; every other platform keeps
 // the existing mobile ChatScreen. Uses defaultTargetPlatform (not dart:io)
 // so the shared file still compiles for web.
@@ -6087,22 +6246,35 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             evsRow(
               label: app.t('autostart'),
               desc: app.t('autostartDesc'),
-              control: _stubToggle('autostart'),
+              control: evsToggle(app.autostart, (v) {
+                app.setAutostart(v);
+                DesktopIntegration.instance.applyAutostart(v);
+              }),
             ),
             evsRow(
               label: app.t('minimizeToTray'),
               desc: app.t('minimizeToTrayDesc'),
-              control: _stubToggle('tray'),
+              control:
+                  evsToggle(app.minimizeToTray, (v) => app.setMinimizeToTray(v)),
             ),
             evsRow(
-              label: app.t('notifications'),
-              desc: app.t('notificationsDesc'),
-              control: _stubToggle('notifications'),
+              label: app.t('closeToTray'),
+              desc: app.t('closeToTrayDesc'),
+              control: evsToggle(app.closeToTray, (v) => app.setCloseToTray(v)),
             ),
             evsRow(
-              label: app.t('uiAnimations'),
-              desc: app.t('uiAnimationsDesc'),
-              control: _stubToggle('animations'),
+              label: app.t('globalHotkey'),
+              desc: app.t('globalHotkeyDesc'),
+              control: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _KeyCap('Ctrl'),
+                  _KeySep(),
+                  _KeyCap('Shift'),
+                  _KeySep(),
+                  _KeyCap('Space'),
+                ],
+              ),
             ),
           ],
         ),
@@ -7568,6 +7740,36 @@ class _VersionText extends StatelessWidget {
       },
     );
   }
+}
+
+class _KeyCap extends StatelessWidget {
+  final String label;
+  const _KeyCap(this.label);
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(7),
+          color: Colors.white.withValues(alpha: 0.08),
+          border: Border.all(color: const Color(0x21FFFFFF)),
+        ),
+        child: Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFD0D4E4),
+                fontFamily: 'monospace')),
+      );
+}
+
+class _KeySep extends StatelessWidget {
+  const _KeySep();
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 4),
+        child:
+            Text('+', style: TextStyle(fontSize: 11, color: Color(0xFF4A4F5E))),
+      );
 }
 
 class ChatScreen extends StatefulWidget {

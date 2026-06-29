@@ -17,6 +17,12 @@ dependencies:
   # Lightweight mic amplitude meter for the desktop sidebar visualizer
   # (PCM stream -> RMS). Falls back gracefully if streaming is unavailable.
   record: ^6.0.0
+  # Desktop (Windows) integration: window control + system tray + global
+  # hotkey + launch-at-startup. Guarded at runtime to Windows.
+  window_manager: ^0.4.2
+  tray_manager: ^0.3.0
+  hotkey_manager: ^0.2.3
+  launch_at_startup: ^0.5.1
   uuid: ^4.5.1
   flutter_test:
     sdk: flutter
@@ -39,6 +45,7 @@ dev_dependencies:
 flutter:
   assets:
     - shorebird.yaml
+    - assets/icon/app_icon.ico
   uses-material-design: true
   fonts:
     - family: Nunito
