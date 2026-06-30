@@ -29,6 +29,14 @@
     <item>
       <title>EVS 1.0.1</title>
       <description><![CDATA[
+        <style>
+          html,body{background:#0E0E15;color:#E6E8F0;margin:0;padding:14px 18px;
+            font-family:'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;}
+          h1,h2,h3,b,strong{color:#FFFFFF;}
+          a{color:#8A7BE0;}
+          ul{margin:6px 0;padding-left:20px;}
+          li{margin:5px 0;}
+        </style>
         <ul>
           <li>Тестовый релиз для проверки авто-обновления.</li>
           <li>Версия в «О приложении» теперь 1.0.1.</li>
@@ -47,6 +55,14 @@
     <item>
       <title>EVS 1.0.0</title>
       <description><![CDATA[
+        <style>
+          html,body{background:#0E0E15;color:#E6E8F0;margin:0;padding:14px 18px;
+            font-family:'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;}
+          h1,h2,h3,b,strong{color:#FFFFFF;}
+          a{color:#8A7BE0;}
+          ul{margin:6px 0;padding-left:20px;}
+          li{margin:5px 0;}
+        </style>
         <ul>
           <li>Новый десктопный интерфейс EVS.</li>
           <li>Системный трей, автозапуск, глобальная горячая клавиша.</li>

@@ -87,3 +87,32 @@ Remove-Item dsaparam.pem
 > The appcast and installer are hosted on GitHub — no server to run. Hosting
 > can move to GitHub Pages/Releases later without app changes (just update
 > `updateFeedUrl`).
+
+## Components (sidecar + voice clone) — downloaded on demand
+
+Heavy native pieces are **not** bundled in the installer (which keeps it ~15 MB
+and every update small). They live as GitHub release assets, described by
+[`components.json`](components.json), and the app downloads + sha256-verifies
+them into its data folder (`ComponentManager`).
+
+- **sidecar** (`evs_sidecar.exe`, ~95 MB) — Whisper STT / VAD / TTS / intent.
+- **tts-clone** (`evs_tts.exe`, large) — XTTS voice cloning (Phase 4).
+
+To (re)publish the sidecar component:
+
+```powershell
+# 1. Build the exe and refresh components.json (sha256 + size):
+cd sidecar
+.\build_exe.ps1 -ComponentVersion 2          # bump version when the exe changes
+
+# 2. Upload the exe to the components release (create the tag once):
+gh release create desktop-components --title "EVS components" --notes "On-demand components" 2>$null
+gh release upload desktop-components .\dist\evs_sidecar.exe --clobber
+
+# 3. Commit dist\components.json on the `desktop` branch (the app reads it from
+#    raw.githubusercontent, ~5 min cache).
+```
+
+The Whisper model itself is fetched by faster-whisper on first use into the
+app's data folder (`HF_HOME`), so changing the Whisper size just downloads that
+size on demand.
