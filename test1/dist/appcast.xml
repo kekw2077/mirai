@@ -21,7 +21,7 @@
      xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>EVS</title>
-    <link>https://raw.githubusercontent.com/kekw2077/mirai/desktop/dist/appcast.xml</link>
+    <link>https://raw.githubusercontent.com/kekw2077/mirai/desktop/test1/dist/appcast.xml</link>
     <description>EVS desktop (Windows) updates</description>
     <language>ru</language>
 
@@ -40,8 +40,8 @@
         url="https://github.com/kekw2077/mirai/releases/download/desktop-v1.0.0/EVS-Setup-1.0.0.exe"
         sparkle:version="1.0.0"
         sparkle:os="windows"
-        sparkle:dsaSignature="MD0CHCFbF+0ZNPgZalLniml4A2y27/1ddcC+ceT2OxkCHQCAZkRPjG+2GL4ElLsxo5bCV676QAlbaodR79kN"
-        length="114949034"
+        sparkle:dsaSignature="MDwCHCU/YBSi4gQTpfRyIyGGdLGyEu4pButMkNiADa8CHFJIiIauamt0vQL8yJkJ7+TXt+VssGdvzoH5XVc="
+        length="114948807"
         type="application/octet-stream" />
     </item>
   </channel>

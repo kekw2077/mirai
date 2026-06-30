@@ -5530,8 +5530,10 @@ class DesktopIntegration with WindowListener, TrayListener {
   // enclosure (see dist/appcast.xml + dist/README.md). Updating the app =
   // publishing a new installer + bumping this feed. Unlike Shorebird this
   // delivers FULL builds, native code included.
+  // NB: the Flutter project lives in the repo's test1/ subdir, so the raw path
+  // includes test1/. Branch is `desktop`.
   static const String updateFeedUrl =
-      'https://raw.githubusercontent.com/kekw2077/mirai/desktop/dist/appcast.xml';
+      'https://raw.githubusercontent.com/kekw2077/mirai/desktop/test1/dist/appcast.xml';
 
   // Effective feed: an EVS_UPDATE_FEED env var overrides the baked-in URL. Lets
   // you point a build at a staging/local appcast (e.g. http://localhost:8000/
