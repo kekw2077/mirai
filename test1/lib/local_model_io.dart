@@ -17,6 +17,14 @@ Future<String> updateDownloadPath(String fileName) async {
   return '${dir.path}/$fileName';
 }
 
+// Directory for on-demand downloaded components (sidecar exe, TTS engine).
+Future<String> componentsDirPath() async {
+  final dir = await getApplicationSupportDirectory();
+  final c = Directory('${dir.path}/components');
+  if (!await c.exists()) await c.create(recursive: true);
+  return c.path;
+}
+
 Future<void> installApk(String path) async {
   final result = await OpenFilex.open(path);
   if (result.type != ResultType.done) {

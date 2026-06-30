@@ -20,6 +20,7 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:auto_updater/auto_updater.dart';
+import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -85,6 +86,14 @@ const Map<String, Map<String, String>> _i18n = {
     'statusLocalModel': 'Локальная нейросеть',
     'statusRemoteModel': 'Удалённая нейросеть',
     'statusOnline': 'онлайн',
+    'statusConnected': 'подключена',
+    'statusConnecting': 'подключение…',
+    'statusNoModel': 'модель не выбрана',
+    'statusDisconnected': 'не подключена',
+    'statusError': 'ошибка подключения',
+    'statusTitle': 'Состояние нейросети',
+    'modelField': 'Модель',
+    'serverField': 'Сервер',
     'navGeneral': 'Общие',
     'navGeneralSub': 'настройки приложения',
     'navVoiceInput': 'Голосовой ввод',
@@ -130,6 +139,11 @@ const Map<String, Map<String, String>> _i18n = {
     'sidecarConnected': 'Подключён',
     'sidecarStarting': 'Запуск…',
     'sidecarStopped': 'Не запущен',
+    'sidecarComponent': 'Компонент движка',
+    'sidecarComponentDesc': 'Догружается отдельно (не входит в установщик)',
+    'download': 'Скачать',
+    'componentReady': 'Установлен',
+    'componentVerifying': 'Проверка…',
     'cardStt': 'Движок STT',
     'sttEngine': 'Движок распознавания',
     'sttEngineDesc': 'Whisper работает офлайн на вашем железе',
@@ -657,6 +671,14 @@ const Map<String, Map<String, String>> _i18n = {
     'statusLocalModel': 'Local model',
     'statusRemoteModel': 'Remote model',
     'statusOnline': 'online',
+    'statusConnected': 'connected',
+    'statusConnecting': 'connecting…',
+    'statusNoModel': 'no model selected',
+    'statusDisconnected': 'not connected',
+    'statusError': 'connection error',
+    'statusTitle': 'Model status',
+    'modelField': 'Model',
+    'serverField': 'Server',
     'navGeneral': 'General',
     'navGeneralSub': 'application settings',
     'navVoiceInput': 'Voice input',
@@ -702,6 +724,11 @@ const Map<String, Map<String, String>> _i18n = {
     'sidecarConnected': 'Connected',
     'sidecarStarting': 'Starting…',
     'sidecarStopped': 'Stopped',
+    'sidecarComponent': 'Engine component',
+    'sidecarComponentDesc': 'Downloaded separately (not in the installer)',
+    'download': 'Download',
+    'componentReady': 'Installed',
+    'componentVerifying': 'Verifying…',
     'cardStt': 'STT engine',
     'sttEngine': 'Recognition engine',
     'sttEngineDesc': 'Whisper runs offline on your hardware',
@@ -2931,6 +2958,10 @@ enum AppThemeMode { system, light, dark, gray }
 // is active. See GlassSurface / _isGlass.
 enum AppStyle { standard, liquidGlass }
 
+// Real connection/readiness state of the selected model, shown by the desktop
+// status badge (and its detail dialog).
+enum ConnectionStatus { connecting, connected, noModel, disconnected, error }
+
 class AppState extends ChangeNotifier {
   final SharedPreferences prefs;
   AppState(this.prefs);
@@ -3093,10 +3124,32 @@ class AppState extends ChangeNotifier {
   String inputDeviceId = ''; // '' = system default microphone
   String listenMode = 'continuous'; // 'continuous' | 'ptt'
   String sttLanguage = 'auto'; // 'auto' | 'ru' | 'en'
+  String whisperModel = 'small'; // tiny | base | small | medium (sidecar)
+  String sttEngine = 'whisper'; // 'whisper' (sidecar) | 'windows' (speech_to_text)
 
   // STT language resolved against the UI language when set to 'auto'.
   String get effectiveSttLanguage =>
       sttLanguage == 'auto' ? lang : sttLanguage;
+
+  // Real readiness of the selected model for the status badge.
+  ConnectionStatus get connectionStatus {
+    if (loadingModels) return ConnectionStatus.connecting;
+    final sel = selectedModel;
+    if (sel.isEmpty) return ConnectionStatus.noModel;
+    if (isLocalModel(sel)) {
+      final id = sel.substring('local:'.length);
+      return downloadedLocalModelIds.contains(id)
+          ? ConnectionStatus.connected
+          : ConnectionStatus.noModel; // selected but not downloaded yet
+    }
+    // Remote model.
+    if (serverUrl.trim().isEmpty) return ConnectionStatus.disconnected;
+    if (modelsError != null) return ConnectionStatus.error;
+    if (models.where((m) => !isLocalModel(m)).isEmpty) {
+      return ConnectionStatus.disconnected; // never reached the server yet
+    }
+    return ConnectionStatus.connected;
+  }
 
   List<Conversation> conversations = [];
   Conversation? current;
@@ -3170,6 +3223,8 @@ class AppState extends ChangeNotifier {
     inputDeviceId = prefs.getString('inputDeviceId') ?? '';
     listenMode = prefs.getString('listenMode') ?? 'continuous';
     sttLanguage = prefs.getString('sttLanguage') ?? 'auto';
+    whisperModel = prefs.getString('whisperModel') ?? 'small';
+    sttEngine = prefs.getString('sttEngine') ?? 'whisper';
     final vcRaw = prefs.getString('voiceCommands');
     if (vcRaw != null) {
       try {
@@ -3235,6 +3290,8 @@ class AppState extends ChangeNotifier {
     await prefs.setString('inputDeviceId', inputDeviceId);
     await prefs.setString('listenMode', listenMode);
     await prefs.setString('sttLanguage', sttLanguage);
+    await prefs.setString('whisperModel', whisperModel);
+    await prefs.setString('sttEngine', sttEngine);
     await prefs.setString(
       'voiceCommands',
       jsonEncode(voiceCommands.map((c) => c.toJson()).toList()),
@@ -3283,6 +3340,19 @@ class AppState extends ChangeNotifier {
 
   void setSttLanguage(String v) {
     sttLanguage = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setWhisperModel(String v) {
+    whisperModel = v;
+    _save();
+    notifyListeners();
+    SidecarClient.instance.setSttModel(v);
+  }
+
+  void setSttEngine(String v) {
+    sttEngine = v;
     _save();
     notifyListeners();
   }
@@ -5577,6 +5647,11 @@ class DesktopIntegration with WindowListener, TrayListener {
 
       SystemMonitor.instance.start(app);
       unawaited(MicMeter.instance.start(deviceId: app.inputDeviceId));
+      // Load the component manifest (sidecar/TTS download URLs + checksums),
+      // apply the persisted Whisper model, then start the sidecar with whatever
+      // is available (downloaded component / bundled exe / dev source).
+      unawaited(ComponentManager.instance.loadManifest());
+      SidecarClient.instance.setSttModel(app.whisperModel);
       unawaited(SidecarClient.instance.start());
 
       // Auto-update: register the feed and let WinSparkle poll periodically in
@@ -5670,6 +5745,160 @@ class DesktopIntegration with WindowListener, TrayListener {
   }
 }
 
+// ============================ COMPONENT MANAGER ============================
+// Heavy native pieces (the Python sidecar exe, the XTTS voice-clone engine) are
+// NOT bundled in the installer — they're downloaded on demand into the app's
+// data folder and sha256-verified. This keeps the installer (and every update)
+// small. Manifest `components.json` is hosted next to the appcast.
+
+enum ComponentState { absent, downloading, verifying, ready, error }
+
+class ComponentStatus {
+  final ComponentState state;
+  final double progress; // 0..1 while downloading
+  final String? error;
+  const ComponentStatus(this.state, {this.progress = 0, this.error});
+}
+
+class ComponentInfo {
+  final String id;
+  final String fileName;
+  final String version;
+  final String url;
+  final String sha256;
+  final int size;
+  const ComponentInfo(
+      {required this.id,
+      required this.fileName,
+      required this.version,
+      required this.url,
+      required this.sha256,
+      required this.size});
+
+  factory ComponentInfo.fromJson(String id, Map<String, dynamic> j) =>
+      ComponentInfo(
+        id: id,
+        fileName: (j['file'] ?? '$id.bin') as String,
+        version: (j['version'] ?? '') as String,
+        url: (j['url'] ?? '') as String,
+        sha256: (j['sha256'] ?? '') as String,
+        size: (j['size'] ?? 0) as int,
+      );
+}
+
+class ComponentManager {
+  ComponentManager._();
+  static final ComponentManager instance = ComponentManager._();
+
+  static const String manifestUrl =
+      'https://raw.githubusercontent.com/kekw2077/mirai/desktop/test1/dist/components.json';
+
+  Map<String, ComponentInfo> _manifest = {};
+  final Map<String, ValueNotifier<ComponentStatus>> _status = {};
+  String? _dir;
+
+  ValueNotifier<ComponentStatus> statusOf(String id) => _status.putIfAbsent(
+      id, () => ValueNotifier(const ComponentStatus(ComponentState.absent)));
+
+  ComponentInfo? infoOf(String id) => _manifest[id];
+
+  Future<String> _componentsDir() async => _dir ??= await componentsDirPath();
+
+  // Absolute path to a component's file if it's present on disk, else null.
+  Future<String?> installedPath(String id, {String? fileName}) async {
+    final name = fileName ?? _manifest[id]?.fileName ?? '$id.bin';
+    final p = '${await _componentsDir()}${io.Platform.pathSeparator}$name';
+    return await io.File(p).exists() ? p : null;
+  }
+
+  bool isReady(String id) => statusOf(id).value.state == ComponentState.ready;
+
+  Future<void> loadManifest() async {
+    try {
+      final res = await http
+          .get(Uri.parse(manifestUrl))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final j = jsonDecode(res.body) as Map<String, dynamic>;
+        final comps = (j['components'] as Map?)?.cast<String, dynamic>() ?? {};
+        _manifest = {
+          for (final e in comps.entries)
+            e.key: ComponentInfo.fromJson(
+                e.key, (e.value as Map).cast<String, dynamic>())
+        };
+      }
+    } catch (_) {}
+    await refreshStates();
+  }
+
+  Future<void> refreshStates() async {
+    for (final id in _manifest.keys) {
+      final st = statusOf(id);
+      if (st.value.state == ComponentState.downloading ||
+          st.value.state == ComponentState.verifying) {
+        continue;
+      }
+      final p = await installedPath(id);
+      st.value = ComponentStatus(
+          p != null ? ComponentState.ready : ComponentState.absent);
+    }
+  }
+
+  // Ensure a component is present (download if missing). Returns its path.
+  Future<String?> ensure(String id) async {
+    final existing = await installedPath(id);
+    if (existing != null) {
+      statusOf(id).value = const ComponentStatus(ComponentState.ready);
+      return existing;
+    }
+    return download(id);
+  }
+
+  Future<String?> download(String id) async {
+    final info = _manifest[id];
+    if (info == null || info.url.isEmpty) {
+      statusOf(id).value =
+          const ComponentStatus(ComponentState.error, error: 'no manifest');
+      return null;
+    }
+    final st = statusOf(id);
+    final dest =
+        '${await _componentsDir()}${io.Platform.pathSeparator}${info.fileName}';
+    st.value = const ComponentStatus(ComponentState.downloading);
+    try {
+      await downloadFileWithProgress(info.url, dest, (r, t) {
+        st.value = ComponentStatus(ComponentState.downloading,
+            progress: t > 0 ? r / t : 0);
+      }, () => false);
+      st.value = const ComponentStatus(ComponentState.verifying);
+      if (!await _verify(dest, info.sha256)) {
+        try {
+          await io.File(dest).delete();
+        } catch (_) {}
+        st.value = const ComponentStatus(ComponentState.error,
+            error: 'checksum mismatch');
+        return null;
+      }
+      st.value = const ComponentStatus(ComponentState.ready);
+      return dest;
+    } catch (e) {
+      st.value = ComponentStatus(ComponentState.error, error: e.toString());
+      return null;
+    }
+  }
+
+  // Stream the file through sha256 so huge components don't load into memory.
+  Future<bool> _verify(String path, String expected) async {
+    if (expected.isEmpty) return true;
+    try {
+      final digest = await sha256.bind(io.File(path).openRead()).first;
+      return digest.toString().toLowerCase() == expected.toLowerCase();
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
 enum SidecarStatus { stopped, starting, connected }
 
 // Manages the Python voice/ML sidecar: spawns the process (bundled
@@ -5685,6 +5914,7 @@ class SidecarClient {
       ValueNotifier(SidecarStatus.stopped);
   bool sttAvailable = false;
   bool ttsAvailable = false;
+  String _sttModel = 'small'; // Whisper model size sent on connect / on change
 
   final _partial = StreamController<String>.broadcast();
   final _finalText = StreamController<String>.broadcast();
@@ -5703,12 +5933,20 @@ class SidecarClient {
     _starting = true;
     status.value = SidecarStatus.starting;
     try {
-      final launch = _resolveLaunch();
+      final launch = await _resolveLaunchAsync();
       if (launch == null) {
         status.value = SidecarStatus.stopped;
         return;
       }
-      _proc = await io.Process.start(launch.$1, launch.$2, runInShell: false);
+      // Keep Whisper model downloads inside the app's data folder.
+      final env = <String, String>{};
+      try {
+        final cache = '${await componentsDirPath()}'
+            '${io.Platform.pathSeparator}hf-cache';
+        env['HF_HOME'] = cache;
+      } catch (_) {}
+      _proc = await io.Process.start(launch.$1, launch.$2,
+          runInShell: false, environment: env);
       _proc!.stderr.listen((_) {}); // drain
       final ready = Completer<int>();
       _proc!.stdout
@@ -5732,6 +5970,18 @@ class SidecarClient {
     } finally {
       _starting = false;
     }
+  }
+
+  // Prefer the on-demand downloaded component, then fall back to a bundled exe
+  // / dev source. Async because the components dir lookup is async.
+  Future<(String, List<String>)?> _resolveLaunchAsync() async {
+    try {
+      final comp =
+          await ComponentManager.instance.installedPath('sidecar',
+              fileName: 'evs_sidecar.exe');
+      if (comp != null) return (comp, ['--port', '0']);
+    } catch (_) {}
+    return _resolveLaunch();
   }
 
   (String, List<String>)? _resolveLaunch() {
@@ -5767,6 +6017,9 @@ class SidecarClient {
   Future<void> _connect(int port) async {
     _ws = await io.WebSocket.connect('ws://127.0.0.1:$port');
     status.value = SidecarStatus.connected;
+    // Tell the sidecar which Whisper model to use (it lazy-loads on first
+    // transcription / model change).
+    _send({'type': 'stt.config', 'model': _sttModel});
     _ws!.listen((data) {
       try {
         final m = jsonDecode(data as String) as Map<String, dynamic>;
@@ -5800,6 +6053,11 @@ class SidecarClient {
   void sttStart(String language) =>
       _send({'type': 'stt.start', 'language': language});
   void sttStop() => _send({'type': 'stt.stop'});
+  // Switch the Whisper model size live (sidecar reloads on next transcription).
+  void setSttModel(String model) {
+    _sttModel = model;
+    _send({'type': 'stt.config', 'model': model});
+  }
   void speak(String text) => _send({'type': 'tts.speak', 'text': text});
   void parseIntent(String text, List<Map<String, dynamic>> commands,
           {double threshold = 0.5}) =>
@@ -6510,6 +6768,34 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     );
   }
 
+  // Whisper model picker. Sizes are approximate faster-whisper (CT2 int8)
+  // download sizes; the chosen model is fetched on first use into the HF cache.
+  static const List<(String, String)> _whisperSizes = [
+    ('tiny', 'tiny (~75 MB)'),
+    ('base', 'base (~145 MB)'),
+    ('small', 'small (~466 MB)'),
+    ('medium', 'medium (~1.5 GB)'),
+  ];
+
+  Widget _whisperModelControl(AppState app) {
+    final current = _whisperSizes.firstWhere((e) => e.$1 == app.whisperModel,
+        orElse: () => _whisperSizes[2]);
+    return PopupMenuButton<String>(
+      tooltip: '',
+      color: const Color(0xFF1C1C26),
+      onSelected: (v) => app.setWhisperModel(v),
+      itemBuilder: (_) => [
+        for (final s in _whisperSizes)
+          PopupMenuItem<String>(
+            value: s.$1,
+            child: Text(s.$2,
+                style: const TextStyle(color: Color(0xFFD0D4E2), fontSize: 13)),
+          ),
+      ],
+      child: evsSelectButton(current.$2, minWidth: 120),
+    );
+  }
+
   @override
   void dispose() {
     if (_ctrlInit) {
@@ -6776,18 +7062,20 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         title: app.t('cardLangLoc'),
         rows: [
           evsRow(
+            stacked: true,
             label: app.t('interfaceLanguage'),
             desc: app.t('interfaceLanguageDesc'),
-            control: evsSegmented<String>(
+            control: evsSegmentedWide<String>(
               const [('ru', 'RU'), ('en', 'EN')],
               app.lang,
               (v) => app.setLang(v),
             ),
           ),
           evsRow(
+            stacked: true,
             label: app.t('recognitionLanguage'),
             desc: app.t('recognitionLanguageDesc'),
-            control: evsSegmented<String>(
+            control: evsSegmentedWide<String>(
               [('auto', app.t('sttAuto')), ('ru', 'RU'), ('en', 'EN')],
               app.sttLanguage,
               (v) => app.setSttLanguage(v),
@@ -6801,8 +7089,9 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         title: app.t('cardAppearance'),
         rows: [
           evsRow(
+            stacked: true,
             label: app.t('themeMode'),
-            control: evsSegmented<AppThemeMode>(
+            control: evsSegmentedWide<AppThemeMode>(
               [
                 (AppThemeMode.system, app.t('themeSystem')),
                 (AppThemeMode.light, app.t('themeLight')),
@@ -6814,9 +7103,10 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             ),
           ),
           evsRow(
+            stacked: true,
             label: app.t('appStyle'),
             desc: app.t('appStyleDesc'),
-            control: evsSegmented<AppStyle>(
+            control: evsSegmentedWide<AppStyle>(
               [
                 (AppStyle.liquidGlass, 'Liquid Glass'),
                 (AppStyle.standard, app.t('styleClassic')),
@@ -6943,6 +7233,79 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     );
   }
 
+  Widget _compBadge(String text, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: color.withValues(alpha: 0.12),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Text(text,
+            style: TextStyle(
+                fontSize: 12.5, fontWeight: FontWeight.w700, color: color)),
+      );
+
+  // Download/status control for the Python sidecar component (on-demand, not
+  // bundled). Shows a download button when absent, progress while fetching,
+  // and "installed" once present / the sidecar is connected.
+  Widget _sidecarComponentControl(AppState app) {
+    return ValueListenableBuilder<SidecarStatus>(
+      valueListenable: SidecarClient.instance.status,
+      builder: (_, ss, __) => ValueListenableBuilder<ComponentStatus>(
+        valueListenable: ComponentManager.instance.statusOf('sidecar'),
+        builder: (_, cs, __) {
+          if (ss == SidecarStatus.connected) {
+            return _compBadge(app.t('componentReady'), const Color(0xFF54E08A));
+          }
+          switch (cs.state) {
+            case ComponentState.downloading:
+              return SizedBox(
+                width: 160,
+                child: Row(children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.all(Radius.circular(3)),
+                      child: LinearProgressIndicator(
+                        value: cs.progress > 0 ? cs.progress : null,
+                        minHeight: 6,
+                        backgroundColor: const Color(0x14FFFFFF),
+                        valueColor: const AlwaysStoppedAnimation(_evsGMid),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('${(cs.progress * 100).round()}%',
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF6E7280))),
+                ]),
+              );
+            case ComponentState.verifying:
+              return _compBadge(app.t('componentVerifying'),
+                  const Color(0xFFE0C07A));
+            case ComponentState.ready:
+              return _compBadge(
+                  app.t('componentReady'), const Color(0xFF54E08A));
+            case ComponentState.error:
+              return evsGhostButton(app.t('retry'), Icons.refresh,
+                  onTap: () => _downloadSidecar(app));
+            case ComponentState.absent:
+              final info = ComponentManager.instance.infoOf('sidecar');
+              final mb = info != null && info.size > 0
+                  ? ' (${(info.size / 1048576).round()} MB)'
+                  : '';
+              return evsGhostButton('${app.t('download')}$mb', Icons.download,
+                  onTap: () => _downloadSidecar(app));
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _downloadSidecar(AppState app) async {
+    final p = await ComponentManager.instance.ensure('sidecar');
+    if (p != null) await SidecarClient.instance.start();
+  }
+
   Widget _inlineField(TextEditingController c,
       {bool mono = false, int maxLines = 1, ValueChanged<String>? onChanged}) {
     return Container(
@@ -7032,6 +7395,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       _CardSpec(evsCard(context,
           icon: Icons.schedule, title: app.t('cardCmdRecognition'), rows: [
         evsRow(
+          stacked: true,
           label: app.t('cmdMode'),
           desc: app.t('cmdModeDesc'),
           control: _stubSegmented('cmdMode', [
@@ -7073,6 +7437,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           ),
         ),
         evsRow(
+          stacked: true,
           label: app.t('cmdConfirm'),
           control: _stubSegmented('confirm', [
             ('always', app.t('cmdConfirmAlways')),
@@ -7491,9 +7856,10 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           ),
         ),
         evsRow(
+          stacked: true,
           label: app.t('emojiPolicy'),
           desc: app.t('emojiPolicyDesc'),
-          control: evsSegmented<String>(
+          control: evsSegmentedWide<String>(
             [
               ('emoji_never', app.t('emojiNever')),
               ('emoji_sometimes', app.t('emojiSometimes')),
@@ -7839,7 +8205,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
   }
 
   Widget _stubSegmented(String key, List<(String, String)> options) =>
-      evsSegmented<String>(
+      evsSegmentedWide<String>(
         options,
         _stubSel[key] ?? options.first.$1,
         (v) => setState(() => _stubSel[key] = v),
@@ -7862,23 +8228,30 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             ),
           ),
           evsRow(
+            label: app.t('sidecarComponent'),
+            desc: app.t('sidecarComponentDesc'),
+            control: _sidecarComponentControl(app),
+          ),
+          evsRow(
+            stacked: true,
             label: app.t('sttEngine'),
             desc: app.t('sttEngineDesc'),
-            control: _stubSegmented('sttEngine', [
-              ('windows', 'Windows STT'),
-              ('whisper', app.t('whisperOffline')),
-            ]),
+            control: evsSegmentedWide<String>(
+              [('windows', 'Windows STT'), ('whisper', app.t('whisperOffline'))],
+              app.sttEngine,
+              (v) => app.setSttEngine(v),
+            ),
           ),
           evsRow(
             label: app.t('whisperModel'),
             desc: app.t('whisperModelDesc'),
-            control: evsSelectButton('small (244 MB)',
-                onTap: () => _stubSnack(app)),
+            control: _whisperModelControl(app),
           ),
           evsRow(
+            stacked: true,
             label: app.t('recognitionLanguage'),
             desc: app.t('recognitionLanguageDesc'),
-            control: evsSegmented<String>(
+            control: evsSegmentedWide<String>(
               [('auto', app.t('sttAuto')), ('ru', 'RU'), ('en', 'EN')],
               app.sttLanguage,
               (v) => app.setSttLanguage(v),
@@ -7922,9 +8295,10 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         title: app.t('cardListenMode'),
         rows: [
           evsRow(
+            stacked: true,
             label: app.t('activationMode'),
             desc: app.t('activationModeDesc'),
-            control: evsSegmented<String>(
+            control: evsSegmentedWide<String>(
               [('continuous', app.t('continuous')), ('ptt', 'Push-to-Talk')],
               app.listenMode,
               (v) => app.setListenMode(v),
@@ -7960,6 +8334,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         title: app.t('cardVoiceViz'),
         rows: [
           evsRow(
+            stacked: true,
             label: app.t('vizType'),
             desc: app.t('vizTypeDesc'),
             control: _stubSegmented('vizType', [
@@ -8034,40 +8409,106 @@ Widget evsRow({
   required String label,
   String? desc,
   required Widget control,
+  bool stacked = false,
 }) {
+  final labelCol = Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label,
+          style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFFD0D4E2))),
+      if (desc != null) ...[
+        const SizedBox(height: 2),
+        Text(desc,
+            style: const TextStyle(
+                fontSize: 12, height: 1.4, color: Color(0xFF6E7280))),
+      ],
+    ],
+  );
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
     decoration: const BoxDecoration(
       border: Border(bottom: BorderSide(color: Color(0x09FFFFFF))),
     ),
-    child: Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    // Stacked: label on top, control full-width below (used for wide
+    // segmented selectors so they don't fold into a floating block). Inline:
+    // label left, control bounded on the right.
+    child: stacked
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFD0D4E2))),
-              if (desc != null) ...[
-                const SizedBox(height: 2),
-                Text(desc,
-                    style: const TextStyle(
-                        fontSize: 12, height: 1.4, color: Color(0xFF6E7280))),
-              ],
+              labelCol,
+              const SizedBox(height: 11),
+              control,
+            ],
+          )
+        : Row(
+            children: [
+              Expanded(flex: 3, child: labelCol),
+              const SizedBox(width: 12),
+              // Bound the control so a long select can't squeeze the label.
+              Flexible(
+                flex: 2,
+                child: Align(alignment: Alignment.centerRight, child: control),
+              ),
             ],
           ),
-        ),
-        const SizedBox(width: 12),
-        // Bound the control so a long select / wide segmented can't squeeze
-        // the label (it ellipsizes or wraps within its share instead).
-        Flexible(
-          flex: 2,
-          child: Align(alignment: Alignment.centerRight, child: control),
-        ),
+  );
+}
+
+// Full-width segmented selector: equal-width pills in a single row that fills
+// the available width (used with `evsRow(stacked: true)`). Replaces the
+// right-aligned Wrap that folded 3–4 options into a cramped floating block.
+Widget evsSegmentedWide<T>(
+  List<(T, String)> options,
+  T value,
+  ValueChanged<T> onChanged,
+) {
+  return Container(
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(11),
+      color: Colors.white.withValues(alpha: 0.055),
+      border: Border.all(color: _evsStroke),
+    ),
+    child: Row(
+      children: [
+        for (int i = 0; i < options.length; i++) ...[
+          if (i > 0) const SizedBox(width: 3),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(options[i].$1),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: options[i].$1 == value
+                      ? const Color(0x3D8A7BE0)
+                      : Colors.transparent,
+                  border: Border.all(
+                    color: options[i].$1 == value
+                        ? const Color(0x478A7BE0)
+                        : Colors.transparent,
+                  ),
+                ),
+                child: Text(options[i].$2,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: options[i].$1 == value
+                            ? const Color(0xFFD0CCF6)
+                            : const Color(0xFF6E7280))),
+              ),
+            ),
+          ),
+        ],
       ],
     ),
   );
@@ -8903,41 +9344,140 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  // Colour for a connection status (dot + tint + border).
+  static Color _statusColor(ConnectionStatus s) => switch (s) {
+        ConnectionStatus.connected => const Color(0xFF54E08A),
+        ConnectionStatus.connecting => const Color(0xFF8A7BE0),
+        ConnectionStatus.noModel => const Color(0xFFE0B454),
+        ConnectionStatus.disconnected => const Color(0xFF8A90A0),
+        ConnectionStatus.error => const Color(0xFFE05A6A),
+      };
+
+  String _statusText(AppState app, ConnectionStatus s) => switch (s) {
+        ConnectionStatus.connected => app.t('statusConnected'),
+        ConnectionStatus.connecting => app.t('statusConnecting'),
+        ConnectionStatus.noModel => app.t('statusNoModel'),
+        ConnectionStatus.disconnected => app.t('statusDisconnected'),
+        ConnectionStatus.error => app.t('statusError'),
+      };
+
   Widget _desktopStatusBadge(AppState app, bool isLocal) {
-    const green = Color(0xFF54E08A);
-    final label = isLocal
-        ? '${app.t('statusLocalModel')} · ${app.t('statusOnline')}'
-        : '${app.t('statusRemoteModel')} · ${app.t('statusOnline')}';
-    return Container(
-      height: 42,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: green.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(21),
-        border: Border.all(color: green.withValues(alpha: 0.2)),
+    final status = app.connectionStatus;
+    final color = _statusColor(status);
+    final label = status == ConnectionStatus.connected
+        ? '${isLocal ? app.t('statusLocalModel') : app.t('statusRemoteModel')} · ${app.t('statusConnected')}'
+        : _statusText(app, status);
+    final textColor = Color.lerp(color, const Color(0xFFFFFFFF), 0.45)!;
+    return InkWell(
+      borderRadius: BorderRadius.circular(21),
+      onTap: () => _showConnectionDialog(app, status, isLocal),
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(21),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color,
+                boxShadow: [
+                  BoxShadow(color: color, blurRadius: 9, spreadRadius: 1),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.info_outline,
+                size: 14, color: color.withValues(alpha: 0.55)),
+          ],
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: green,
-              boxShadow: [
-                BoxShadow(color: green, blurRadius: 9, spreadRadius: 1),
-              ],
-            ),
+    );
+  }
+
+  void _showConnectionDialog(
+      AppState app, ConnectionStatus status, bool isLocal) {
+    if (!mounted) return;
+    final isRemote = !isLocal && !app.isLocalModel(app.selectedModel);
+    final modelName = app.selectedModel.isEmpty
+        ? app.t('statusNoModel')
+        : app.modelDisplayName(app.selectedModel, withSuffix: false);
+    Widget row(String k, String v) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                  width: 92,
+                  child: Text(k, style: TextStyle(color: _sub(context)))),
+              Expanded(
+                  child: Text(v,
+                      style: TextStyle(
+                          color: _txt(context),
+                          fontWeight: FontWeight.w600))),
+            ],
           ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFFB8E8C8),
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
+        );
+    showDialog(
+      context: context,
+      builder: (dctx) => _AppDialog(
+        title: Text(app.t('statusTitle')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle, color: _statusColor(status))),
+              const SizedBox(width: 8),
+              Text(_statusText(app, status),
+                  style: TextStyle(
+                      color: _txt(context), fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 12),
+            row(app.t('modelField'), modelName),
+            if (isRemote)
+              row(app.t('serverField'),
+                  app.serverUrl.isEmpty ? '—' : app.serverUrl),
+            if (status == ConnectionStatus.error && app.modelsError != null) ...[
+              const SizedBox(height: 10),
+              Text(app.modelsError!,
+                  style: const TextStyle(
+                      color: Color(0xFFE05A6A), fontSize: 13, height: 1.4)),
+            ],
+          ],
+        ),
+        actions: [
+          if (isRemote)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dctx);
+                app.fetchModels();
+              },
+              child: Text(app.t('retry')),
             ),
+          TextButton(
+            onPressed: () => Navigator.pop(dctx),
+            child: Text(app.t('gotIt')),
           ),
         ],
       ),

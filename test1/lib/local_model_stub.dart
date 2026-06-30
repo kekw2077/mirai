@@ -8,6 +8,10 @@ Future<String> updateDownloadPath(String fileName) async {
   throw UnsupportedError('App updates are not supported on this platform.');
 }
 
+Future<String> componentsDirPath() async {
+  throw UnsupportedError('Components are not supported on this platform.');
+}
+
 Future<void> installApk(String path) async {
   throw UnsupportedError('App updates are not supported on this platform.');
 }

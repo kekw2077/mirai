@@ -67,6 +67,10 @@ async def _handle(ws, stt: SttEngine, tts: TtsEngine) -> None:
                 stt.start(data.get("language", "ru"), emit)
             elif t == "stt.stop":
                 stt.stop()
+            elif t == "stt.config":
+                model = data.get("model")
+                if model:
+                    stt.set_model(str(model))
             elif t == "tts.speak":
                 tts.speak(str(data.get("text", "")),
                           on_done=lambda: emit({"type": "tts.done"}))

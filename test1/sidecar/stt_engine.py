@@ -47,6 +47,12 @@ class SttEngine:
     def available(self) -> bool:
         return self._available
 
+    def set_model(self, model_size: str) -> None:
+        """Switch the Whisper model size; reloads lazily on next transcription."""
+        if model_size and model_size != self.model_size:
+            self.model_size = model_size
+            self._model = None  # force _ensure_model() to reload the new size
+
     def _ensure_model(self):
         if self._model is None:
             from faster_whisper import WhisperModel

@@ -30,6 +30,8 @@ dependencies:
   # (mobile-only, Dart-patches-only) — this delivers FULL builds, including
   # native changes (plugins, ffi, the Python sidecar), via an appcast feed.
   auto_updater: ^1.0.0
+  # sha256 verification of on-demand downloaded components (sidecar, TTS).
+  crypto: ^3.0.0
   uuid: ^4.5.1
   flutter_test:
     sdk: flutter
