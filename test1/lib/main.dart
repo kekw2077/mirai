@@ -178,6 +178,16 @@ const Map<String, Map<String, String>> _i18n = {
     'vizNone': 'Нет',
     'showVizBg': 'Показывать в фоне',
     'showVizBgDesc': 'Отображать визуализацию на главном экране',
+    'cardVoiceResp': 'Голос ответа',
+    'voiceResponses': 'Озвучивать ответы',
+    'voiceResponsesDesc': 'Проговаривать ответы ассистента голосом',
+    'ttsVoice': 'Голос',
+    'ttsVoiceDesc': 'Системный голос Windows или ваш клонированный',
+    'ttsVoiceSystem': 'Системный',
+    'ttsVoiceCloned': 'Клон',
+    'ttsRate': 'Скорость речи',
+    'ttsRateDesc': 'Темп проговаривания',
+    'ttsVolume': 'Громкость',
     'cardCmdExec': 'Выполнение команд',
     'cmdAllow': 'Разрешить выполнение команд',
     'cmdAllowDesc':
@@ -194,6 +204,14 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdInterpreterDesc': 'Использовать LLM для нечёткого понимания команд',
     'cmdModel': 'Модель для команд',
     'cmdModelDesc': 'Рекомендуется быстрая модель (3–7B)',
+    'cmdModelSame': 'Как у чата',
+    'vaListening': 'Слушаю…',
+    'vaThinking': 'Думаю…',
+    'vaRunning': 'Выполняю…',
+    'vaDone': 'Готово',
+    'vaFailed': 'Не удалось выполнить команду',
+    'vaConfirmTitle': 'Выполнить команду?',
+    'vaConfirmBody': 'EVS распознал команду:',
     'cardSecurity': 'Безопасность',
     'cmdThreshold': 'Порог совпадения фразы',
     'cmdThresholdDesc': 'Насколько точно фраза должна совпасть с командой',
@@ -763,6 +781,16 @@ const Map<String, Map<String, String>> _i18n = {
     'vizNone': 'None',
     'showVizBg': 'Show in background',
     'showVizBgDesc': 'Display the visualization on the home screen',
+    'cardVoiceResp': 'Voice response',
+    'voiceResponses': 'Speak responses',
+    'voiceResponsesDesc': 'Read the assistant\'s replies aloud',
+    'ttsVoice': 'Voice',
+    'ttsVoiceDesc': 'System Windows voice or your cloned voice',
+    'ttsVoiceSystem': 'System',
+    'ttsVoiceCloned': 'Clone',
+    'ttsRate': 'Speech rate',
+    'ttsRateDesc': 'Speaking tempo',
+    'ttsVolume': 'Volume',
     'cardCmdExec': 'Command execution',
     'cmdAllow': 'Allow command execution',
     'cmdAllowDesc':
@@ -779,6 +807,14 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdInterpreterDesc': 'Use the LLM for fuzzy command understanding',
     'cmdModel': 'Model for commands',
     'cmdModelDesc': 'A fast model (3–7B) is recommended',
+    'cmdModelSame': 'Same as chat',
+    'vaListening': 'Listening…',
+    'vaThinking': 'Thinking…',
+    'vaRunning': 'Running…',
+    'vaDone': 'Done',
+    'vaFailed': 'Could not run the command',
+    'vaConfirmTitle': 'Run command?',
+    'vaConfirmBody': 'EVS recognized a command:',
     'cardSecurity': 'Security',
     'cmdThreshold': 'Phrase match threshold',
     'cmdThresholdDesc': 'How closely a phrase must match a command',
@@ -3126,6 +3162,23 @@ class AppState extends ChangeNotifier {
   String sttLanguage = 'auto'; // 'auto' | 'ru' | 'en'
   String whisperModel = 'small'; // tiny | base | small | medium (sidecar)
   String sttEngine = 'whisper'; // 'whisper' (sidecar) | 'windows' (speech_to_text)
+  // Voice assistant / command recognition.
+  String cmdMode = 'wakeword'; // 'wakeword' | 'separate' | 'first'
+  String wakeWord = 'EVS';
+  bool cmdInterpreter = true; // use the LLM to interpret fuzzy commands
+  String cmdModel = ''; // '' = use selectedModel for interpretation
+  double cmdThreshold = 0.65; // 0..1 fuzzy phrase-match threshold
+  String cmdConfirm = 'risky'; // 'always' | 'risky' | 'never'
+  bool cmdEnabled = false; // allow command execution (off by default for safety)
+  // Voice visualization.
+  String vizType = 'sphere'; // 'sphere' | 'waves' | 'bars' | 'none'
+  bool showVizBg = true;
+  bool showPartial = true;
+  // Voice responses (TTS).
+  bool voiceResponses = false;
+  String ttsVoice = 'system'; // 'system' | 'cloned'
+  double ttsRate = 1.0;
+  double ttsVolume = 1.0;
 
   // STT language resolved against the UI language when set to 'auto'.
   String get effectiveSttLanguage =>
@@ -3225,6 +3278,20 @@ class AppState extends ChangeNotifier {
     sttLanguage = prefs.getString('sttLanguage') ?? 'auto';
     whisperModel = prefs.getString('whisperModel') ?? 'small';
     sttEngine = prefs.getString('sttEngine') ?? 'whisper';
+    cmdMode = prefs.getString('cmdMode') ?? 'wakeword';
+    wakeWord = prefs.getString('wakeWord') ?? 'EVS';
+    cmdInterpreter = prefs.getBool('cmdInterpreter') ?? true;
+    cmdModel = prefs.getString('cmdModel') ?? '';
+    cmdThreshold = prefs.getDouble('cmdThreshold') ?? 0.65;
+    cmdConfirm = prefs.getString('cmdConfirm') ?? 'risky';
+    cmdEnabled = prefs.getBool('cmdEnabled') ?? false;
+    vizType = prefs.getString('vizType') ?? 'sphere';
+    showVizBg = prefs.getBool('showVizBg') ?? true;
+    showPartial = prefs.getBool('showPartial') ?? true;
+    voiceResponses = prefs.getBool('voiceResponses') ?? false;
+    ttsVoice = prefs.getString('ttsVoice') ?? 'system';
+    ttsRate = prefs.getDouble('ttsRate') ?? 1.0;
+    ttsVolume = prefs.getDouble('ttsVolume') ?? 1.0;
     final vcRaw = prefs.getString('voiceCommands');
     if (vcRaw != null) {
       try {
@@ -3292,6 +3359,20 @@ class AppState extends ChangeNotifier {
     await prefs.setString('sttLanguage', sttLanguage);
     await prefs.setString('whisperModel', whisperModel);
     await prefs.setString('sttEngine', sttEngine);
+    await prefs.setString('cmdMode', cmdMode);
+    await prefs.setString('wakeWord', wakeWord);
+    await prefs.setBool('cmdInterpreter', cmdInterpreter);
+    await prefs.setString('cmdModel', cmdModel);
+    await prefs.setDouble('cmdThreshold', cmdThreshold);
+    await prefs.setString('cmdConfirm', cmdConfirm);
+    await prefs.setBool('cmdEnabled', cmdEnabled);
+    await prefs.setString('vizType', vizType);
+    await prefs.setBool('showVizBg', showVizBg);
+    await prefs.setBool('showPartial', showPartial);
+    await prefs.setBool('voiceResponses', voiceResponses);
+    await prefs.setString('ttsVoice', ttsVoice);
+    await prefs.setDouble('ttsRate', ttsRate);
+    await prefs.setDouble('ttsVolume', ttsVolume);
     await prefs.setString(
       'voiceCommands',
       jsonEncode(voiceCommands.map((c) => c.toJson()).toList()),
@@ -3353,6 +3434,91 @@ class AppState extends ChangeNotifier {
 
   void setSttEngine(String v) {
     sttEngine = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCmdMode(String v) {
+    cmdMode = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setWakeWord(String v) {
+    final t = v.trim();
+    wakeWord = t.isEmpty ? 'EVS' : t;
+    _save();
+    notifyListeners();
+  }
+
+  void setCmdInterpreter(bool v) {
+    cmdInterpreter = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCmdModel(String v) {
+    cmdModel = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCmdThreshold(double v) {
+    cmdThreshold = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCmdConfirm(String v) {
+    cmdConfirm = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCmdEnabled(bool v) {
+    cmdEnabled = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setVizType(String v) {
+    vizType = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setShowVizBg(bool v) {
+    showVizBg = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setShowPartial(bool v) {
+    showPartial = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setVoiceResponses(bool v) {
+    voiceResponses = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setTtsVoice(String v) {
+    ttsVoice = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setTtsRate(double v) {
+    ttsRate = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setTtsVolume(double v) {
+    ttsVolume = v;
     _save();
     notifyListeners();
   }
@@ -4043,6 +4209,10 @@ class AppState extends ChangeNotifier {
 
 /* ============================ ТЕМА / ПРИЛОЖЕНИЕ ============================ */
 
+// Root navigator key — lets background controllers (VoiceAssistant) show
+// dialogs without a captured BuildContext.
+final GlobalKey<NavigatorState> rootNavKey = GlobalKey<NavigatorState>();
+
 class MiraiApp extends StatelessWidget {
   const MiraiApp({super.key});
 
@@ -4051,6 +4221,7 @@ class MiraiApp extends StatelessWidget {
     final app = context.watch<AppState>();
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: rootNavKey,
       title: 'EVS',
       theme: _buildTheme(false),
       darkTheme: app.themeMode == AppThemeMode.gray
@@ -5647,12 +5818,8 @@ class DesktopIntegration with WindowListener, TrayListener {
 
       SystemMonitor.instance.start(app);
       unawaited(MicMeter.instance.start(deviceId: app.inputDeviceId));
-      // Load the component manifest (sidecar/TTS download URLs + checksums),
-      // apply the persisted Whisper model, then start the sidecar with whatever
-      // is available (downloaded component / bundled exe / dev source).
-      unawaited(ComponentManager.instance.loadManifest());
-      SidecarClient.instance.setSttModel(app.whisperModel);
-      unawaited(SidecarClient.instance.start());
+      unawaited(_bootstrapSidecar(app));
+      VoiceAssistant.instance.attach(app);
 
       // Auto-update: register the feed and let WinSparkle poll periodically in
       // the background (it shows its own native update prompt). The "Проверить
@@ -5661,6 +5828,20 @@ class DesktopIntegration with WindowListener, TrayListener {
         await autoUpdater.setFeedURL(effectiveFeedUrl);
         await autoUpdater.setScheduledCheckInterval(6 * 3600);
       } catch (_) {}
+    } catch (_) {}
+  }
+
+  // Load the component manifest, then start the sidecar. On a slim install the
+  // sidecar isn't present locally, so fetch the (essential) component first —
+  // its download progress shows in Settings → STT. XTTS stays opt-in.
+  Future<void> _bootstrapSidecar(AppState app) async {
+    try {
+      await ComponentManager.instance.loadManifest();
+      SidecarClient.instance.setSttModel(app.whisperModel);
+      if (!await SidecarClient.instance.hasLocalSidecar()) {
+        await ComponentManager.instance.ensure('sidecar');
+      }
+      await SidecarClient.instance.start();
     } catch (_) {}
   }
 
@@ -5972,6 +6153,10 @@ class SidecarClient {
     }
   }
 
+  // True if a sidecar is available locally (downloaded component, bundled exe,
+  // or dev source) — i.e. start() can run without downloading first.
+  Future<bool> hasLocalSidecar() async => (await _resolveLaunchAsync()) != null;
+
   // Prefer the on-demand downloaded component, then fall back to a bundled exe
   // / dev source. Async because the components dir lookup is async.
   Future<(String, List<String>)?> _resolveLaunchAsync() async {
@@ -6058,7 +6243,8 @@ class SidecarClient {
     _sttModel = model;
     _send({'type': 'stt.config', 'model': model});
   }
-  void speak(String text) => _send({'type': 'tts.speak', 'text': text});
+  void speak(String text, {double rate = 1.0, double volume = 1.0}) =>
+      _send({'type': 'tts.speak', 'text': text, 'rate': rate, 'volume': volume});
   void parseIntent(String text, List<Map<String, dynamic>> commands,
           {double threshold = 0.5}) =>
       _send({
@@ -6076,6 +6262,211 @@ class SidecarClient {
       _proc?.kill();
     } catch (_) {}
     status.value = SidecarStatus.stopped;
+  }
+}
+
+// ============================ VOICE ASSISTANT ============================
+// Alice-like always-listening loop. When wake-word mode is on, it keeps the
+// sidecar's Whisper STT running, watches finalized transcripts for the wake
+// word ("EVS, ..."), and routes the rest to a matching voice command (with a
+// confirmation policy) or to the chat model — optionally speaking the reply.
+
+enum VaState { idle, listening, thinking, running }
+
+class VoiceAssistant {
+  VoiceAssistant._();
+  static final VoiceAssistant instance = VoiceAssistant._();
+
+  AppState? _app;
+  bool _attached = false;
+  bool _listening = false;
+  bool _busy = false;
+
+  // UI signals (home-screen indicator).
+  final ValueNotifier<VaState> state = ValueNotifier(VaState.idle);
+
+  void attach(AppState app) {
+    _app = app;
+    if (_attached) return;
+    _attached = true;
+    app.addListener(_sync);
+    SidecarClient.instance.status.addListener(_sync);
+    SidecarClient.instance.finalText.listen(_onFinal);
+    _sync();
+  }
+
+  // Start/stop continuous listening based on settings + sidecar availability.
+  void _sync() {
+    final app = _app;
+    if (app == null) return;
+    final connected =
+        SidecarClient.instance.status.value == SidecarStatus.connected;
+    // Only the wake-word mode listens continuously; 'separate'/'first' are
+    // button-triggered, so the app doesn't capture audio non-stop by surprise.
+    final want =
+        connected && app.sttEngine == 'whisper' && app.cmdMode == 'wakeword';
+    if (want && !_listening) {
+      _listening = true;
+      SidecarClient.instance.sttStart(app.effectiveSttLanguage);
+      if (state.value == VaState.idle) state.value = VaState.listening;
+    } else if (!want && _listening) {
+      _listening = false;
+      SidecarClient.instance.sttStop();
+      state.value = VaState.idle;
+    }
+  }
+
+  Future<void> _onFinal(String text) async {
+    final app = _app;
+    if (app == null || _busy || !_listening) return;
+    final raw = text.trim();
+    if (raw.isEmpty) return;
+
+    String? command;
+    if (app.cmdMode == 'wakeword') {
+      command = _stripWakeWord(raw, app.wakeWord);
+      if (command == null) return; // wake word not heard — ignore
+    } else if (app.cmdMode == 'first') {
+      command = raw;
+    } else {
+      return;
+    }
+    command = command.trim();
+    if (command.isEmpty) return;
+
+    _busy = true;
+    try {
+      await _handle(app, command);
+    } catch (_) {
+    } finally {
+      _busy = false;
+      if (_listening) state.value = VaState.listening;
+    }
+  }
+
+  // Strip a leading wake word; returns the remaining command, or null if the
+  // utterance doesn't start with the wake word (fuzzy on the first token).
+  String? _stripWakeWord(String text, String wake) {
+    final w = wake.trim().toLowerCase();
+    if (w.isEmpty) return text;
+    final lower = text.toLowerCase();
+    if (lower.startsWith(w)) {
+      return text
+          .substring(w.length)
+          .replaceFirst(RegExp(r'^[\s,.:;!?]+'), '');
+    }
+    final tokens = lower.split(RegExp(r'[\s,.:;!?]+'))..removeWhere((t) => t.isEmpty);
+    if (tokens.isEmpty) return null;
+    if (_ratio(tokens.first, w) >= 0.6) {
+      final idx = lower.indexOf(tokens.first);
+      final rest = idx >= 0 ? text.substring(idx + tokens.first.length) : text;
+      return rest.replaceFirst(RegExp(r'^[\s,.:;!?]+'), '');
+    }
+    return null;
+  }
+
+  Future<void> _handle(AppState app, String command) async {
+    state.value = VaState.thinking;
+    // 1) Try the user's command catalog.
+    final match = _matchCommand(app, command);
+    if (match != null && app.cmdEnabled) {
+      final risky = match.type == VoiceCommandType.shell ||
+          match.type == VoiceCommandType.system;
+      final needConfirm = app.cmdConfirm == 'always' ||
+          (app.cmdConfirm == 'risky' && risky);
+      if (needConfirm && !await _confirm(app, match)) {
+        return;
+      }
+      state.value = VaState.running;
+      final ok = await CommandExecutor.instance.execute(match);
+      if (app.voiceResponses) {
+        _speak(app, ok ? app.t('vaDone') : app.t('vaFailed'));
+      }
+      return;
+    }
+    // 2) Otherwise treat it as a chat turn.
+    final reply = await app.sendMessage(command);
+    if (app.voiceResponses && reply.trim().isNotEmpty) _speak(app, reply);
+  }
+
+  VoiceCommand? _matchCommand(AppState app, String text) {
+    final t = _norm(text);
+    VoiceCommand? best;
+    double bestScore = 0;
+    for (final c in app.voiceCommands) {
+      final phrase = _norm(c.phrase);
+      if (phrase.isEmpty) continue;
+      final double s;
+      if (t == phrase) {
+        s = 1.0;
+      } else if (t.contains(phrase) || phrase.contains(t)) {
+        s = 0.9;
+      } else {
+        s = _ratio(t, phrase);
+      }
+      if (s > bestScore) {
+        bestScore = s;
+        best = c;
+      }
+    }
+    return (best != null && bestScore >= app.cmdThreshold) ? best : null;
+  }
+
+  void _speak(AppState app, String text) {
+    // Phase 4 routes to the cloned-voice engine when ttsVoice == 'cloned'.
+    SidecarClient.instance.speak(text, rate: app.ttsRate, volume: app.ttsVolume);
+  }
+
+  Future<bool> _confirm(AppState app, VoiceCommand c) async {
+    final ctx = rootNavKey.currentContext;
+    if (ctx == null) return app.cmdConfirm == 'never';
+    final res = await showDialog<bool>(
+      context: ctx,
+      builder: (dctx) => _AppDialog(
+        title: Text(app.t('vaConfirmTitle')),
+        content: Text('${app.t('vaConfirmBody')}\n\n«${c.phrase}» → ${c.value}'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dctx, false),
+              child: Text(app.t('cancel'))),
+          TextButton(
+              onPressed: () => Navigator.pop(dctx, true),
+              child: Text(app.t('run'))),
+        ],
+      ),
+    );
+    return res ?? false;
+  }
+
+  String _norm(String s) => s.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+
+  // Normalized similarity 0..1 from Levenshtein distance.
+  double _ratio(String a, String b) {
+    if (a == b) return 1.0;
+    if (a.isEmpty || b.isEmpty) return 0.0;
+    final d = _levenshtein(a, b);
+    final maxLen = a.length > b.length ? a.length : b.length;
+    return 1.0 - d / maxLen;
+  }
+
+  int _levenshtein(String a, String b) {
+    final m = a.length, n = b.length;
+    var prev = List<int>.generate(n + 1, (i) => i);
+    var cur = List<int>.filled(n + 1, 0);
+    for (var i = 1; i <= m; i++) {
+      cur[0] = i;
+      for (var j = 1; j <= n; j++) {
+        final cost = a.codeUnitAt(i - 1) == b.codeUnitAt(j - 1) ? 0 : 1;
+        final del = prev[j] + 1;
+        final ins = cur[j - 1] + 1;
+        final sub = prev[j - 1] + cost;
+        cur[j] = del < ins ? (del < sub ? del : sub) : (ins < sub ? ins : sub);
+      }
+      final tmp = prev;
+      prev = cur;
+      cur = tmp;
+    }
+    return prev[n];
   }
 }
 
@@ -6705,14 +7096,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
   ];
   final TextEditingController _activatorCtrl =
       TextEditingController(text: 'EVS');
-  // Stub single-choice values for not-yet-wired desktop controls.
-  final Map<String, String> _stubSel = {
-    'sttEngine': 'windows',
-    'activation': 'continuous',
-    'vizType': 'sphere',
-    'cmdMode': 'wakeword',
-    'confirm': 'risky',
-  };
 
   late final TextEditingController _nameCtrl;
   late final TextEditingController _promptCtrl;
@@ -6732,6 +7115,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     _promptCtrl = TextEditingController(text: p.customPrompt);
     _serverCtrl = TextEditingController(text: app.serverUrl);
     _apiKeyCtrl = TextEditingController(text: app.apiKey);
+    _activatorCtrl.text = app.wakeWord;
     // Keep the meter alive for the input-level bar, and enumerate mics.
     MicMeter.instance.start(deviceId: app.inputDeviceId);
     _loadMicDevices();
@@ -6789,6 +7173,30 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           PopupMenuItem<String>(
             value: s.$1,
             child: Text(s.$2,
+                style: const TextStyle(color: Color(0xFFD0D4E2), fontSize: 13)),
+          ),
+      ],
+      child: evsSelectButton(current.$2, minWidth: 120),
+    );
+  }
+
+  // Model used to interpret fuzzy voice commands ('' = same as the chat model).
+  Widget _cmdModelControl(AppState app) {
+    final items = <(String, String)>[('', app.t('cmdModelSame'))];
+    for (final m in app.models) {
+      items.add((m, app.modelDisplayName(m, withSuffix: false)));
+    }
+    final current = items.firstWhere((e) => e.$1 == app.cmdModel,
+        orElse: () => items.first);
+    return PopupMenuButton<String>(
+      tooltip: '',
+      color: const Color(0xFF1C1C26),
+      onSelected: (v) => app.setCmdModel(v),
+      itemBuilder: (_) => [
+        for (final it in items)
+          PopupMenuItem<String>(
+            value: it.$1,
+            child: Text(it.$2,
                 style: const TextStyle(color: Color(0xFFD0D4E2), fontSize: 13)),
           ),
       ],
@@ -7387,7 +7795,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           evsRow(
             label: app.t('cmdAllow'),
             desc: app.t('cmdAllowDesc'),
-            control: _stubToggle('cmdEnabled'),
+            control: evsToggle(app.cmdEnabled, app.setCmdEnabled),
           ),
         ]),
         full: true,
@@ -7398,28 +7806,29 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           stacked: true,
           label: app.t('cmdMode'),
           desc: app.t('cmdModeDesc'),
-          control: _stubSegmented('cmdMode', [
+          control: evsSegmentedWide<String>([
             ('wakeword', app.t('cmdModeWake')),
-            ('mode', app.t('cmdModeSeparate')),
+            ('separate', app.t('cmdModeSeparate')),
             ('first', app.t('cmdModeFirst')),
-          ]),
+          ], app.cmdMode, app.setCmdMode),
         ),
         evsRow(
           label: app.t('cmdActivator'),
           desc: app.t('cmdActivatorDesc'),
-          control: SizedBox(width: 110, child: _inlineField(_activatorCtrl, mono: true)),
+          control: SizedBox(
+              width: 110,
+              child: _inlineField(_activatorCtrl,
+                  mono: true, onChanged: (v) => app.setWakeWord(v))),
         ),
         evsRow(
           label: app.t('cmdInterpreter'),
           desc: app.t('cmdInterpreterDesc'),
-          control: _stubToggle('cmdInterpreter'),
+          control: evsToggle(app.cmdInterpreter, app.setCmdInterpreter),
         ),
         evsRow(
           label: app.t('cmdModel'),
           desc: app.t('cmdModelDesc'),
-          control: evsSelectButton(
-              app.modelDisplayName(app.selectedModel, withSuffix: false),
-              onTap: () => _stubSnack(app)),
+          control: _cmdModelControl(app),
         ),
       ])),
       _CardSpec(evsCard(context,
@@ -7428,22 +7837,22 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           label: app.t('cmdThreshold'),
           desc: app.t('cmdThresholdDesc'),
           control: evsSlider(
-            value: _stubNum['threshold']!,
+            value: app.cmdThreshold * 100,
             min: 0,
             max: 100,
             divisions: 20,
-            label: '${_stubNum['threshold']!.round()}%',
-            onChanged: (v) => setState(() => _stubNum['threshold'] = v),
+            label: '${(app.cmdThreshold * 100).round()}%',
+            onChanged: (v) => app.setCmdThreshold(v / 100),
           ),
         ),
         evsRow(
           stacked: true,
           label: app.t('cmdConfirm'),
-          control: _stubSegmented('confirm', [
+          control: evsSegmentedWide<String>([
             ('always', app.t('cmdConfirmAlways')),
             ('risky', app.t('cmdConfirmRisky')),
             ('never', app.t('cmdConfirmNever')),
-          ]),
+          ], app.cmdConfirm, app.setCmdConfirm),
         ),
       ])),
       _CardSpec(
@@ -8204,12 +8613,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     );
   }
 
-  Widget _stubSegmented(String key, List<(String, String)> options) =>
-      evsSegmentedWide<String>(
-        options,
-        _stubSel[key] ?? options.first.$1,
-        (v) => setState(() => _stubSel[key] = v),
-      );
 
   // =================== SECTION 1: VOICE INPUT ===================
   List<_CardSpec> _voiceInputCards(AppState app) {
@@ -8324,7 +8727,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           evsRow(
             label: app.t('showPartial'),
             desc: app.t('showPartialDesc'),
-            control: _stubToggle('showPartial'),
+            control: evsToggle(app.showPartial, app.setShowPartial),
           ),
         ],
       )),
@@ -8337,17 +8740,61 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             stacked: true,
             label: app.t('vizType'),
             desc: app.t('vizTypeDesc'),
-            control: _stubSegmented('vizType', [
+            control: evsSegmentedWide<String>([
               ('sphere', app.t('vizSphere')),
               ('waves', app.t('vizWaves')),
               ('bars', app.t('vizBars')),
               ('none', app.t('vizNone')),
-            ]),
+            ], app.vizType, app.setVizType),
           ),
           evsRow(
             label: app.t('showVizBg'),
             desc: app.t('showVizBgDesc'),
-            control: _stubToggle('showVizBg'),
+            control: evsToggle(app.showVizBg, app.setShowVizBg),
+          ),
+        ],
+      )),
+      _CardSpec(evsCard(
+        context,
+        icon: Icons.record_voice_over_outlined,
+        title: app.t('cardVoiceResp'),
+        rows: [
+          evsRow(
+            label: app.t('voiceResponses'),
+            desc: app.t('voiceResponsesDesc'),
+            control: evsToggle(app.voiceResponses, app.setVoiceResponses),
+          ),
+          evsRow(
+            stacked: true,
+            label: app.t('ttsVoice'),
+            desc: app.t('ttsVoiceDesc'),
+            control: evsSegmentedWide<String>([
+              ('system', app.t('ttsVoiceSystem')),
+              ('cloned', app.t('ttsVoiceCloned')),
+            ], app.ttsVoice, app.setTtsVoice),
+          ),
+          evsRow(
+            label: app.t('ttsRate'),
+            desc: app.t('ttsRateDesc'),
+            control: evsSlider(
+              value: app.ttsRate.clamp(0.5, 2.0),
+              min: 0.5,
+              max: 2.0,
+              divisions: 15,
+              label: '${app.ttsRate.toStringAsFixed(1)}x',
+              onChanged: (v) => app.setTtsRate(v),
+            ),
+          ),
+          evsRow(
+            label: app.t('ttsVolume'),
+            control: evsSlider(
+              value: (app.ttsVolume * 100).clamp(0, 100),
+              min: 0,
+              max: 100,
+              divisions: 20,
+              label: '${(app.ttsVolume * 100).round()}%',
+              onChanged: (v) => app.setTtsVolume(v / 100),
+            ),
           ),
         ],
       )),
@@ -9332,6 +9779,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           const Spacer(),
+          _vaIndicator(app),
           _desktopStatusBadge(app, isLocal),
           const SizedBox(width: 12),
           _circleBtn(
@@ -9341,6 +9789,47 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // Voice-assistant activity pill (listening / thinking / running). Hidden
+  // when idle. Tapping it opens the voice screen.
+  Widget _vaIndicator(AppState app) {
+    return ValueListenableBuilder<VaState>(
+      valueListenable: VoiceAssistant.instance.state,
+      builder: (_, s, __) {
+        if (s == VaState.idle) return const SizedBox.shrink();
+        final (label, color) = switch (s) {
+          VaState.listening => (app.t('vaListening'), const Color(0xFF8A7BE0)),
+          VaState.thinking => (app.t('vaThinking'), const Color(0xFF54E08A)),
+          VaState.running => (app.t('vaRunning'), const Color(0xFFE0C07A)),
+          VaState.idle => ('', const Color(0x00000000)),
+        };
+        return Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(21),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.graphic_eq, size: 15, color: color),
+                const SizedBox(width: 8),
+                Text(label,
+                    style: TextStyle(
+                        color: Color.lerp(color, const Color(0xFFFFFFFF), 0.4)!,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

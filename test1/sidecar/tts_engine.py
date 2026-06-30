@@ -25,7 +25,8 @@ class TtsEngine:
     def available(self) -> bool:
         return self._available
 
-    def speak(self, text: str, on_done=None) -> None:
+    def speak(self, text: str, rate: float = 1.0, volume: float = 1.0,
+              on_done=None) -> None:
         if not self._available or not text.strip():
             if on_done:
                 on_done()
@@ -38,6 +39,12 @@ class TtsEngine:
                 import pyttsx3
 
                 engine = pyttsx3.init()
+                try:
+                    base = engine.getProperty("rate") or 200
+                    engine.setProperty("rate", int(base * max(0.5, min(2.0, rate))))
+                    engine.setProperty("volume", max(0.0, min(1.0, volume)))
+                except Exception:
+                    pass
                 engine.say(text)
                 engine.runAndWait()
                 engine.stop()
