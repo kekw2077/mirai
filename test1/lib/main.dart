@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:record/record.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'package:tray_manager/tray_manager.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:launch_at_startup/launch_at_startup.dart';
@@ -28,6 +29,10 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:system_info_plus/system_info_plus.dart';
 
 import 'local_model_stub.dart' if (dart.library.io) 'local_model_io.dart';
+// Voice visualization widget variants (self-contained CustomPainter widgets,
+// adapted from user-provided LiveKit-style bars and SmoothUI Siri Orb).
+import 'lk_bar_visualizer.dart';
+import 'siri_orb.dart';
 
 // Kept short now that the animated ImmersiveSplash provides the real
 // startup dwell — otherwise boot would be this delay plus the ~1.5s
@@ -38,25 +43,45 @@ void main() async {
   final startedAt = DateTime.now();
   WidgetsFlutterBinding.ensureInitialized();
   final isWindows = defaultTargetPlatform == TargetPlatform.windows;
+  // Prefs are needed BEFORE the first window shows: when the app was last in
+  // (or defaults to) overlay-widget mode, the window must be born small so
+  // the full-size chat window never flashes on screen.
+  final prefs = await SharedPreferences.getInstance();
+  final app = AppState(prefs);
   if (isWindows) {
     await windowManager.ensureInitialized();
+    // flutter_acrylic: lets the window become truly transparent while in the
+    // floating overlay-widget mode (see DesktopIntegration.enterOverlay).
+    try {
+      await acrylic.Window.initialize();
+    } catch (_) {}
     await hotKeyManager.unregisterAll();
+    final overlayAtBoot = prefs.getBool('overlayMode') ?? true;
+    final overlaySz = prefs.getDouble('overlaySize') ?? 260;
     // Frameless window — hide the native title bar; EVS draws its own controls
-    // (see _WindowTitleBar). Window stays resizable.
-    const windowOptions = WindowOptions(
-      size: Size(1280, 720),
-      minimumSize: Size(900, 600),
-      center: true,
-      title: 'EVS',
-      titleBarStyle: TitleBarStyle.hidden,
-    );
+    // (see _WindowTitleBar). Window stays resizable. In overlay mode the
+    // window starts already widget-sized; DesktopIntegration.init finishes
+    // the morph (transparency, topmost, right-edge position).
+    final windowOptions = overlayAtBoot
+        ? WindowOptions(
+            size: Size(overlaySz, overlaySz),
+            minimumSize: const Size(140, 140),
+            title: 'EVS',
+            titleBarStyle: TitleBarStyle.hidden,
+            skipTaskbar: true,
+          )
+        : const WindowOptions(
+            size: Size(1280, 720),
+            minimumSize: Size(900, 600),
+            center: true,
+            title: 'EVS',
+            titleBarStyle: TitleBarStyle.hidden,
+          );
     unawaited(windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();
     }));
   }
-  final prefs = await SharedPreferences.getInstance();
-  final app = AppState(prefs);
   await app.load();
 
   if (isWindows) {
@@ -175,6 +200,42 @@ const Map<String, Map<String, String>> _i18n = {
     'vizWaves': 'Волны',
     'vizBars': 'Бары',
     'vizNone': 'Нет',
+    'navWidgets': 'Виджеты',
+    'navWidgetsSub': 'визуализация и оверлей',
+    'cardWsPreview': 'Предпросмотр',
+    'cardWsStyle': 'Стиль виджета',
+    'cardWsParams': 'Параметры',
+    'vizOrb': 'Siri Orb',
+    'vizLkBars': 'Полоски',
+    'wsAccent': 'Акцентный цвет',
+    'wsAccentDesc': 'Цвет Siri Orb и Полосок',
+    'wsOrbSize': 'Размер орба',
+    'wsOrbSpeed': 'Скорость вращения',
+    'wsOrbSpeedDesc': 'Секунд на полный оборот',
+    'wsFast': 'быстро',
+    'wsSlow': 'медленно',
+    'wsBarCount': 'Количество полосок',
+    'wsSimVoice': 'Имитация голоса',
+    'wsStateIdle': 'Ожидание',
+    'wsStateListening': 'Слушает',
+    'wsStateSpeaking': 'Говорит',
+    'wsStateThinking': 'Думает',
+    'ovlEnter': 'Плавающий виджет',
+    'ovlEnterDesc':
+        'Визуализация в маленьком прозрачном окне поверх всех окон. '
+            'Двойной клик по виджету — вернуться в чат',
+    'ovlEnterBtn': 'Свернуть в виджет',
+    'ovlSize': 'Размер виджета',
+    'ovlSizeDesc': 'Размер плавающего окна с визуализацией',
+    'ovlSizeS': 'Маленький',
+    'ovlSizeM': 'Средний',
+    'ovlSizeL': 'Большой',
+    'ovlOnTray': 'Виджет вместо сворачивания в трей',
+    'ovlOnTrayDesc':
+        'При закрытии/сворачивании окна оставлять плавающий виджет на экране',
+    'ovlOpenChat': 'Открыть EVS',
+    'ovlHide': 'Скрыть виджет',
+    'trayOverlay': 'Плавающий виджет',
     'showVizBg': 'Показывать в фоне',
     'showVizBgDesc': 'Отображать визуализацию на главном экране',
     'cardVoiceResp': 'Голос ответа',
@@ -803,6 +864,42 @@ const Map<String, Map<String, String>> _i18n = {
     'vizWaves': 'Waves',
     'vizBars': 'Bars',
     'vizNone': 'None',
+    'navWidgets': 'Widgets',
+    'navWidgetsSub': 'visualization & overlay',
+    'cardWsPreview': 'Preview',
+    'cardWsStyle': 'Widget style',
+    'cardWsParams': 'Parameters',
+    'vizOrb': 'Siri Orb',
+    'vizLkBars': 'Stripes',
+    'wsAccent': 'Accent color',
+    'wsAccentDesc': 'Color of the Siri Orb and Stripes',
+    'wsOrbSize': 'Orb size',
+    'wsOrbSpeed': 'Rotation speed',
+    'wsOrbSpeedDesc': 'Seconds per full turn',
+    'wsFast': 'fast',
+    'wsSlow': 'slow',
+    'wsBarCount': 'Number of bars',
+    'wsSimVoice': 'Voice simulation',
+    'wsStateIdle': 'Idle',
+    'wsStateListening': 'Listening',
+    'wsStateSpeaking': 'Speaking',
+    'wsStateThinking': 'Thinking',
+    'ovlEnter': 'Floating widget',
+    'ovlEnterDesc':
+        'The visualization in a small transparent always-on-top window. '
+            'Double-click the widget to return to the chat',
+    'ovlEnterBtn': 'Collapse to widget',
+    'ovlSize': 'Widget size',
+    'ovlSizeDesc': 'Size of the floating visualization window',
+    'ovlSizeS': 'Small',
+    'ovlSizeM': 'Medium',
+    'ovlSizeL': 'Large',
+    'ovlOnTray': 'Widget instead of hiding to tray',
+    'ovlOnTrayDesc':
+        'Keep the floating widget on screen when the window is closed/minimized',
+    'ovlOpenChat': 'Open EVS',
+    'ovlHide': 'Hide widget',
+    'trayOverlay': 'Floating widget',
     'showVizBg': 'Show in background',
     'showVizBgDesc': 'Display the visualization on the home screen',
     'cardVoiceResp': 'Voice response',
@@ -2323,6 +2420,13 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('1.0.6', [
+    'EVS теперь открывается плавающим виджетом у правого края экрана: маленькое прозрачное окно поверх всех окон, перетаскивается мышью, двойной клик разворачивает чат, закрытие чата возвращает виджет.',
+    'Два новых стиля визуализации — Siri Orb (цветные блобы с бликом) и Полоски (LiveKit-стиль), оба реагируют на реальный звук.',
+    'Новый раздел настроек «Виджеты»: живой предпросмотр с имитацией голоса, выбор стиля, акцентный цвет, размер/скорость орба, число полосок и настройки плавающего виджета.',
+    'Подключение модели теперь только через сервер: локальный (Ollama) по адресу или удалённый по адресу с API-ключом; загрузка локальных моделей убрана.',
+    'Исправлен вылет при запуске с выбранной локальной моделью: сбойная модель теперь гарантированно отключается после первого падения.',
+  ]),
   ChangelogEntry('1.0.5', [
     'Живые визуализации голоса: три варианта виджета (сфера, кольцо, бары) — реагируют на реальный звук с микрофона и на озвучку ответов, переключаются в настройках («Тип визуализации»).',
     'Видимая реакция на слово-активатор: при «EVS…» плашка вспыхивает «услышал, говорите!», визуализация даёт импульс.',
@@ -2738,20 +2842,32 @@ class LocalLLMService implements ILLMService {
 
     final completer = Completer<String>();
     await setModelLoadingFlag(modelPath);
+    // NB: fllamaChat returns as soon as the request is QUEUED — the native
+    // load/inference continues on its own thread. The sentinel must stay on
+    // disk until the first callback (= survived the crash-prone load), NOT
+    // until fllamaChat returns, or a native crash leaves no trace.
+    var cleared = false;
     try {
       await fllamaChat(_buildRequest(conv, modelPath, messages), (
         response,
         openaiJson,
         done,
       ) {
+        if (!cleared) {
+          cleared = true;
+          unawaited(clearModelLoadingFlag());
+        }
         if (done && !completer.isCompleted) completer.complete(response);
       });
     } catch (e) {
+      if (!cleared) {
+        cleared = true;
+        unawaited(clearModelLoadingFlag());
+      }
       if (!completer.isCompleted) {
         completer.complete('${app.t('unreachable')} ($e)');
       }
     }
-    await clearModelLoadingFlag();
     return completer.future;
   }
 
@@ -2810,7 +2926,11 @@ class LocalLLMService implements ILLMService {
     final completer = Completer<void>();
     // Native load can hard-crash the process — mark it so a crash is detected
     // on the next launch (see AppState.load / crashed-model handling).
+    // fllamaChat only QUEUES the request (the load happens on a native
+    // thread), so the sentinel is cleared on the first callback — clearing
+    // right after fllamaChat returns would erase it before the crash.
     await setModelLoadingFlag(modelKey);
+    var cleared = false;
     try {
       // Minimal 1-token request just to force the GGUF to load into memory
       // (and warm the OS file cache). We don't care about the output.
@@ -2822,13 +2942,20 @@ class LocalLLMService implements ILLMService {
           maxTokens: 1,
         ),
         (response, openaiJson, done) {
+          if (!cleared) {
+            cleared = true;
+            unawaited(clearModelLoadingFlag());
+          }
           if (done && !completer.isCompleted) completer.complete();
         },
       );
     } catch (_) {
+      if (!cleared) {
+        cleared = true;
+        unawaited(clearModelLoadingFlag());
+      }
       if (!completer.isCompleted) completer.complete();
     }
-    await clearModelLoadingFlag();
     return completer.future;
   }
 }
@@ -3273,9 +3400,24 @@ class AppState extends ChangeNotifier {
   String cmdConfirm = 'risky'; // 'always' | 'risky' | 'never'
   bool cmdEnabled = false; // allow command execution (off by default for safety)
   // Voice visualization.
-  String vizType = 'sphere'; // 'sphere' | 'waves' | 'bars' | 'none'
+  // 'sphere' | 'waves' | 'bars' | 'orb' (Siri Orb) | 'lkbars' (Полоски) | 'none'
+  String vizType = 'sphere';
   bool showVizBg = true;
   bool showPartial = true;
+  // Widget appearance (the «Виджеты» settings section). Accent drives the
+  // Siri Orb blob palette (HSL shifts) and the LK bars color.
+  int vizAccent = 0xFF7C4DFF;
+  double orbSize = 200; // 120..320 px
+  double orbSpeed = 20; // seconds per rotation, 6..40
+  int barCount = 7; // 3..13 bars
+  // Floating overlay widget: the main window morphs into a small transparent
+  // always-on-top window showing just the voice visualization
+  // (DesktopIntegration.enterOverlay / OverlayWidgetView). By default the app
+  // OPENS as the widget (right edge of the desktop, centered) and the chat
+  // window is expanded from it; closing/minimizing the chat returns to it.
+  bool overlayMode = true; // persisted — survives restart/autostart
+  double overlaySize = 260; // overlay window size, px (200 | 260 | 330)
+  bool overlayOnTray = true; // closing/minimizing the chat -> widget
   // Periodic background update checks (the in-app Discord-style updater).
   bool autoUpdateCheck = true;
   // Voice responses (TTS).
@@ -3395,7 +3537,14 @@ class AppState extends ChangeNotifier {
       }
     }
     lastSeenVersion = prefs.getString('lastSeenVersion');
-    inferenceMode = prefs.getString('inferenceMode') ?? 'local';
+    inferenceMode = prefs.getString('inferenceMode') ?? 'localServer';
+    // Desktop is remote-only now: migrate installs that still point at
+    // on-device inference (the mode was removed from the settings UI).
+    if (inferenceMode == 'local') inferenceMode = 'localServer';
+    if (isLocalModel(selectedModel)) {
+      final remote = models.where((m) => !isLocalModel(m)).toList();
+      selectedModel = remote.isNotEmpty ? remote.first : '';
+    }
     autostart = prefs.getBool('autostart') ?? false;
     minimizeToTray = prefs.getBool('minimizeToTray') ?? true;
     closeToTray = prefs.getBool('closeToTray') ?? true;
@@ -3414,6 +3563,13 @@ class AppState extends ChangeNotifier {
     vizType = prefs.getString('vizType') ?? 'sphere';
     showVizBg = prefs.getBool('showVizBg') ?? true;
     showPartial = prefs.getBool('showPartial') ?? true;
+    overlayMode = prefs.getBool('overlayMode') ?? true;
+    overlaySize = prefs.getDouble('overlaySize') ?? 260;
+    overlayOnTray = prefs.getBool('overlayOnTray') ?? true;
+    vizAccent = prefs.getInt('vizAccent') ?? 0xFF7C4DFF;
+    orbSize = prefs.getDouble('orbSize') ?? 200;
+    orbSpeed = prefs.getDouble('orbSpeed') ?? 20;
+    barCount = prefs.getInt('barCount') ?? 7;
     autoUpdateCheck = prefs.getBool('autoUpdateCheck') ?? true;
     voiceResponses = prefs.getBool('voiceResponses') ?? false;
     ttsVoice = prefs.getString('ttsVoice') ?? 'system';
@@ -3499,6 +3655,13 @@ class AppState extends ChangeNotifier {
     await prefs.setString('vizType', vizType);
     await prefs.setBool('showVizBg', showVizBg);
     await prefs.setBool('showPartial', showPartial);
+    await prefs.setBool('overlayMode', overlayMode);
+    await prefs.setDouble('overlaySize', overlaySize);
+    await prefs.setBool('overlayOnTray', overlayOnTray);
+    await prefs.setInt('vizAccent', vizAccent);
+    await prefs.setDouble('orbSize', orbSize);
+    await prefs.setDouble('orbSpeed', orbSpeed);
+    await prefs.setInt('barCount', barCount);
     await prefs.setBool('autoUpdateCheck', autoUpdateCheck);
     await prefs.setBool('voiceResponses', voiceResponses);
     await prefs.setString('ttsVoice', ttsVoice);
@@ -3621,6 +3784,63 @@ class AppState extends ChangeNotifier {
 
   void setShowVizBg(bool v) {
     showVizBg = v;
+    _save();
+    notifyListeners();
+  }
+
+  // Enter/leave the floating overlay-widget mode. The actual window morphing
+  // (size/transparency/always-on-top) is done by DesktopIntegration; the UI
+  // switches on overlayMode (MiraiApp builder).
+  void setOverlayMode(bool v) {
+    if (overlayMode == v) return;
+    overlayMode = v;
+    _save();
+    notifyListeners();
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      if (v) {
+        unawaited(DesktopIntegration.instance.enterOverlay(this));
+      } else {
+        unawaited(DesktopIntegration.instance.exitOverlay());
+      }
+    }
+  }
+
+  void setOverlaySize(double v) {
+    overlaySize = v;
+    _save();
+    notifyListeners();
+    // Live-resize if the overlay is currently out.
+    if (overlayMode && defaultTargetPlatform == TargetPlatform.windows) {
+      unawaited(DesktopIntegration.instance.resizeOverlay(v));
+    }
+  }
+
+  void setOverlayOnTray(bool v) {
+    overlayOnTray = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setVizAccent(int v) {
+    vizAccent = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setOrbSize(double v) {
+    orbSize = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setOrbSpeed(double v) {
+    orbSpeed = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setBarCount(int v) {
+    barCount = v;
     _save();
     notifyListeners();
   }
@@ -4328,6 +4548,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<String> _runLocalExtraction(String exchange) async {
+    // Same crash-sentinel discipline as LocalLLMService: never touch a model
+    // that hard-crashed the native loader, and keep the sentinel on disk
+    // until the first callback (fllamaChat only queues the request).
+    if (crashedLocalModels.contains(selectedModel)) return 'NONE';
     final spec = localSpecFor(selectedModel);
     if (spec == null) return 'NONE';
     final dir = await localModelsDirPath();
@@ -4335,21 +4559,35 @@ class AppState extends ChangeNotifier {
     if (!await localModelFileExists(modelPath)) return 'NONE';
 
     final completer = Completer<String>();
-    await fllamaChat(
-      OpenAiRequest(
-        messages: [
-          Message(Role.system, _memoryExtractionPrompt),
-          Message(Role.user, exchange),
-        ],
-        modelPath: modelPath,
-        contextSize: persona.localContextSize * 4,
-        maxTokens: 60,
-        temperature: 0.2,
-      ),
-      (response, openaiJson, done) {
-        if (done && !completer.isCompleted) completer.complete(response);
-      },
-    );
+    await setModelLoadingFlag(selectedModel);
+    var cleared = false;
+    try {
+      await fllamaChat(
+        OpenAiRequest(
+          messages: [
+            Message(Role.system, _memoryExtractionPrompt),
+            Message(Role.user, exchange),
+          ],
+          modelPath: modelPath,
+          contextSize: persona.localContextSize * 4,
+          maxTokens: 60,
+          temperature: 0.2,
+        ),
+        (response, openaiJson, done) {
+          if (!cleared) {
+            cleared = true;
+            unawaited(clearModelLoadingFlag());
+          }
+          if (done && !completer.isCompleted) completer.complete(response);
+        },
+      );
+    } catch (_) {
+      if (!cleared) {
+        cleared = true;
+        unawaited(clearModelLoadingFlag());
+      }
+      if (!completer.isCompleted) completer.complete('NONE');
+    }
     return completer.future;
   }
 }
@@ -4380,12 +4618,20 @@ class MiraiApp extends StatelessWidget {
         // Combine the OS-level accessibility text scale with the app's own
         // font size setting, instead of discarding the system scale.
         final systemFactor = mq.textScaler.scale(100) / 100;
-        return MediaQuery(
+        final scaled = MediaQuery(
           data: mq.copyWith(
             textScaler: TextScaler.linear(systemFactor * app.fontSize),
           ),
           child: child!,
         );
+        // Floating overlay-widget mode: the whole UI is swapped for the small
+        // transparent visualization (the window itself is shrunk/made
+        // transparent by DesktopIntegration.enterOverlay). The normal UI stays
+        // mounted offstage so chat/navigation state survives the round-trip.
+        return Stack(children: [
+          Offstage(offstage: app.overlayMode, child: scaled),
+          if (app.overlayMode) const OverlayWidgetView(),
+        ]);
       },
       home: const ImmersiveSplash(),
     );
@@ -5983,6 +6229,15 @@ class DesktopIntegration with WindowListener, TrayListener {
       // installer in the background and shows an in-app "restart to update"
       // banner — no native WinSparkle prompts.
       AppUpdater.instance.start(app);
+
+      // Opening in overlay-widget mode (the default): the window was already
+      // born widget-sized (see main()); finish the morph — frameless,
+      // transparent, always-on-top, right-edge position — right after the
+      // scheduled initial show.
+      if (app.overlayMode) {
+        unawaited(Future.delayed(const Duration(milliseconds: 200))
+            .then((_) => enterOverlay(app)));
+      }
     } catch (_) {}
   }
 
@@ -6016,9 +6271,86 @@ class DesktopIntegration with WindowListener, TrayListener {
     final app = _app;
     await trayManager.setContextMenu(Menu(items: [
       MenuItem(key: 'show', label: app?.t('trayShow') ?? 'Show EVS'),
+      MenuItem(
+          key: 'overlay', label: app?.t('trayOverlay') ?? 'Floating widget'),
       MenuItem.separator(),
       MenuItem(key: 'quit', label: app?.t('trayQuit') ?? 'Quit'),
     ]));
+  }
+
+  // ---- Floating overlay-widget mode ----
+  // The main window itself morphs into a small transparent always-on-top
+  // square showing just the voice visualization (OverlayWidgetView). Same
+  // process/engine, so the assistant, mic meter and TTS levels keep running.
+
+  Rect? _preOverlayBounds;
+
+  Future<void> enterOverlay(AppState app) async {
+    try {
+      if (await windowManager.isMaximized()) {
+        await windowManager.unmaximize();
+      }
+      if (!await windowManager.isMinimized()) {
+        _preOverlayBounds = await windowManager.getBounds();
+      }
+      await windowManager.setAsFrameless();
+      // Fully transparent window — only the widget's own pixels are visible.
+      await acrylic.Window.setEffect(
+        effect: acrylic.WindowEffect.transparent,
+        color: const Color(0x00000000),
+        dark: true,
+      );
+      await windowManager.setMinimumSize(const Size(140, 140));
+      final s = app.overlaySize;
+      await windowManager.setSize(Size(s, s));
+      await windowManager.setResizable(false);
+      await windowManager.setAlwaysOnTop(true);
+      await windowManager.setSkipTaskbar(true);
+      final px = app.prefs.getDouble('overlayX');
+      final py = app.prefs.getDouble('overlayY');
+      if (px != null && py != null) {
+        await windowManager.setPosition(Offset(px, py));
+      } else {
+        // Default parking spot: right edge of the desktop, vertically centered.
+        await windowManager.setAlignment(Alignment.centerRight);
+      }
+      await windowManager.show();
+      await windowManager.focus();
+    } catch (_) {}
+  }
+
+  Future<void> exitOverlay() async {
+    try {
+      await acrylic.Window.setEffect(effect: acrylic.WindowEffect.disabled);
+      await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
+      await windowManager.setAlwaysOnTop(false);
+      await windowManager.setSkipTaskbar(false);
+      await windowManager.setResizable(true);
+      await windowManager.setMinimumSize(const Size(900, 600));
+      final b = _preOverlayBounds;
+      if (b != null && b.width >= 900) {
+        await windowManager.setBounds(b);
+      } else {
+        await windowManager.setSize(const Size(1280, 720));
+        await windowManager.center();
+      }
+      await windowManager.show();
+      await windowManager.focus();
+    } catch (_) {}
+  }
+
+  Future<void> resizeOverlay(double size) async {
+    try {
+      await windowManager.setSize(Size(size, size));
+    } catch (_) {}
+  }
+
+  Future<void> _saveOverlayPos() async {
+    try {
+      final pos = await windowManager.getPosition();
+      await _app?.prefs.setDouble('overlayX', pos.dx);
+      await _app?.prefs.setDouble('overlayY', pos.dy);
+    } catch (_) {}
   }
 
   Future<void> applyAutostart(bool enable) async {
@@ -6033,6 +6365,12 @@ class DesktopIntegration with WindowListener, TrayListener {
   }
 
   Future<void> _show() async {
+    // From overlay-widget mode, "show" means: back to the full window.
+    final app = _app;
+    if (app != null && app.overlayMode) {
+      app.setOverlayMode(false);
+      return;
+    }
     try {
       await windowManager.show();
       await windowManager.focus();
@@ -6051,8 +6389,18 @@ class DesktopIntegration with WindowListener, TrayListener {
 
   @override
   void onWindowClose() {
-    if (_app?.closeToTray ?? false) {
+    final app = _app;
+    if (app?.overlayMode ?? false) {
+      // Alt+F4 on the overlay: just hide it (tray keeps the app alive).
       windowManager.hide();
+      return;
+    }
+    if (app?.closeToTray ?? false) {
+      if (app!.overlayOnTray) {
+        app.setOverlayMode(true);
+      } else {
+        windowManager.hide();
+      }
     } else {
       _quit();
     }
@@ -6060,7 +6408,20 @@ class DesktopIntegration with WindowListener, TrayListener {
 
   @override
   void onWindowMinimize() {
-    if (_app?.minimizeToTray ?? false) windowManager.hide();
+    final app = _app;
+    if (app == null || app.overlayMode) return;
+    if (app.overlayOnTray) {
+      unawaited(
+          windowManager.restore().then((_) => app.setOverlayMode(true)));
+    } else if (app.minimizeToTray) {
+      windowManager.hide();
+    }
+  }
+
+  @override
+  void onWindowMoved() {
+    // Remember where the user parked the overlay widget.
+    if (_app?.overlayMode ?? false) unawaited(_saveOverlayPos());
   }
 
   @override
@@ -6074,6 +6435,10 @@ class DesktopIntegration with WindowListener, TrayListener {
     switch (menuItem.key) {
       case 'show':
         _show();
+        break;
+      case 'overlay':
+        final app = _app;
+        if (app != null) app.setOverlayMode(!app.overlayMode);
         break;
       case 'quit':
         _quit();
@@ -6199,9 +6564,23 @@ class AppUpdater {
   // version; declining leaves the top-bar pill available.
   void _maybePrompt() {
     if (_promptedVersion == availableVersion) return;
+    final app = _app;
+    // In overlay-widget mode the whole chat UI (and its Navigator) is
+    // offstage — a dialog shown now would be invisible. Wait until the chat
+    // window is expanded, then prompt.
+    if (app != null && app.overlayMode) {
+      void onExpand() {
+        if (!app.overlayMode) {
+          app.removeListener(onExpand);
+          _maybePrompt();
+        }
+      }
+
+      app.addListener(onExpand);
+      return;
+    }
     _promptedVersion = availableVersion;
     final ctx = rootNavKey.currentContext;
-    final app = _app;
     if (ctx == null || app == null) return;
     showDialog(
       context: ctx,
@@ -7853,6 +8232,231 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(covariant _RingPainter old) => true;
 }
 
+// ---- Live wrappers for the new widget styles (Siri Orb / LK bars) ----
+
+/// Generates the three orb blob colors from a single accent (HSL shifts) —
+/// same recipe as the user-provided widgets settings mock.
+SiriOrbColors evsOrbColors(Color accent) {
+  final h = HSLColor.fromColor(accent);
+  Color shift(double deg, double satMul, double lightMul) => h
+      .withHue((h.hue + deg) % 360)
+      .withSaturation((h.saturation * satMul).clamp(0.0, 1.0))
+      .withLightness((h.lightness * lightMul).clamp(0.0, 1.0))
+      .toColor();
+  return SiriOrbColors(
+    bg: const Color(0xFF0A0A12),
+    c1: accent,
+    c2: shift(42, 1.0, 1.05),
+    c3: shift(-52, 0.95, 1.0),
+  );
+}
+
+/// Siri Orb / LK bars fed with the REAL combined voice level and the live
+/// assistant state: speaking while TTS audio plays, thinking while the LLM
+/// works, listening while the mic streams, idle otherwise.
+class EvsLiveViz extends StatelessWidget {
+  final String kind; // 'orb' | 'lkbars'
+  final double maxSize;
+  const EvsLiveViz({super.key, required this.kind, required this.maxSize});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        VoiceLevels.instance.combined,
+        VoiceLevels.instance.tts,
+        VoiceAssistant.instance.state,
+      ]),
+      builder: (_, __) {
+        final lv = VoiceLevels.instance.combined.value;
+        final va = VoiceAssistant.instance.state.value;
+        final speaking = VoiceLevels.instance.tts.value > 0.001;
+        final thinking = !speaking &&
+            (va == VaState.thinking || va == VaState.running ||
+                app.isGenerating);
+        final listening = !speaking &&
+            !thinking &&
+            (va == VaState.listening || MicMeter.instance.active);
+        final accent = Color(app.vizAccent);
+        if (kind == 'lkbars') {
+          final st = speaking
+              ? LkVisualizerState.speaking
+              : thinking
+                  ? LkVisualizerState.thinking
+                  : listening
+                      ? LkVisualizerState.listening
+                      : LkVisualizerState.idle;
+          final barW = maxSize / (app.barCount * 1.7);
+          return LkBarVisualizer(
+            level: lv,
+            state: st,
+            count: app.barCount,
+            color: accent,
+            barWidth: barW,
+            spacing: barW * 0.7,
+            minHeight: barW,
+            maxHeight: maxSize * 0.55,
+          );
+        }
+        final st = speaking
+            ? SiriOrbState.speaking
+            : thinking
+                ? SiriOrbState.thinking
+                : listening
+                    ? SiriOrbState.listening
+                    : SiriOrbState.idle;
+        return SiriOrb(
+          size: math.min(app.orbSize, maxSize),
+          level: lv,
+          state: st,
+          colors: evsOrbColors(accent),
+          animationDuration: app.orbSpeed,
+        );
+      },
+    );
+  }
+}
+
+// ---- Floating overlay-widget view ----
+// Rendered instead of the whole app UI while AppState.overlayMode is on (see
+// MiraiApp.builder). The window at that point is a small transparent
+// always-on-top square (DesktopIntegration.enterOverlay), so everything drawn
+// here floats directly on the user's desktop. Drag anywhere to move it;
+// double-click (or the hover button) returns to the full window.
+class OverlayWidgetView extends StatefulWidget {
+  const OverlayWidgetView({super.key});
+  @override
+  State<OverlayWidgetView> createState() => _OverlayWidgetViewState();
+}
+
+class _OverlayWidgetViewState extends State<OverlayWidgetView> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final viz = app.vizType;
+    return Material(
+      type: MaterialType.transparency,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onPanStart: (_) => windowManager.startDragging(),
+          onDoubleTap: () => app.setOverlayMode(false),
+          child: LayoutBuilder(builder: (context, box) {
+            final s = box.biggest.shortestSide;
+            return Stack(alignment: Alignment.center, children: [
+              // Soft dark backdrop so the widget stays readable over light
+              // desktops, fading to fully transparent at the window edge.
+              Container(
+                width: s,
+                height: s,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    Color(0x59000000),
+                    Color(0x33000000),
+                    Color(0x00000000),
+                  ], stops: [
+                    0.0,
+                    0.62,
+                    1.0,
+                  ]),
+                ),
+              ),
+              if (viz == 'bars')
+                EvsBarsViz(width: s * 0.86, height: s * 0.46)
+              else if (viz == 'waves')
+                EvsRingViz(size: s * 0.86)
+              else if (viz == 'orb')
+                EvsLiveViz(kind: 'orb', maxSize: s * 0.72)
+              else if (viz == 'lkbars')
+                EvsLiveViz(kind: 'lkbars', maxSize: s * 0.8)
+              else
+                ParticleSphere(
+                  size: s * 0.62,
+                  color: Colors.white,
+                  scattered: false,
+                  soundLevel: VoiceLevels.instance.combined,
+                ),
+              // Wake-word flash: same green confirmation as the topbar pill.
+              Positioned(
+                bottom: s * 0.10,
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: VoiceAssistant.instance.wakeActive,
+                  builder: (_, wake, __) => AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: wake ? 1 : 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xE0143D2B),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0x6654E0B0)),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.check_circle,
+                            size: 13, color: Color(0xFF54E0B0)),
+                        const SizedBox(width: 5),
+                        Text(
+                          app.t('vaWakeHeard'),
+                          style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFB2F0D4)),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+              // Hover controls: open the full window / hide the widget.
+              Positioned(
+                top: 8,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 150),
+                  opacity: _hover ? 1 : 0,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    _ovlBtn(Icons.open_in_full, app.t('ovlOpenChat'),
+                        () => app.setOverlayMode(false)),
+                    const SizedBox(width: 6),
+                    _ovlBtn(Icons.close, app.t('ovlHide'),
+                        () => windowManager.hide()),
+                  ]),
+                ),
+              ),
+            ]);
+          }),
+        ),
+      ),
+    );
+  }
+
+  // NB: no Tooltip here — OverlayWidgetView lives OUTSIDE the Navigator (see
+  // MiraiApp.builder), so there is no Overlay ancestor for tooltips to mount
+  // into (they'd throw "No Overlay widget found" on hover).
+  Widget _ovlBtn(IconData icon, String tip, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xCC1C1D2A),
+          border: Border.all(color: const Color(0x22FFFFFF)),
+        ),
+        child: Icon(icon, size: 15, color: Colors.white70),
+      ),
+    );
+  }
+}
+
 // Live microphone amplitude meter: streams raw PCM via `record` and turns it
 // into a smoothed 0..1 level (RMS). If streaming is unavailable on this
 // platform/device, `active` stays false and the widget falls back to a
@@ -8129,6 +8733,209 @@ class _CardSpec {
   const _CardSpec(this.child, {this.full = false});
 }
 
+// Live preview for the «Виджеты» settings section: renders the currently
+// selected style full-size, with a state switcher (idle/listening/speaking/
+// thinking) and a synthetic-voice toggle. The simulation feeds
+// VoiceLevels.tts, so history-driven styles (sphere/ring/spectrum) — and the
+// sidebar mini-widget — move exactly like they would during real speech.
+class _VizPreviewCard extends StatefulWidget {
+  const _VizPreviewCard();
+  @override
+  State<_VizPreviewCard> createState() => _VizPreviewCardState();
+}
+
+class _VizPreviewCardState extends State<_VizPreviewCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ticker;
+  final ValueNotifier<double> _lvl = ValueNotifier(0);
+  String _preview = 'listening'; // idle | listening | speaking | thinking
+  bool _simulate = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker =
+        AnimationController(vsync: this, duration: const Duration(seconds: 4))
+          ..repeat()
+          ..addListener(_onTick);
+  }
+
+  void _onTick() {
+    final t =
+        (_ticker.lastElapsedDuration ?? Duration.zero).inMilliseconds / 1000.0;
+    final reacts = _preview == 'listening' || _preview == 'speaking';
+    if (_simulate) {
+      final v = reacts ? _synthVoice(t) : 0.0;
+      _lvl.value = v;
+      VoiceLevels.instance.tts.value = v;
+    } else {
+      _lvl.value = VoiceLevels.instance.combined.value;
+    }
+  }
+
+  // Synthetic "speech" envelope: syllables + micro modulation + slow drift.
+  double _synthVoice(double t) {
+    final syllable = 0.5 + 0.5 * math.sin(t * 6.2);
+    final env = syllable * syllable;
+    final micro = 0.5 + 0.5 * math.sin(t * 23.0);
+    final drift = 0.5 + 0.5 * math.sin(t * 1.3);
+    return (0.12 + 0.88 * env * (0.55 + 0.45 * micro) * (0.7 + 0.3 * drift))
+        .clamp(0.0, 1.0);
+  }
+
+  @override
+  void dispose() {
+    _ticker
+      ..removeListener(_onTick)
+      ..dispose();
+    if (_simulate) VoiceLevels.instance.tts.value = 0;
+    _lvl.dispose();
+    super.dispose();
+  }
+
+  SiriOrbState get _orbState => switch (_preview) {
+        'speaking' => SiriOrbState.speaking,
+        'thinking' => SiriOrbState.thinking,
+        'idle' => SiriOrbState.idle,
+        _ => SiriOrbState.listening,
+      };
+
+  LkVisualizerState get _barState => switch (_preview) {
+        'speaking' => LkVisualizerState.speaking,
+        'thinking' => LkVisualizerState.thinking,
+        'idle' => LkVisualizerState.idle,
+        _ => LkVisualizerState.listening,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final accent = Color(app.vizAccent);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(children: [
+        SizedBox(
+          height: 230,
+          child: Center(
+            child: ValueListenableBuilder<double>(
+              valueListenable: _lvl,
+              builder: (_, lv, __) {
+                switch (app.vizType) {
+                  case 'waves':
+                    return const EvsRingViz(size: 200);
+                  case 'bars':
+                    return const EvsBarsViz(width: 340, height: 140);
+                  case 'orb':
+                    return SiriOrb(
+                      size: app.orbSize.clamp(120, 210),
+                      level: lv,
+                      state: _orbState,
+                      colors: evsOrbColors(accent),
+                      animationDuration: app.orbSpeed,
+                    );
+                  case 'lkbars':
+                    return LkBarVisualizer(
+                      level: lv,
+                      state: _barState,
+                      count: app.barCount,
+                      color: accent,
+                      barWidth: 12,
+                      spacing: 8,
+                      minHeight: 12,
+                      maxHeight: 150,
+                    );
+                  case 'none':
+                    return Text(app.t('vizNone'),
+                        style: const TextStyle(
+                            fontSize: 13, color: Color(0xFF6E7280)));
+                  default:
+                    return ParticleSphere(
+                      size: 190,
+                      color: Colors.white,
+                      soundLevel: _lvl,
+                    );
+                }
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        evsSegmentedWide<String>([
+          ('idle', app.t('wsStateIdle')),
+          ('listening', app.t('wsStateListening')),
+          ('speaking', app.t('wsStateSpeaking')),
+          ('thinking', app.t('wsStateThinking')),
+        ], _preview, (v) => setState(() => _preview = v)),
+        const SizedBox(height: 10),
+        Row(children: [
+          const Icon(Icons.graphic_eq, size: 17, color: Color(0xFF8890A8)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(app.t('wsSimVoice'),
+                style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFD0D4E2))),
+          ),
+          evsToggle(_simulate, (v) {
+            setState(() => _simulate = v);
+            if (!v) VoiceLevels.instance.tts.value = 0;
+          }),
+        ]),
+      ]),
+    );
+  }
+}
+
+// Selectable style thumbnail for the «Виджеты» section.
+class _VizStyleTile extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color accent;
+  final Widget preview;
+  final VoidCallback onTap;
+  const _VizStyleTile({
+    required this.label,
+    required this.selected,
+    required this.accent,
+    required this.preview,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 148,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0x1A8A7BE0)
+              : Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? accent : const Color(0x14FFFFFF),
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Column(children: [
+          SizedBox(height: 56, child: Center(child: preview)),
+          const SizedBox(height: 10),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected
+                      ? const Color(0xFFD0D4E2)
+                      : const Color(0xFF8890A8))),
+        ]),
+      ),
+    );
+  }
+}
+
 class DesktopSettings extends StatefulWidget {
   const DesktopSettings({super.key});
   @override
@@ -8302,6 +9109,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
   late final List<(IconData, String, String)> _sections = const [
     (Icons.settings_outlined, 'navGeneral', 'navGeneralSub'),
     (Icons.mic_none, 'navVoiceInput', 'navVoiceInputSub'),
+    (Icons.auto_awesome_outlined, 'navWidgets', 'navWidgetsSub'),
     (Icons.bolt_outlined, 'navVoiceCommands', 'navVoiceCommandsSub'),
     (Icons.memory, 'navModel', 'navModelSub'),
     (Icons.chat_bubble_outline, 'navPersona', 'navPersonaSub'),
@@ -8524,14 +9332,16 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       case 1:
         return _voiceInputCards(app);
       case 2:
-        return _voiceCommandCards(app);
+        return _widgetsCards(app);
       case 3:
-        return _modelCards(app);
+        return _voiceCommandCards(app);
       case 4:
-        return _personaCards(app);
+        return _modelCards(app);
       case 5:
-        return _privacyCards(app);
+        return _personaCards(app);
       case 6:
+        return _privacyCards(app);
+      case 7:
         return _aboutCards(app);
       default:
         return const [];
@@ -8972,8 +9782,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     );
   }
 
-  String _fmtSize(int bytes) => '${(bytes / 1e9).toStringAsFixed(1)} GB';
-
   // Editable server address (and optional API key) for the local-server /
   // remote connection modes — writes straight to AppState.serverUrl/apiKey.
   Widget _serverField(AppState app, {required String hint, bool withKey = false}) {
@@ -9273,11 +10081,200 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     );
   }
 
+  // =================== SECTION 2: WIDGETS ===================
+  // Look of the voice visualization (adapted from the user-provided
+  // widgets-settings mock): live preview with a voice simulation, style
+  // tiles, per-style parameters, plus the floating-overlay controls.
+  List<_CardSpec> _widgetsCards(AppState app) {
+    final accent = Color(app.vizAccent);
+    return [
+      _CardSpec(
+        evsCard(context,
+            icon: Icons.auto_awesome_outlined,
+            title: app.t('cardWsPreview'),
+            rows: [const _VizPreviewCard()]),
+        full: true,
+      ),
+      _CardSpec(
+        evsCard(context,
+            icon: Icons.style_outlined,
+            title: app.t('cardWsStyle'),
+            rows: [
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final (key, label) in [
+                      ('sphere', app.t('vizSphere')),
+                      ('waves', app.t('vizWaves')),
+                      ('bars', app.t('vizBars')),
+                      ('orb', app.t('vizOrb')),
+                      ('lkbars', app.t('vizLkBars')),
+                      ('none', app.t('vizNone')),
+                    ])
+                      _VizStyleTile(
+                        label: label,
+                        selected: app.vizType == key,
+                        accent: accent,
+                        preview: _vizMini(key, accent),
+                        onTap: () => app.setVizType(key),
+                      ),
+                  ],
+                ),
+              ),
+            ]),
+        full: true,
+      ),
+      _CardSpec(evsCard(context,
+          icon: Icons.tune, title: app.t('cardWsParams'), rows: [
+        evsRow(
+          label: app.t('wsAccent'),
+          desc: app.t('wsAccentDesc'),
+          control: Row(mainAxisSize: MainAxisSize.min, children: [
+            for (final c in const [
+              0xFF7C4DFF,
+              0xFF4FC3F7,
+              0xFFFF5FA8,
+              0xFF34D399,
+              0xFFFFB020,
+              0xFFF04E4E,
+            ])
+              GestureDetector(
+                onTap: () => app.setVizAccent(c),
+                child: Container(
+                  margin: const EdgeInsets.only(left: 9),
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Color(c),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: app.vizAccent == c
+                            ? Colors.white
+                            : Colors.transparent,
+                        width: 2),
+                    boxShadow: app.vizAccent == c
+                        ? [
+                            BoxShadow(
+                                color: Color(c).withValues(alpha: 0.45),
+                                blurRadius: 8)
+                          ]
+                        : null,
+                  ),
+                ),
+              ),
+          ]),
+        ),
+        if (app.vizType == 'orb') ...[
+          evsNamedSlider(
+            label: app.t('wsOrbSize'),
+            value: app.orbSize.clamp(120, 320),
+            min: 120,
+            max: 320,
+            valueLabel: '${app.orbSize.round()} px',
+            left: '120',
+            right: '320',
+            onChanged: (v) => app.setOrbSize(v),
+          ),
+          evsNamedSlider(
+            label: app.t('wsOrbSpeed'),
+            desc: app.t('wsOrbSpeedDesc'),
+            value: app.orbSpeed.clamp(6, 40),
+            min: 6,
+            max: 40,
+            valueLabel: '${app.orbSpeed.round()} ${app.t('secShort')}',
+            left: app.t('wsFast'),
+            right: app.t('wsSlow'),
+            onChanged: (v) => app.setOrbSpeed(v),
+          ),
+        ],
+        if (app.vizType == 'lkbars')
+          evsNamedSlider(
+            label: app.t('wsBarCount'),
+            value: app.barCount.toDouble().clamp(3, 13),
+            min: 3,
+            max: 13,
+            valueLabel: '${app.barCount}',
+            left: '3',
+            right: '13',
+            onChanged: (v) => app.setBarCount(v.round()),
+          ),
+        evsRow(
+          label: app.t('showVizBg'),
+          desc: app.t('showVizBgDesc'),
+          control: evsToggle(app.showVizBg, app.setShowVizBg),
+        ),
+      ])),
+      _CardSpec(evsCard(context,
+          icon: Icons.picture_in_picture_alt_outlined,
+          title: app.t('ovlEnter'),
+          rows: [
+            evsRow(
+              label: app.t('ovlEnter'),
+              desc: app.t('ovlEnterDesc'),
+              control: evsSelectButton(app.t('ovlEnterBtn'),
+                  onTap: () => app.setOverlayMode(true)),
+            ),
+            evsRow(
+              stacked: true,
+              label: app.t('ovlSize'),
+              desc: app.t('ovlSizeDesc'),
+              control: evsSegmentedWide<double>([
+                (200.0, app.t('ovlSizeS')),
+                (260.0, app.t('ovlSizeM')),
+                (330.0, app.t('ovlSizeL')),
+              ], app.overlaySize, app.setOverlaySize),
+            ),
+            evsRow(
+              label: app.t('ovlOnTray'),
+              desc: app.t('ovlOnTrayDesc'),
+              control: evsToggle(app.overlayOnTray, app.setOverlayOnTray),
+            ),
+          ])),
+    ];
+  }
+
+  // Small static-ish thumbnail for a style tile.
+  Widget _vizMini(String key, Color accent) {
+    switch (key) {
+      case 'waves':
+        return const EvsRingViz(size: 52);
+      case 'bars':
+        return const EvsBarsViz(width: 62, height: 38);
+      case 'orb':
+        return SiriOrb(
+            size: 48,
+            level: 0.4,
+            state: SiriOrbState.listening,
+            colors: evsOrbColors(accent),
+            glow: false);
+      case 'lkbars':
+        return LkBarVisualizer(
+            level: 0.5,
+            count: 5,
+            color: accent,
+            barWidth: 5,
+            spacing: 3.5,
+            minHeight: 5,
+            maxHeight: 34);
+      case 'none':
+        return const Icon(Icons.hide_source,
+            size: 26, color: Color(0xFF6E7280));
+      default:
+        return ParticleSphere(
+            size: 46,
+            color: Colors.white,
+            soundLevel: VoiceLevels.instance.combined);
+    }
+  }
+
   // =================== SECTION 3: MODEL & INFERENCE ===================
+  // Desktop is remote-only by design: models come from a local server
+  // (Ollama) or a remote API endpoint. On-device GGUF inference was removed
+  // from the UI (the fllama engine code stays dormant in the codebase).
   List<_CardSpec> _modelCards(AppState app) {
-    final downloaded =
-        kLocalModels.where((s) => app.downloadedLocalModelIds.contains(s.id));
-    final maxCtx = app.ramContextCeiling < 1024 ? 1024 : app.ramContextCeiling;
     return [
       _CardSpec(
         evsCard(context, icon: Icons.wifi, title: app.t('cardConnMode'), rows: [
@@ -9285,13 +10282,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
             child: Column(
               children: [
-                evsRadioCard(
-                  selected: app.inferenceMode == 'local',
-                  title: app.t('modeOnDevice'),
-                  desc: app.t('modeOnDeviceDesc'),
-                  onTap: () => app.setInferenceMode('local'),
-                ),
-                const SizedBox(height: 8),
                 evsRadioCard(
                   selected: app.inferenceMode == 'localServer',
                   title: app.t('modeLocalServer'),
@@ -9320,43 +10310,17 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       ),
       _CardSpec(evsCard(context,
           icon: Icons.memory, title: app.t('cardModelPick'), rows: [
-        if (downloaded.isEmpty && app.models.isEmpty)
+        if (app.models.isEmpty)
           Padding(
             padding: const EdgeInsets.all(18),
             child: Text(app.t('noModelsYet'),
                 style: const TextStyle(fontSize: 13, color: Color(0xFF6E7280))),
           ),
-        for (final s in downloaded)
-          _modelRow(app, s.modelKey, s.shortName, _fmtSize(s.sizeBytes)),
         for (final m in app.models)
           _modelRow(app, m, app.modelDisplayName(m, withSuffix: false), ''),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: evsAddButton(
-              app.t('downloadModel'),
-              () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const LocalModelsScreen()),
-              ),
-              icon: Icons.download,
-            ),
-          ),
-        ),
       ])),
       _CardSpec(evsCard(context,
           icon: Icons.tune, title: app.t('cardGenParams'), rows: [
-        evsNamedSlider(
-          label: app.t('contextSize'),
-          desc: app.t('contextSizeDesc'),
-          value: app.persona.localContextSize.toDouble(),
-          min: 512,
-          max: maxCtx.toDouble(),
-          valueLabel: '${app.persona.localContextSize} т.',
-          left: '512',
-          right: '$maxCtx',
-          onChanged: (v) => _persona((p) => p.localContextSize = v.round()),
-        ),
         evsNamedSlider(
           label: 'Temperature',
           desc: app.t('temperatureDesc'),
@@ -9958,29 +10922,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             label: app.t('showPartial'),
             desc: app.t('showPartialDesc'),
             control: evsToggle(app.showPartial, app.setShowPartial),
-          ),
-        ],
-      )),
-      _CardSpec(evsCard(
-        context,
-        icon: Icons.graphic_eq,
-        title: app.t('cardVoiceViz'),
-        rows: [
-          evsRow(
-            stacked: true,
-            label: app.t('vizType'),
-            desc: app.t('vizTypeDesc'),
-            control: evsSegmentedWide<String>([
-              ('sphere', app.t('vizSphere')),
-              ('waves', app.t('vizWaves')),
-              ('bars', app.t('vizBars')),
-              ('none', app.t('vizNone')),
-            ], app.vizType, app.setVizType),
-          ),
-          evsRow(
-            label: app.t('showVizBg'),
-            desc: app.t('showVizBgDesc'),
-            control: evsToggle(app.showVizBg, app.setShowVizBg),
           ),
         ],
       )),
@@ -10622,6 +11563,14 @@ class _WindowTitleBar extends StatelessWidget {
       child: Row(
         children: [
           const Expanded(child: DragToMoveArea(child: SizedBox.expand())),
+          // Collapse into the floating overlay widget (transparent
+          // always-on-top mini window with the voice visualization).
+          Tooltip(
+            message: context.read<AppState>().t('ovlEnter'),
+            child: _WinBtn(Icons.picture_in_picture_alt_outlined,
+                () => context.read<AppState>().setOverlayMode(true),
+                iconSize: 14),
+          ),
           _WinBtn(Icons.remove, () => windowManager.minimize()),
           _WinBtn(Icons.crop_square, () async {
             if (await windowManager.isMaximized()) {
@@ -11631,6 +12580,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 const EvsBarsViz(width: 360, height: 150)
               else if (app.vizType == 'waves')
                 const EvsRingViz(size: 220)
+              else if (app.vizType == 'orb')
+                const EvsLiveViz(kind: 'orb', maxSize: 320)
+              else if (app.vizType == 'lkbars')
+                const EvsLiveViz(kind: 'lkbars', maxSize: 340)
               else
                 ParticleSphere(
                   size: 200,

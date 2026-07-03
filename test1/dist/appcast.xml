@@ -28,6 +28,36 @@
 
     <!-- Newest release first. Duplicate this block for each new version. -->
     <item>
+      <title>EVS 1.0.6</title>
+      <description><![CDATA[
+        <style>
+          html,body{background:#0E0E15;color:#E6E8F0;margin:0;padding:14px 18px;
+            font-family:'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;}
+          h1,h2,h3,b,strong{color:#FFFFFF;}
+          a{color:#8A7BE0;}
+          ul{margin:6px 0;padding-left:20px;}
+          li{margin:5px 0;}
+        </style>
+        <ul>
+          <li>EVS открывается плавающим виджетом у правого края экрана — прозрачное окно поверх всех окон, двойной клик разворачивает чат.</li>
+          <li>Новые стили визуализации: Siri Orb и Полоски — реагируют на реальный звук.</li>
+          <li>Раздел настроек «Виджеты»: живой предпросмотр, акцентный цвет, параметры стилей.</li>
+          <li>Подключение модели только через сервер (адрес / API-ключ); загрузка локальных моделей убрана.</li>
+          <li>Исправлен вылет при запуске со сбойной локальной моделью.</li>
+        </ul>
+      ]]></description>
+      <pubDate>Fri, 03 Jul 2026 16:00:00 +0000</pubDate>
+      <enclosure
+        url="https://github.com/kekw2077/mirai/releases/download/desktop-v1.0.6/EVS-Setup-1.0.6.exe"
+        sparkle:version="1.0.6"
+        sparkle:os="windows"
+        sparkle:dsaSignature="MD0CHQCpRppvzehaq+tnUnzvZ3eQvIe26V5zJBhc/cIoAhwCWvvMDLwimNoAor4iasYeHuYglIlSixdEYwxz"
+        evs:sha256="22ce1c49260fa806f4b921ea324b31fa639866592a9ff80e5c60cf42347a5df3"
+        length="15801304"
+        type="application/octet-stream" />
+    </item>
+
+    <item>
       <title>EVS 1.0.5</title>
       <description><![CDATA[
         <style>

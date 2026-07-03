@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($pkg = \\(Get-Content \"c:\\\\Files\\\\vs code\\\\mirai-desktop\\\\test1\\\\.dart_tool\\\\package_config.json\" -Raw | ConvertFrom-Json\\).packages | Where-Object { $_.name -eq 'auto_updater_windows' -or $_.name -eq 'auto_updater' }; $pkg | Select-Object name,rootUri)"
+    ]
+  }
+}

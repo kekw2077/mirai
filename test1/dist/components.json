@@ -1,20 +1,20 @@
-{
-  "components": {
-    "sidecar": {
-      "file": "evs_sidecar.exe",
-      "version": "3",
-      "url": "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_sidecar.exe",
-      "sha256": "1d37e36aa72a7a32a9af67879731f41060445db364f7669a83d27997270b1179",
-      "size": 101323706
-    },
-    "tts-clone": {
-      "file": "evs_tts.zip",
-      "exe": "evs_tts.exe",
-      "archive": true,
-      "version": "1",
-      "url": "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_tts.zip",
-      "sha256": "8c7bb6f3d75b41126c7836ce7ce93aa56ba24ff4a84291232eb1dd176834a876",
-      "size": 443449260
-    }
-  }
+﻿{
+    "components":  {
+                       "sidecar":  {
+                                       "file":  "evs_sidecar.exe",
+                                       "version":  "3",
+                                       "url":  "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_sidecar.exe",
+                                       "sha256":  "1d37e36aa72a7a32a9af67879731f41060445db364f7669a83d27997270b1179",
+                                       "size":  101323706
+                                   },
+                       "tts-clone":  {
+                                         "file":  "evs_tts.zip",
+                                         "exe":  "evs_tts.exe",
+                                         "archive":  true,
+                                         "version":  "2",
+                                         "url":  "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_tts.zip",
+                                         "sha256":  "ee7c841ef3d8bf0f603ee3c9cb2ea0a352efe70be1ee27881a6fef6cc675f1ae",
+                                         "size":  443452341
+                                     }
+                   }
 }
