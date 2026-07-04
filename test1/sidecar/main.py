@@ -64,7 +64,8 @@ async def _handle(ws, stt: SttEngine, tts: TtsEngine) -> None:
                 continue
             t = data.get("type")
             if t == "stt.start":
-                stt.start(data.get("language", "ru"), emit)
+                stt.start(data.get("language", "ru"), emit,
+                          device=data.get("device"))
             elif t == "stt.stop":
                 stt.stop()
             elif t == "stt.config":
@@ -110,6 +111,27 @@ async def _main(args) -> None:
         await asyncio.Future()  # run forever
 
 
+def _watch_parent() -> None:
+    """Exit when the launching app dies.
+
+    The app holds our stdin pipe; if it crashes or is force-killed, stdin
+    hits EOF — without this watcher, orphaned sidecars pile up (observed: 5
+    evs_sidecar.exe processes after repeated app kills).
+    """
+    import os
+    import threading
+
+    def _watch() -> None:
+        try:
+            while sys.stdin.buffer.read(4096):
+                pass
+        except Exception:
+            pass
+        os._exit(0)
+
+    threading.Thread(target=_watch, daemon=True).start()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="EVS voice/ML sidecar")
     ap.add_argument("--host", default="127.0.0.1")
@@ -118,6 +140,7 @@ def main() -> None:
     ap.add_argument("--device", default="cpu", help="cpu | cuda")
     ap.add_argument("--compute-type", dest="compute_type", default="int8")
     args = ap.parse_args()
+    _watch_parent()
     try:
         asyncio.run(_main(args))
     except KeyboardInterrupt:

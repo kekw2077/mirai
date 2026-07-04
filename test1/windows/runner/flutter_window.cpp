@@ -28,7 +28,10 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+    // EVS: do NOT auto-show on the first frame. Dart fully controls window
+    // visibility (window_manager): with the floating widget enabled the chat
+    // window must START HIDDEN (only the widget and the tray icon appear),
+    // and waitUntilReadyToShow shows it explicitly otherwise.
   });
 
   // Flutter can complete the first frame before the "show window" callback is

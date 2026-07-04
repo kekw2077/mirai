@@ -56,6 +56,21 @@ Future<void> clearModelLoadingFlag() async {
   } catch (_) {}
 }
 
+// Append-only diagnostics logs (<app-data>/logs/<name>.log): commands.log,
+// chat.log, errors.log. Best-effort — logging must never break the app.
+Future<void> appendLog(String name, String line) async {
+  try {
+    final dir = await getApplicationSupportDirectory();
+    final logs = Directory('${dir.path}/logs');
+    if (!await logs.exists()) await logs.create(recursive: true);
+    final f = File('${logs.path}/$name.log');
+    await f.writeAsString(
+      '${DateTime.now().toIso8601String()}  $line\n',
+      mode: FileMode.append,
+    );
+  } catch (_) {}
+}
+
 Future<void> installApk(String path) async {
   final result = await OpenFilex.open(path);
   if (result.type != ResultType.done) {

@@ -15,6 +15,7 @@ Future<String> componentsDirPath() async {
 Future<void> setModelLoadingFlag(String modelKey) async {}
 Future<String?> readModelLoadingFlag() async => null;
 Future<void> clearModelLoadingFlag() async {}
+Future<void> appendLog(String name, String line) async {}
 
 Future<void> installApk(String path) async {
   throw UnsupportedError('App updates are not supported on this platform.');

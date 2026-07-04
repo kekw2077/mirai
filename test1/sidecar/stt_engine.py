@@ -62,7 +62,41 @@ class SttEngine:
             )
         return self._model
 
-    def start(self, language: str | None, on_event) -> bool:
+    # Backlog guard: if transcription can't keep up with real time (e.g. a
+    # heavy model on CPU), the frame queue would grow without bound and every
+    # reply would arrive minutes late. Cap it at ~30 s and drop the OLDEST
+    # audio — better to lose stale speech than to lag forever.
+    _MAX_QUEUED_FRAMES = 30_000 // FRAME_MS
+
+    @staticmethod
+    def _resolve_input_device(name: str | None):
+        """PortAudio input index for a Windows device label ('' = default).
+
+        The app sends the friendly endpoint name (WASAPI); PortAudio names may
+        be truncated (MME cuts at ~31 chars), so match on a lowercase prefix
+        in both directions.
+        """
+        if not name:
+            return None
+        try:
+            import sounddevice as sd
+
+            want = name.strip().lower()[:28]
+            if not want:
+                return None
+            for i, d in enumerate(sd.query_devices()):
+                if d.get("max_input_channels", 0) <= 0:
+                    continue
+                have = str(d.get("name", "")).strip().lower()[:28]
+                if have and (want in have or have in want or
+                             want.startswith(have) or have.startswith(want)):
+                    return i
+        except Exception:
+            pass
+        return None
+
+    def start(self, language: str | None, on_event,
+              device: str | None = None) -> bool:
         if not self._available or self._running:
             return self._running
         self._on_event = on_event
@@ -76,6 +110,11 @@ class SttEngine:
 
             def cb(indata, frames, time_info, status):  # PortAudio thread
                 if self._running:
+                    if self._frames.qsize() > self._MAX_QUEUED_FRAMES:
+                        try:
+                            self._frames.get_nowait()
+                        except Exception:
+                            pass
                     self._frames.put(bytes(indata))
 
             self._capture = sd.RawInputStream(
@@ -83,6 +122,7 @@ class SttEngine:
                 blocksize=FRAME_SAMPLES,
                 dtype="int16",
                 channels=1,
+                device=self._resolve_input_device(device),
                 callback=cb,
             )
             self._capture.start()
@@ -115,12 +155,30 @@ class SttEngine:
         import numpy as np
         import webrtcvad
 
-        vad = webrtcvad.Vad(2)
+        # Aggressiveness 3 (strictest): laptop mic arrays emit a constant
+        # noise floor that level 2 happily labels "speech" — the segment then
+        # NEVER closes, stt.final never fires and the assistant looks dead
+        # (observed live: 150 s of nonstop partials, zero finals).
+        vad = webrtcvad.Vad(3)
         speech: list[bytes] = []
         speaking = False
         silence_frames = 0
         last_partial = 0.0
         SILENCE_LIMIT = int(600 / FRAME_MS)  # ~600 ms of silence ends a phrase
+        MAX_SPEECH_FRAMES = int(12_000 / FRAME_MS)  # force a final after 12 s
+        PARTIAL_TAIL_FRAMES = int(5_000 / FRAME_MS)  # partials: last 5 s only
+        # Noise gate on top of VAD — silence on some mics still passes VAD and
+        # Whisper then hallucinates subtitle credits out of it.
+        RMS_GATE = 0.010
+
+        def finalize():
+            nonlocal speech, speaking, silence_frames
+            speaking = False
+            self._emit({"type": "vad", "speaking": False})
+            audio = b"".join(speech)
+            speech = []
+            silence_frames = 0
+            self._transcribe(np, audio, final=True)
 
         while self._running:
             try:
@@ -129,8 +187,10 @@ class SttEngine:
                 continue
             if len(frame) != FRAME_BYTES:
                 continue
+            samples = np.frombuffer(frame, dtype=np.int16)
+            rms = float(np.sqrt(np.mean((samples / 32768.0) ** 2)))
             try:
-                is_speech = vad.is_speech(frame, SAMPLE_RATE)
+                is_speech = rms >= RMS_GATE and vad.is_speech(frame, SAMPLE_RATE)
             except Exception:
                 is_speech = False
 
@@ -140,20 +200,35 @@ class SttEngine:
                     self._emit({"type": "vad", "speaking": True})
                 speech.append(frame)
                 silence_frames = 0
+                if len(speech) >= MAX_SPEECH_FRAMES:
+                    finalize()
+                    continue
                 now = time.monotonic()
                 if now - last_partial > 0.8 and speech:
                     last_partial = now
-                    self._transcribe(np, b"".join(speech), final=False)
+                    # Re-transcribing the WHOLE buffer every 0.8 s is what
+                    # melts the CPU on long segments — partials only need the
+                    # recent tail (they're just live feedback for the pill).
+                    tail = speech[-PARTIAL_TAIL_FRAMES:]
+                    self._transcribe(np, b"".join(tail), final=False)
             elif speaking:
                 speech.append(frame)
                 silence_frames += 1
                 if silence_frames >= SILENCE_LIMIT:
-                    speaking = False
-                    self._emit({"type": "vad", "speaking": False})
-                    audio = b"".join(speech)
-                    speech = []
-                    silence_frames = 0
-                    self._transcribe(np, audio, final=True)
+                    finalize()
+
+    # Whisper's signature hallucinations on noise/near-silence (it was
+    # trained on subtitles): anything matching these is dropped outright.
+    _HALLUCINATION_MARKERS = (
+        "субтитр", "подписывайтесь", "продолжение следует", "редактор",
+        "корректор", "amara.org", "амара.орг", "dimatorzok",
+        "thanks for watching", "субтитры делал", "♪",
+    )
+
+    @classmethod
+    def _hallucinated(cls, text: str) -> bool:
+        low = text.lower()
+        return any(m in low for m in cls._HALLUCINATION_MARKERS)
 
     def _transcribe(self, np, audio_bytes: bytes, final: bool) -> None:
         if not audio_bytes:
@@ -163,11 +238,18 @@ class SttEngine:
             samples = (
                 np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
             )
+            # Finals get a silero VAD pass inside faster-whisper: it strips
+            # non-speech, so noise segments mostly return empty instead of
+            # hallucinated subtitle credits. Partials stay cheap/raw.
             segments, _ = model.transcribe(
-                samples, language=self._language, beam_size=1, vad_filter=False
+                samples,
+                language=self._language,
+                beam_size=1,
+                vad_filter=final,
+                condition_on_previous_text=False,
             )
             text = " ".join(s.text.strip() for s in segments).strip()
-            if text:
+            if text and not self._hallucinated(text):
                 self._emit({
                     "type": "stt.final" if final else "stt.partial",
                     "text": text,

@@ -28,6 +28,36 @@
 
     <!-- Newest release first. Duplicate this block for each new version. -->
     <item>
+      <title>EVS 1.0.7</title>
+      <description><![CDATA[
+        <style>
+          html,body{background:#0E0E15;color:#E6E8F0;margin:0;padding:14px 18px;
+            font-family:'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;}
+          h1,h2,h3,b,strong{color:#FFFFFF;}
+          a{color:#8A7BE0;}
+          ul{margin:6px 0;padding-left:20px;}
+          li{margin:5px 0;}
+        </style>
+        <ul>
+          <li>Виджет стал отдельным окном: чат и виджет видны одновременно, виджет всегда поверх окон.</li>
+          <li>Починено распознавание речи: команды теперь корректно завершаются и обрабатываются за секунды.</li>
+          <li>Голосовые команды больше не попадают в чат — выполняются скрыто, ответ голосом и на виджете.</li>
+          <li>Видны стадии ассистента: услышал → «говорите команду» → думаю → выполняю.</li>
+          <li>Визуализации реагируют только на голос ассистента; «Бары» и «Кольцо» двигаются строго вверх-вниз.</li>
+        </ul>
+      ]]></description>
+      <pubDate>Fri, 04 Jul 2026 04:00:00 +0000</pubDate>
+      <enclosure
+        url="https://github.com/kekw2077/mirai/releases/download/desktop-v1.0.7/EVS-Setup-1.0.7.exe"
+        sparkle:version="1.0.7"
+        sparkle:os="windows"
+        sparkle:dsaSignature="MDwCHFzDu4SazWlYOaQP/mFbXPrZ1+i864KxAMh6ad0CHB5vOyrAp84zSsQCCymnsi7gO8cPE7NwtS3hEts="
+        evs:sha256="7be470f52cee5d8f7905986a43479f8eaf4188f6fda9725268d9e762f420b4fb"
+        length="15830205"
+        type="application/octet-stream" />
+    </item>
+
+    <item>
       <title>EVS 1.0.6</title>
       <description><![CDATA[
         <style>

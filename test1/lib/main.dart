@@ -39,47 +39,48 @@ import 'siri_orb.dart';
 // animation stacked back to back.
 const _minSplashDuration = Duration(milliseconds: 300);
 
-void main() async {
+void main(List<String> args) async {
   final startedAt = DateTime.now();
   WidgetsFlutterBinding.ensureInitialized();
   final isWindows = defaultTargetPlatform == TargetPlatform.windows;
-  // Prefs are needed BEFORE the first window shows: when the app was last in
-  // (or defaults to) overlay-widget mode, the window must be born small so
-  // the full-size chat window never flashes on screen.
+
+  // Second-process mode: the floating visualization widget runs as its OWN
+  // window/process (`evs.exe --viz-overlay --port=N`), fed by the main app
+  // over a localhost WebSocket (VizOverlayServer). This way the widget truly
+  // coexists with the chat window, and all the window plumbing
+  // (frameless/transparent/topmost/drag) is just this process's main window.
+  if (isWindows && args.contains('--viz-overlay')) {
+    await _vizOverlayMain(args);
+    return;
+  }
+
   final prefs = await SharedPreferences.getInstance();
   final app = AppState(prefs);
   if (isWindows) {
     await windowManager.ensureInitialized();
-    // flutter_acrylic: lets the window become truly transparent while in the
-    // floating overlay-widget mode (see DesktopIntegration.enterOverlay).
-    try {
-      await acrylic.Window.initialize();
-    } catch (_) {}
     await hotKeyManager.unregisterAll();
-    final overlayAtBoot = prefs.getBool('overlayMode') ?? true;
-    final overlaySz = prefs.getDouble('overlaySize') ?? 260;
     // Frameless window — hide the native title bar; EVS draws its own controls
-    // (see _WindowTitleBar). Window stays resizable. In overlay mode the
-    // window starts already widget-sized; DesktopIntegration.init finishes
-    // the morph (transparency, topmost, right-edge position).
-    final windowOptions = overlayAtBoot
-        ? WindowOptions(
-            size: Size(overlaySz, overlaySz),
-            minimumSize: const Size(140, 140),
-            title: 'EVS',
-            titleBarStyle: TitleBarStyle.hidden,
-            skipTaskbar: true,
-          )
-        : const WindowOptions(
-            size: Size(1280, 720),
-            minimumSize: Size(900, 600),
-            center: true,
-            title: 'EVS',
-            titleBarStyle: TitleBarStyle.hidden,
-          );
+    // (see _WindowTitleBar). Window stays resizable. With the widget enabled
+    // (default) the chat window starts HIDDEN — only the floating widget and
+    // the tray icon appear; double-click on the widget / tray opens the chat.
+    const windowOptions = WindowOptions(
+      size: Size(1280, 720),
+      minimumSize: Size(900, 600),
+      center: true,
+      title: 'EVS',
+      titleBarStyle: TitleBarStyle.hidden,
+    );
+    final startHidden = prefs.getBool('overlayMode') ?? true;
     unawaited(windowManager.waitUntilReadyToShow(windowOptions, () async {
-      await windowManager.show();
-      await windowManager.focus();
+      if (startHidden) {
+        // The native runner shows the window on the first frame regardless —
+        // hide explicitly: with the widget enabled, only the floating widget
+        // and the tray icon should be visible at startup.
+        await windowManager.hide();
+      } else {
+        await windowManager.show();
+        await windowManager.focus();
+      }
     }));
   }
   await app.load();
@@ -94,6 +95,203 @@ void main() async {
   }
 
   runApp(ChangeNotifierProvider.value(value: app, child: const MiraiApp()));
+}
+
+/* ==================== ПРОЦЕСС ПЛАВАЮЩЕГО ВИДЖЕТА ==================== */
+
+// Entry point of the widget process (`evs.exe --viz-overlay --port=N`): a
+// tiny transparent always-on-top window rendering just the voice
+// visualization. No prefs writes, tray, hotkeys, sidecar, updater or mic
+// here — everything it shows arrives from the main process over a localhost
+// WebSocket, and it exits as soon as that socket closes.
+Future<void> _vizOverlayMain(List<String> args) async {
+  var port = 0;
+  for (final a in args) {
+    if (a.startsWith('--port=')) port = int.tryParse(a.substring(7)) ?? 0;
+  }
+  await windowManager.ensureInitialized();
+  try {
+    await acrylic.Window.initialize();
+  } catch (_) {}
+  const opts = WindowOptions(
+    size: Size(260, 260),
+    minimumSize: Size(120, 120),
+    title: 'EVS Widget',
+    titleBarStyle: TitleBarStyle.hidden,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+  );
+  unawaited(windowManager.waitUntilReadyToShow(opts, () async {
+    await windowManager.setAsFrameless();
+    try {
+      await acrylic.Window.setEffect(
+        effect: acrylic.WindowEffect.transparent,
+        color: const Color(0x00000000),
+        dark: true,
+      );
+    } catch (_) {}
+    await windowManager.setResizable(false);
+    await windowManager.setAlwaysOnTop(true);
+    await windowManager.setSkipTaskbar(true);
+    // Default parking spot; the first cfg message restores the saved position.
+    await windowManager.setAlignment(Alignment.centerRight);
+    await windowManager.show();
+  }));
+  runApp(VizOverlayApp(port: port));
+}
+
+class VizOverlayApp extends StatefulWidget {
+  final int port;
+  const VizOverlayApp({super.key, required this.port});
+  @override
+  State<VizOverlayApp> createState() => _VizOverlayAppState();
+}
+
+class _VizOverlayAppState extends State<VizOverlayApp> with WindowListener {
+  // A bare AppState used purely as the config holder: the shared widgets
+  // (OverlayWidgetView, EvsLiveViz, …) read vizType/accent/… through the
+  // provider, so mirroring the main process's settings into it makes them
+  // work unchanged. load() is never called and no setter ever runs here, so
+  // this process never writes shared_preferences.
+  AppState? _cfg;
+  io.WebSocket? _ws;
+  bool _positioned = false;
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() => _cfg = AppState(prefs));
+    await _connect();
+  }
+
+  Future<void> _connect() async {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      try {
+        final ws = await io.WebSocket.connect('ws://127.0.0.1:${widget.port}');
+        _ws = ws;
+        ws.listen(_onMsg, onDone: _die, onError: (_) => _die());
+        return;
+      } catch (_) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+    _die();
+  }
+
+  // The main app is gone (socket closed / never appeared) — so are we.
+  void _die() => io.exit(0);
+
+  void _onMsg(dynamic data) {
+    final app = _cfg;
+    if (app == null || data is! String) return;
+    Map<String, dynamic> m;
+    try {
+      m = jsonDecode(data) as Map<String, dynamic>;
+    } catch (_) {
+      return;
+    }
+    switch (m['t']) {
+      case 'cfg':
+        app.applyVizCfg(m);
+        final size = (m['size'] as num?)?.toDouble();
+        if (size != null) unawaited(windowManager.setSize(Size(size, size)));
+        if (!_positioned) {
+          _positioned = true;
+          final x = (m['x'] as num?)?.toDouble();
+          final y = (m['y'] as num?)?.toDouble();
+          if (x != null && y != null) {
+            unawaited(windowManager.setPosition(Offset(x, y)));
+          }
+        }
+        break;
+      case 'lvl':
+        VoiceLevels.instance.tts.value =
+            ((m['v'] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0);
+        break;
+      case 'va':
+        // Mirror the main process's assistant state into this process's
+        // (unattached) singletons — the shared badge/glow widgets listen to
+        // exactly these notifiers.
+        final s = m['s'] as String?;
+        if (s != null) {
+          VoiceAssistant.instance.state.value = VaState.values
+              .firstWhere((e) => e.name == s, orElse: () => VaState.idle);
+        }
+        if (m['wake'] is bool) {
+          VoiceAssistant.instance.wakeActive.value = m['wake'] as bool;
+        }
+        final pulse = (m['pulse'] as num?)?.toInt();
+        if (pulse != null) VoiceAssistant.instance.wakePulse.value = pulse;
+        break;
+      case 'note':
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        vizNotice.value = (
+          (m['text'] as String?) ?? '',
+          (m['kind'] as String?) ?? 'info',
+          ts,
+        );
+        Timer(const Duration(milliseconds: 2800), () {
+          if (vizNotice.value?.$3 == ts) vizNotice.value = null;
+        });
+        break;
+      case 'bye':
+        _die();
+    }
+  }
+
+  void _send(Map<String, dynamic> m) {
+    try {
+      _ws?.add(jsonEncode(m));
+    } catch (_) {}
+  }
+
+  @override
+  void onWindowMoved() {
+    () async {
+      try {
+        final pos = await windowManager.getPosition();
+        _send({'t': 'moved', 'x': pos.dx, 'y': pos.dy});
+      } catch (_) {}
+    }();
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = _cfg;
+    if (app == null) return const SizedBox.shrink();
+    return ChangeNotifierProvider.value(
+      value: app,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        color: Colors.transparent,
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: Colors.transparent,
+          fontFamily: 'Nunito',
+        ),
+        home: OverlayWidgetView(
+          onOpen: () => _send({'t': 'open'}),
+          onHide: () async {
+            await windowManager.hide();
+            _send({'t': 'hidden'});
+          },
+        ),
+      ),
+    );
+  }
 }
 
 /* ============================ ЛОКАЛИЗАЦИЯ ============================ */
@@ -173,7 +371,9 @@ const Map<String, Map<String, String>> _i18n = {
     'sttEngineDesc': 'Whisper работает офлайн на вашем железе',
     'whisperOffline': 'Whisper (офлайн)',
     'whisperModel': 'Модель Whisper',
-    'whisperModelDesc': 'Влияет на качество и скорость распознавания',
+    'whisperModelDesc':
+        'Влияет на качество и скорость. Внимание: medium на CPU обрабатывает '
+            'фразу ~минуту — ассистент будет казаться мёртвым. Рекомендуется small',
     'cardInputDevice': 'Устройство ввода',
     'inputDevice': 'Устройство ввода',
     'inputDeviceDesc': 'Микрофон, используемый для записи',
@@ -224,15 +424,12 @@ const Map<String, Map<String, String>> _i18n = {
     'ovlEnterDesc':
         'Визуализация в маленьком прозрачном окне поверх всех окон. '
             'Двойной клик по виджету — вернуться в чат',
-    'ovlEnterBtn': 'Свернуть в виджет',
+    'ovlShow': 'Показывать виджет',
     'ovlSize': 'Размер виджета',
     'ovlSizeDesc': 'Размер плавающего окна с визуализацией',
     'ovlSizeS': 'Маленький',
     'ovlSizeM': 'Средний',
     'ovlSizeL': 'Большой',
-    'ovlOnTray': 'Виджет вместо сворачивания в трей',
-    'ovlOnTrayDesc':
-        'При закрытии/сворачивании окна оставлять плавающий виджет на экране',
     'ovlOpenChat': 'Открыть EVS',
     'ovlHide': 'Скрыть виджет',
     'trayOverlay': 'Плавающий виджет',
@@ -293,6 +490,8 @@ const Map<String, Map<String, String>> _i18n = {
     'updDialogHint': 'Обновление уже скачано. Перезапустите EVS, чтобы применить.',
     'updLater': 'Позже',
     'vaWakeHeard': 'услышал, говорите!',
+    'vaArmed': 'Говорите команду…',
+    'vaCmdUnknown': 'Команду не понял',
     'vaConfirmTitle': 'Выполнить команду?',
     'vaConfirmBody': 'EVS распознал команду:',
     'cardSecurity': 'Безопасность',
@@ -837,7 +1036,9 @@ const Map<String, Map<String, String>> _i18n = {
     'sttEngineDesc': 'Whisper runs offline on your hardware',
     'whisperOffline': 'Whisper (offline)',
     'whisperModel': 'Whisper model',
-    'whisperModelDesc': 'Affects recognition quality and speed',
+    'whisperModelDesc':
+        'Affects quality and speed. Warning: medium takes ~a minute per '
+            'utterance on CPU — the assistant will feel dead. Small is recommended',
     'cardInputDevice': 'Input device',
     'inputDevice': 'Input device',
     'inputDeviceDesc': 'Microphone used for recording',
@@ -888,15 +1089,12 @@ const Map<String, Map<String, String>> _i18n = {
     'ovlEnterDesc':
         'The visualization in a small transparent always-on-top window. '
             'Double-click the widget to return to the chat',
-    'ovlEnterBtn': 'Collapse to widget',
+    'ovlShow': 'Show the widget',
     'ovlSize': 'Widget size',
     'ovlSizeDesc': 'Size of the floating visualization window',
     'ovlSizeS': 'Small',
     'ovlSizeM': 'Medium',
     'ovlSizeL': 'Large',
-    'ovlOnTray': 'Widget instead of hiding to tray',
-    'ovlOnTrayDesc':
-        'Keep the floating widget on screen when the window is closed/minimized',
     'ovlOpenChat': 'Open EVS',
     'ovlHide': 'Hide widget',
     'trayOverlay': 'Floating widget',
@@ -957,6 +1155,8 @@ const Map<String, Map<String, String>> _i18n = {
     'updDialogHint': 'The update is already downloaded. Restart EVS to apply.',
     'updLater': 'Later',
     'vaWakeHeard': 'heard you, go ahead!',
+    'vaArmed': 'Say the command…',
+    'vaCmdUnknown': 'Could not understand the command',
     'vaConfirmTitle': 'Run command?',
     'vaConfirmBody': 'EVS recognized a command:',
     'cardSecurity': 'Security',
@@ -2420,6 +2620,14 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('1.0.7', [
+    'Виджет стал отдельным окном (собственный процесс): чат и виджет видны одновременно, виджет всегда поверх окон, приложение стартует только виджетом у правого края.',
+    'Починено распознавание речи: фразы теперь корректно завершаются и обрабатываются за секунды (VAD + шумовой гейт + сброс отстающей очереди), отфильтрованы галлюцинации Whisper («Субтитры…»), выбранный микрофон реально передаётся распознавателю, medium автоматически заменён на small (на CPU он обрабатывал фразу ~минуту).',
+    'Голосовые команды больше не попадают в чат: каталог → нейросеть-интерпретатор (теперь реально работает: «открой…», «найди…» и т.п.) → выполнение; результат — голосом и бейджем на виджете.',
+    'Стадии ассистента видны на виджете и в шапке: «услышал» → «Говорите команду…» (активатор без команды ждёт её отдельной фразой 8 секунд) → «Думаю…» → «Выполняю…» → «Выполнено».',
+    'Виджет и визуализации реагируют только на голос ассистента; «Бары» и «Кольцо» двигаются строго вверх-вниз/по радиусу, без прокрутки и вращения.',
+    'Логи commands/chat/errors в папке данных приложения.',
+  ]),
   ChangelogEntry('1.0.6', [
     'EVS теперь открывается плавающим виджетом у правого края экрана: маленькое прозрачное окно поверх всех окон, перетаскивается мышью, двойной клик разворачивает чат, закрытие чата возвращает виджет.',
     'Два новых стиля визуализации — Siri Orb (цветные блобы с бликом) и Полоски (LiveKit-стиль), оба реагируют на реальный звук.',
@@ -3410,14 +3618,12 @@ class AppState extends ChangeNotifier {
   double orbSize = 200; // 120..320 px
   double orbSpeed = 20; // seconds per rotation, 6..40
   int barCount = 7; // 3..13 bars
-  // Floating overlay widget: the main window morphs into a small transparent
-  // always-on-top window showing just the voice visualization
-  // (DesktopIntegration.enterOverlay / OverlayWidgetView). By default the app
-  // OPENS as the widget (right edge of the desktop, centered) and the chat
-  // window is expanded from it; closing/minimizing the chat returns to it.
-  bool overlayMode = true; // persisted — survives restart/autostart
-  double overlaySize = 260; // overlay window size, px (200 | 260 | 330)
-  bool overlayOnTray = true; // closing/minimizing the chat -> widget
+  // Floating widget: a SEPARATE always-on-top transparent window (own
+  // process, see VizOverlayServer/VizOverlayApp) showing the voice
+  // visualization. Enabled by default; it opens together with the app at the
+  // right edge of the desktop while the chat window starts hidden.
+  bool overlayMode = true; // widget on/off — persisted
+  double overlaySize = 260; // widget window size, px (200 | 260 | 330)
   // Periodic background update checks (the in-app Discord-style updater).
   bool autoUpdateCheck = true;
   // Voice responses (TTS).
@@ -3462,6 +3668,44 @@ class AppState extends ChangeNotifier {
     }
     if (u.endsWith('/')) u = u.substring(0, u.length - 1);
     return u;
+  }
+
+  /// Silent one-shot LLM request: no conversation is touched, isGenerating
+  /// stays false — used by the voice-command interpreter so commands never
+  /// leak into the chat history. Returns null on any failure.
+  Future<String?> silentAsk({
+    required String system,
+    required String user,
+    String model = '',
+    int maxTokens = 200,
+  }) async {
+    try {
+      final m = model.isNotEmpty ? model : selectedModel;
+      if (m.isEmpty || isLocalModel(m)) return null;
+      final headers = {'Content-Type': 'application/json'};
+      if (apiKey.isNotEmpty) headers['Authorization'] = 'Bearer $apiKey';
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/api/chat'),
+            headers: headers,
+            body: jsonEncode({
+              'model': m,
+              'stream': false,
+              'messages': [
+                {'role': 'system', 'content': system},
+                {'role': 'user', 'content': user},
+              ],
+              'options': {'temperature': 0.1, 'num_predict': maxTokens},
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(utf8.decode(res.bodyBytes));
+      if (data is! Map<String, dynamic>) return null;
+      return _extractContent(data);
+    } catch (_) {
+      return null;
+    }
   }
 
   bool get isDarkMode {
@@ -3552,6 +3796,17 @@ class AppState extends ChangeNotifier {
     listenMode = prefs.getString('listenMode') ?? 'continuous';
     sttLanguage = prefs.getString('sttLanguage') ?? 'auto';
     whisperModel = prefs.getString('whisperModel') ?? 'small';
+    // One-time rescue (1.0.7): medium/large are unusable on CPU — measured
+    // ~50 s per utterance on this class of hardware, the audio queue grows
+    // faster than it drains and the assistant appears completely dead. Reset
+    // to small once; the user can still explicitly pick medium again.
+    if (!(prefs.getBool('whisperCpuMigrated') ?? false)) {
+      await prefs.setBool('whisperCpuMigrated', true);
+      if (whisperModel == 'medium' || whisperModel == 'large') {
+        whisperModel = 'small';
+        await prefs.setString('whisperModel', whisperModel);
+      }
+    }
     sttEngine = prefs.getString('sttEngine') ?? 'whisper';
     cmdMode = prefs.getString('cmdMode') ?? 'wakeword';
     wakeWord = prefs.getString('wakeWord') ?? 'EVS';
@@ -3565,7 +3820,6 @@ class AppState extends ChangeNotifier {
     showPartial = prefs.getBool('showPartial') ?? true;
     overlayMode = prefs.getBool('overlayMode') ?? true;
     overlaySize = prefs.getDouble('overlaySize') ?? 260;
-    overlayOnTray = prefs.getBool('overlayOnTray') ?? true;
     vizAccent = prefs.getInt('vizAccent') ?? 0xFF7C4DFF;
     orbSize = prefs.getDouble('orbSize') ?? 200;
     orbSpeed = prefs.getDouble('orbSpeed') ?? 20;
@@ -3657,7 +3911,6 @@ class AppState extends ChangeNotifier {
     await prefs.setBool('showPartial', showPartial);
     await prefs.setBool('overlayMode', overlayMode);
     await prefs.setDouble('overlaySize', overlaySize);
-    await prefs.setBool('overlayOnTray', overlayOnTray);
     await prefs.setInt('vizAccent', vizAccent);
     await prefs.setDouble('orbSize', orbSize);
     await prefs.setDouble('orbSpeed', orbSpeed);
@@ -3788,36 +4041,37 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Enter/leave the floating overlay-widget mode. The actual window morphing
-  // (size/transparency/always-on-top) is done by DesktopIntegration; the UI
-  // switches on overlayMode (MiraiApp builder).
+  // Show/hide the floating widget (its own process — VizOverlayServer
+  // spawns/kills it; the setting persists as 'overlayMode').
   void setOverlayMode(bool v) {
     if (overlayMode == v) return;
     overlayMode = v;
     _save();
     notifyListeners();
     if (defaultTargetPlatform == TargetPlatform.windows) {
-      if (v) {
-        unawaited(DesktopIntegration.instance.enterOverlay(this));
-      } else {
-        unawaited(DesktopIntegration.instance.exitOverlay());
-      }
+      unawaited(VizOverlayServer.instance.setVisible(v));
     }
   }
 
   void setOverlaySize(double v) {
     overlaySize = v;
     _save();
+    // The cfg push (AppState listener in VizOverlayServer) live-resizes the
+    // widget window.
     notifyListeners();
-    // Live-resize if the overlay is currently out.
-    if (overlayMode && defaultTargetPlatform == TargetPlatform.windows) {
-      unawaited(DesktopIntegration.instance.resizeOverlay(v));
-    }
   }
 
-  void setOverlayOnTray(bool v) {
-    overlayOnTray = v;
-    _save();
+  // Applies a `cfg` message in the WIDGET process (see VizOverlayApp): this
+  // AppState instance is just a mirror of the main process's settings there —
+  // assign fields and notify, never save.
+  void applyVizCfg(Map<String, dynamic> m) {
+    lang = (m['lang'] as String?) ?? lang;
+    vizType = (m['vizType'] as String?) ?? vizType;
+    vizAccent = (m['vizAccent'] as num?)?.toInt() ?? vizAccent;
+    orbSize = (m['orbSize'] as num?)?.toDouble() ?? orbSize;
+    orbSpeed = (m['orbSpeed'] as num?)?.toDouble() ?? orbSpeed;
+    barCount = (m['barCount'] as num?)?.toInt() ?? barCount;
+    wakeWord = (m['wakeWord'] as String?) ?? wakeWord;
     notifyListeners();
   }
 
@@ -4374,6 +4628,8 @@ class AppState extends ChangeNotifier {
     String text, {
     List<String> attachments = const [],
   }) async {
+    unawaited(appendLog(
+        'chat', text.length > 120 ? '${text.substring(0, 120)}…' : text));
     current ??= () {
       final c = Conversation(id: _uuid.v4(), title: t('newChat'));
       conversations.insert(0, c);
@@ -4618,20 +4874,12 @@ class MiraiApp extends StatelessWidget {
         // Combine the OS-level accessibility text scale with the app's own
         // font size setting, instead of discarding the system scale.
         final systemFactor = mq.textScaler.scale(100) / 100;
-        final scaled = MediaQuery(
+        return MediaQuery(
           data: mq.copyWith(
             textScaler: TextScaler.linear(systemFactor * app.fontSize),
           ),
           child: child!,
         );
-        // Floating overlay-widget mode: the whole UI is swapped for the small
-        // transparent visualization (the window itself is shrunk/made
-        // transparent by DesktopIntegration.enterOverlay). The normal UI stays
-        // mounted offstage so chat/navigation state survives the round-trip.
-        return Stack(children: [
-          Offstage(offstage: app.overlayMode, child: scaled),
-          if (app.overlayMode) const OverlayWidgetView(),
-        ]);
       },
       home: const ImmersiveSplash(),
     );
@@ -6165,6 +6413,185 @@ class SystemMonitor {
 // "show window" hotkey (Ctrl+Shift+Space) and launch-at-startup. All calls are
 // guarded to Windows and wrapped in try/catch so an unsupported platform or a
 // missing capability never crashes startup.
+// ==================== FLOATING-WIDGET PROCESS SERVER ====================
+// Runs in the MAIN app: hosts a localhost WebSocket, spawns the widget
+// process (`evs.exe --viz-overlay --port=N`) and feeds it settings (cfg),
+// the assistant speech level (lvl), assistant state (va) and transient
+// notices (note). The widget sends back `open` (double-click → show the
+// chat), `moved` (persist position) and `hidden` (its × button).
+class VizOverlayServer {
+  VizOverlayServer._();
+  static final VizOverlayServer instance = VizOverlayServer._();
+
+  AppState? _app;
+  io.HttpServer? _http;
+  io.WebSocket? _client;
+  io.Process? _proc;
+  bool _enabled = false;
+  int _respawns = 0;
+  String _lastCfg = '';
+
+  Future<void> start(AppState app) async {
+    _app = app;
+    app.addListener(_pushCfg);
+    VoiceLevels.instance.tts.addListener(_pushLvl);
+    VoiceAssistant.instance.state.addListener(_pushVa);
+    VoiceAssistant.instance.wakeActive.addListener(_pushVa);
+    VoiceAssistant.instance.wakePulse.addListener(_pushVa);
+    if (app.overlayMode) await _spawn();
+  }
+
+  Future<void> setVisible(bool on) async {
+    _enabled = on;
+    if (on) {
+      _respawns = 0;
+      await _spawn();
+    } else {
+      _killProc();
+    }
+  }
+
+  Future<void> _ensureServer() async {
+    if (_http != null) return;
+    final srv = await io.HttpServer.bind(io.InternetAddress.loopbackIPv4, 0);
+    _http = srv;
+    srv.listen((req) async {
+      try {
+        final ws = await io.WebSocketTransformer.upgrade(req);
+        await _client?.close();
+        _client = ws;
+        _lastCfg = ''; // force a full cfg snapshot for the new client
+        _pushCfg();
+        _pushVa();
+        ws.listen(_onMsg, onDone: () {
+          if (identical(_client, ws)) _client = null;
+        }, onError: (_) {});
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _spawn() async {
+    _enabled = true;
+    try {
+      await _ensureServer();
+      if (_proc != null) return;
+      final proc = await io.Process.start(io.Platform.resolvedExecutable,
+          ['--viz-overlay', '--port=${_http!.port}']);
+      _proc = proc;
+      unawaited(proc.exitCode.then((_) {
+        if (!identical(_proc, proc)) return;
+        _proc = null;
+        _client = null;
+        // Crash guard: bring the widget back once; repeated deaths (or the
+        // user closing it twice) leave it off until re-enabled.
+        if (_enabled && _respawns < 1) {
+          _respawns++;
+          unawaited(_spawn());
+        }
+      }));
+    } catch (_) {}
+  }
+
+  void _killProc() {
+    _send({'t': 'bye'});
+    final p = _proc;
+    _proc = null;
+    _client?.close();
+    _client = null;
+    if (p != null) {
+      // Give it a moment to exit cleanly on 'bye', then make sure.
+      Future.delayed(const Duration(milliseconds: 400), () {
+        try {
+          p.kill();
+        } catch (_) {}
+      });
+    }
+  }
+
+  void dispose() {
+    _enabled = false;
+    _killProc();
+    try {
+      _http?.close(force: true);
+    } catch (_) {}
+    _http = null;
+  }
+
+  void _send(Map<String, dynamic> m) {
+    try {
+      _client?.add(jsonEncode(m));
+    } catch (_) {}
+  }
+
+  /// Transient notice on the widget (command executed/failed, …) — the main
+  /// window is often hidden, so in-app toasts alone would go unseen.
+  void note(String text, {String kind = 'info'}) =>
+      _send({'t': 'note', 'text': text, 'kind': kind});
+
+  void _pushCfg() {
+    final app = _app;
+    if (app == null || _client == null) return;
+    final m = {
+      't': 'cfg',
+      'lang': app.lang,
+      // The widget always shows something — 'none' only hides the chat hero.
+      'vizType': app.vizType == 'none' ? 'sphere' : app.vizType,
+      'vizAccent': app.vizAccent,
+      'orbSize': app.orbSize,
+      'orbSpeed': app.orbSpeed,
+      'barCount': app.barCount,
+      'wakeWord': app.wakeWord,
+      'size': app.overlaySize,
+      'x': app.prefs.getDouble('overlayX'),
+      'y': app.prefs.getDouble('overlayY'),
+    };
+    final s = jsonEncode(m);
+    if (s == _lastCfg) return;
+    _lastCfg = s;
+    try {
+      _client?.add(s);
+    } catch (_) {}
+  }
+
+  void _pushLvl() => _send({'t': 'lvl', 'v': VoiceLevels.instance.tts.value});
+
+  void _pushVa() => _send({
+        't': 'va',
+        's': VoiceAssistant.instance.state.value.name,
+        'wake': VoiceAssistant.instance.wakeActive.value,
+        'pulse': VoiceAssistant.instance.wakePulse.value,
+      });
+
+  void _onMsg(dynamic data) {
+    final app = _app;
+    if (data is! String || app == null) return;
+    Map<String, dynamic> m;
+    try {
+      m = jsonDecode(data) as Map<String, dynamic>;
+    } catch (_) {
+      return;
+    }
+    switch (m['t']) {
+      case 'open':
+        unawaited(DesktopIntegration.instance.showMainWindow());
+        break;
+      case 'moved':
+        final x = (m['x'] as num?)?.toDouble();
+        final y = (m['y'] as num?)?.toDouble();
+        if (x != null && y != null) {
+          unawaited(app.prefs.setDouble('overlayX', x));
+          unawaited(app.prefs.setDouble('overlayY', y));
+        }
+        break;
+      case 'hidden':
+        // The user hid the widget with its × — reflect that in settings
+        // (also kills the now-invisible process).
+        if (app.overlayMode) app.setOverlayMode(false);
+        break;
+    }
+  }
+}
+
 class DesktopIntegration with WindowListener, TrayListener {
   DesktopIntegration._();
   static final DesktopIntegration instance = DesktopIntegration._();
@@ -6221,7 +6648,6 @@ class DesktopIntegration with WindowListener, TrayListener {
 
       SystemMonitor.instance.start(app);
       unawaited(MicMeter.instance.start(deviceId: app.inputDeviceId));
-      VoiceLevels.instance; // start the combined-level history ticker
       unawaited(_bootstrapSidecar(app));
       VoiceAssistant.instance.attach(app);
 
@@ -6230,13 +6656,18 @@ class DesktopIntegration with WindowListener, TrayListener {
       // banner — no native WinSparkle prompts.
       AppUpdater.instance.start(app);
 
-      // Opening in overlay-widget mode (the default): the window was already
-      // born widget-sized (see main()); finish the morph — frameless,
-      // transparent, always-on-top, right-edge position — right after the
-      // scheduled initial show.
+      // Floating widget: separate process, fed over a localhost WebSocket.
+      // Spawns immediately when enabled (the chat window itself may stay
+      // hidden — see main()).
+      unawaited(VizOverlayServer.instance.start(app));
+
+      // Widget-first startup: the native runner re-shows the window on the
+      // first frame AFTER main()'s early hide — hide again once rendering
+      // has settled so only the widget and tray remain.
       if (app.overlayMode) {
-        unawaited(Future.delayed(const Duration(milliseconds: 200))
-            .then((_) => enterOverlay(app)));
+        unawaited(Future.delayed(const Duration(milliseconds: 900), () async {
+          if (_app?.overlayMode ?? false) await windowManager.hide();
+        }));
       }
     } catch (_) {}
   }
@@ -6278,80 +6709,8 @@ class DesktopIntegration with WindowListener, TrayListener {
     ]));
   }
 
-  // ---- Floating overlay-widget mode ----
-  // The main window itself morphs into a small transparent always-on-top
-  // square showing just the voice visualization (OverlayWidgetView). Same
-  // process/engine, so the assistant, mic meter and TTS levels keep running.
-
-  Rect? _preOverlayBounds;
-
-  Future<void> enterOverlay(AppState app) async {
-    try {
-      if (await windowManager.isMaximized()) {
-        await windowManager.unmaximize();
-      }
-      if (!await windowManager.isMinimized()) {
-        _preOverlayBounds = await windowManager.getBounds();
-      }
-      await windowManager.setAsFrameless();
-      // Fully transparent window — only the widget's own pixels are visible.
-      await acrylic.Window.setEffect(
-        effect: acrylic.WindowEffect.transparent,
-        color: const Color(0x00000000),
-        dark: true,
-      );
-      await windowManager.setMinimumSize(const Size(140, 140));
-      final s = app.overlaySize;
-      await windowManager.setSize(Size(s, s));
-      await windowManager.setResizable(false);
-      await windowManager.setAlwaysOnTop(true);
-      await windowManager.setSkipTaskbar(true);
-      final px = app.prefs.getDouble('overlayX');
-      final py = app.prefs.getDouble('overlayY');
-      if (px != null && py != null) {
-        await windowManager.setPosition(Offset(px, py));
-      } else {
-        // Default parking spot: right edge of the desktop, vertically centered.
-        await windowManager.setAlignment(Alignment.centerRight);
-      }
-      await windowManager.show();
-      await windowManager.focus();
-    } catch (_) {}
-  }
-
-  Future<void> exitOverlay() async {
-    try {
-      await acrylic.Window.setEffect(effect: acrylic.WindowEffect.disabled);
-      await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-      await windowManager.setAlwaysOnTop(false);
-      await windowManager.setSkipTaskbar(false);
-      await windowManager.setResizable(true);
-      await windowManager.setMinimumSize(const Size(900, 600));
-      final b = _preOverlayBounds;
-      if (b != null && b.width >= 900) {
-        await windowManager.setBounds(b);
-      } else {
-        await windowManager.setSize(const Size(1280, 720));
-        await windowManager.center();
-      }
-      await windowManager.show();
-      await windowManager.focus();
-    } catch (_) {}
-  }
-
-  Future<void> resizeOverlay(double size) async {
-    try {
-      await windowManager.setSize(Size(size, size));
-    } catch (_) {}
-  }
-
-  Future<void> _saveOverlayPos() async {
-    try {
-      final pos = await windowManager.getPosition();
-      await _app?.prefs.setDouble('overlayX', pos.dx);
-      await _app?.prefs.setDouble('overlayY', pos.dy);
-    } catch (_) {}
-  }
+  // Used by VizOverlayServer when the floating widget is double-clicked.
+  Future<void> showMainWindow() => _show();
 
   Future<void> applyAutostart(bool enable) async {
     if (defaultTargetPlatform != TargetPlatform.windows) return;
@@ -6365,12 +6724,6 @@ class DesktopIntegration with WindowListener, TrayListener {
   }
 
   Future<void> _show() async {
-    // From overlay-widget mode, "show" means: back to the full window.
-    final app = _app;
-    if (app != null && app.overlayMode) {
-      app.setOverlayMode(false);
-      return;
-    }
     try {
       await windowManager.show();
       await windowManager.focus();
@@ -6378,6 +6731,9 @@ class DesktopIntegration with WindowListener, TrayListener {
   }
 
   Future<void> _quit() async {
+    try {
+      VizOverlayServer.instance.dispose();
+    } catch (_) {}
     try {
       await SidecarClient.instance.stop();
     } catch (_) {}
@@ -6389,18 +6745,8 @@ class DesktopIntegration with WindowListener, TrayListener {
 
   @override
   void onWindowClose() {
-    final app = _app;
-    if (app?.overlayMode ?? false) {
-      // Alt+F4 on the overlay: just hide it (tray keeps the app alive).
+    if (_app?.closeToTray ?? false) {
       windowManager.hide();
-      return;
-    }
-    if (app?.closeToTray ?? false) {
-      if (app!.overlayOnTray) {
-        app.setOverlayMode(true);
-      } else {
-        windowManager.hide();
-      }
     } else {
       _quit();
     }
@@ -6408,20 +6754,14 @@ class DesktopIntegration with WindowListener, TrayListener {
 
   @override
   void onWindowMinimize() {
-    final app = _app;
-    if (app == null || app.overlayMode) return;
-    if (app.overlayOnTray) {
-      unawaited(
-          windowManager.restore().then((_) => app.setOverlayMode(true)));
-    } else if (app.minimizeToTray) {
-      windowManager.hide();
-    }
+    if (_app?.minimizeToTray ?? false) windowManager.hide();
   }
 
   @override
-  void onWindowMoved() {
-    // Remember where the user parked the overlay widget.
-    if (_app?.overlayMode ?? false) unawaited(_saveOverlayPos());
+  void onWindowFocus() {
+    // A deferred "update ready" prompt waits for the chat window to actually
+    // be on screen (it may start hidden behind the floating widget).
+    AppUpdater.instance.promptIfPending();
   }
 
   @override
@@ -6554,6 +6894,7 @@ class AppUpdater {
       lastError = e.toString();
       status.value = UpdateStatus.error;
       debugPrint('EVS_UPDATER ERROR $e');
+      unawaited(appendLog('errors', 'AppUpdater: $e'));
     } finally {
       _busy = false;
     }
@@ -6562,23 +6903,37 @@ class AppUpdater {
   // EVS-styled "update ready" dialog (Discord-style: everything is already
   // downloaded, one click restarts onto the new version). Shown once per
   // version; declining leaves the top-bar pill available.
+  bool _promptPending = false;
+
+  /// Called when the main window gains focus — show a prompt that was
+  /// deferred because the window was hidden when the update became ready.
+  void promptIfPending() {
+    if (!_promptPending) return;
+    _promptPending = false;
+    _maybePrompt();
+  }
+
   void _maybePrompt() {
     if (_promptedVersion == availableVersion) return;
-    final app = _app;
-    // In overlay-widget mode the whole chat UI (and its Navigator) is
-    // offstage — a dialog shown now would be invisible. Wait until the chat
-    // window is expanded, then prompt.
-    if (app != null && app.overlayMode) {
-      void onExpand() {
-        if (!app.overlayMode) {
-          app.removeListener(onExpand);
-          _maybePrompt();
-        }
+    () async {
+      // The chat window often starts hidden (the floating widget is the only
+      // visible surface) — a dialog shown now would go unseen. Defer until
+      // the window is actually up (onWindowFocus → promptIfPending).
+      var visible = true;
+      try {
+        visible = await windowManager.isVisible();
+      } catch (_) {}
+      if (!visible) {
+        _promptPending = true;
+        return;
       }
+      _showPrompt();
+    }();
+  }
 
-      app.addListener(onExpand);
-      return;
-    }
+  void _showPrompt() {
+    if (_promptedVersion == availableVersion) return;
+    final app = _app;
     _promptedVersion = availableVersion;
     final ctx = rootNavKey.currentContext;
     if (ctx == null || app == null) return;
@@ -7217,8 +7572,14 @@ class SidecarClient {
     } catch (_) {}
   }
 
-  void sttStart(String language) =>
-      _send({'type': 'stt.start', 'language': language});
+  void sttStart(String language) => _send({
+        'type': 'stt.start',
+        'language': language,
+        // Selected mic by name — otherwise the sidecar records from the
+        // system default device, which may differ from the one picked in
+        // Settings (the level meter there uses the picked one).
+        'device': MicMeter.instance.currentLabel,
+      });
   void sttStop() => _send({'type': 'stt.stop'});
   // Switch the Whisper model size live (sidecar reloads on next transcription).
   void setSttModel(String model) {
@@ -7430,7 +7791,9 @@ class TtsCloneClient {
 // word ("EVS, ..."), and routes the rest to a matching voice command (with a
 // confirmation policy) or to the chat model — optionally speaking the reply.
 
-enum VaState { idle, listening, thinking, running }
+// armed = the wake word was heard on its own; the NEXT utterance is taken as
+// the command without repeating the wake word (~8 s window).
+enum VaState { idle, listening, armed, thinking, running }
 
 class VoiceAssistant {
   VoiceAssistant._();
@@ -7460,6 +7823,26 @@ class VoiceAssistant {
     _wakeTimer = Timer(const Duration(milliseconds: 2500), () {
       wakeActive.value = false;
     });
+  }
+
+  // Command-capture window after a bare wake word ("EVS" with nothing after
+  // it): the next final utterance is the command. Auto-expires back to
+  // listening if the user stays silent.
+  Timer? _armTimer;
+
+  void _arm() {
+    state.value = VaState.armed;
+    _armTimer?.cancel();
+    _armTimer = Timer(const Duration(seconds: 8), () {
+      if (state.value == VaState.armed) {
+        state.value = _listening ? VaState.listening : VaState.idle;
+      }
+    });
+  }
+
+  void _disarm() {
+    _armTimer?.cancel();
+    _armTimer = null;
   }
 
   bool get isListening => _listening;
@@ -7513,6 +7896,7 @@ class VoiceAssistant {
       if (state.value == VaState.idle) state.value = VaState.listening;
     } else if (!want && _listening) {
       _listening = false;
+      _disarm();
       SidecarClient.instance.sttStop();
       state.value = VaState.idle;
     }
@@ -7528,9 +7912,23 @@ class VoiceAssistant {
 
     String? command;
     if (app.cmdMode == 'wakeword') {
-      command = _stripWakeWord(raw, app.wakeWord);
-      if (command == null) return; // wake word not heard — ignore
-      _flagWake(); // visible "heard you!" pulse in the pill + visualizers
+      if (state.value == VaState.armed) {
+        // Wake word already heard on its own — this whole utterance is the
+        // command.
+        _disarm();
+        command = raw;
+      } else {
+        command = _stripWakeWord(raw, app.wakeWord);
+        if (command == null) return; // wake word not heard — ignore
+        _flagWake(); // visible "heard you!" pulse in the pill + visualizers
+        command = command.trim();
+        if (command.isEmpty) {
+          // Bare wake word: arm command capture — the next phrase is the
+          // command (visualized as "say the command…" on the badge/pill).
+          _arm();
+          return;
+        }
+      }
     } else if (app.cmdMode == 'first') {
       command = raw;
     } else {
@@ -7542,7 +7940,8 @@ class VoiceAssistant {
     _busy = true;
     try {
       await _handle(app, command);
-    } catch (_) {
+    } catch (e) {
+      unawaited(appendLog('errors', 'VoiceAssistant._handle: $e'));
     } finally {
       _busy = false;
       if (_listening) state.value = VaState.listening;
@@ -7583,35 +7982,137 @@ class VoiceAssistant {
     return null;
   }
 
+  // Message routing (user spec): COMMANDS are executed silently — they must
+  // NEVER appear in the chat history. Only plain speech becomes a chat turn.
   Future<void> _handle(AppState app, String command) async {
     state.value = VaState.thinking;
-    // 1) Try the user's command catalog.
+    // 1) The user's command catalog (fuzzy match).
     final match = _matchCommand(app, command);
     if (match != null) {
-      if (!app.cmdEnabled) {
-        _toast(app.t('vaCmdDisabled'));
-        return;
-      }
-      final risky = match.type == VoiceCommandType.shell ||
-          match.type == VoiceCommandType.system;
-      final needConfirm = app.cmdConfirm == 'always' ||
-          (app.cmdConfirm == 'risky' && risky);
-      if (needConfirm && !await _confirm(app, match)) {
-        return;
-      }
-      state.value = VaState.running;
-      _toast('${app.t('vaRunning')} ${match.phrase}');
-      final ok = await CommandExecutor.instance.execute(match);
-      if (!ok) _toast(app.t('vaFailed'));
-      if (app.voiceResponses) {
-        _speak(app, ok ? app.t('vaDone') : app.t('vaFailed'));
-      }
+      await _runCommand(app, match);
       return;
     }
-    // 2) Otherwise treat it as a chat turn.
+    // 2) Command-shaped, but not in the catalog → the LLM interpreter
+    //    (silent request — the chat is never involved).
+    if (_isCommandLike(command)) {
+      unawaited(appendLog('commands', 'interpret: $command'));
+      if (app.cmdInterpreter) {
+        final interpreted = await _interpretCommand(app, command);
+        if (interpreted != null) {
+          await _runCommand(app, interpreted);
+          return;
+        }
+      }
+      _toast(app.t('vaCmdUnknown'));
+      VizOverlayServer.instance.note(app.t('vaCmdUnknown'), kind: 'err');
+      if (app.voiceResponses) _speak(app, app.t('vaCmdUnknown'));
+      unawaited(appendLog('commands', 'UNKNOWN: $command'));
+      return;
+    }
+    // 3) Plain speech → a regular (visible) chat turn, reply spoken.
     _toast('${app.t('vaThinking')} $command');
     final reply = await app.sendMessage(command);
     if (app.voiceResponses && reply.trim().isNotEmpty) _speak(app, reply);
+  }
+
+  // Execute a catalog/interpreted command with the usual safety policies.
+  Future<void> _runCommand(AppState app, VoiceCommand cmd) async {
+    if (!app.cmdEnabled) {
+      _toast(app.t('vaCmdDisabled'));
+      VizOverlayServer.instance.note(app.t('vaCmdDisabled'), kind: 'err');
+      return;
+    }
+    final risky = cmd.type == VoiceCommandType.shell ||
+        cmd.type == VoiceCommandType.system;
+    final needConfirm =
+        app.cmdConfirm == 'always' || (app.cmdConfirm == 'risky' && risky);
+    if (needConfirm && !await _confirm(app, cmd)) {
+      unawaited(appendLog('commands', 'DECLINED: ${cmd.phrase}'));
+      return;
+    }
+    state.value = VaState.running;
+    _toast('${app.t('vaRunning')} ${cmd.phrase}');
+    VizOverlayServer.instance.note('${app.t('vaRunning')} ${cmd.phrase}');
+    final ok = await CommandExecutor.instance.execute(cmd);
+    if (!ok) _toast(app.t('vaFailed'));
+    VizOverlayServer.instance
+        .note(ok ? app.t('vaDone') : app.t('vaFailed'), kind: ok ? 'ok' : 'err');
+    if (app.voiceResponses) {
+      _speak(app, ok ? app.t('vaDone') : app.t('vaFailed'));
+    }
+    unawaited(appendLog('commands',
+        '${cmd.phrase} -> [${cmd.type.name}] ${cmd.value} : ${ok ? 'OK' : 'FAIL'}'));
+  }
+
+  // Command-intent detection (spec patterns): the utterance starts with an
+  // action verb → treat as a command, keep away from the chat.
+  static const List<String> _cmdPatterns = [
+    'открой', 'закрой', 'запусти', 'останови', 'нажми', 'напечатай',
+    'найди', 'выключи', 'перезагрузи', 'громкость', 'яркость', 'скриншот',
+    'запиши', 'включи', 'сверни', 'разверни', 'поставь',
+    'open', 'close', 'launch', 'start', 'stop', 'press', 'type', 'find',
+    'search', 'mute', 'volume', 'brightness', 'screenshot', 'record',
+    'shutdown', 'restart',
+  ];
+
+  bool _isCommandLike(String text) {
+    final tokens = text.toLowerCase().split(RegExp(r'[\s,.:;!?]+'))
+      ..removeWhere((t) => t.isEmpty);
+    if (tokens.isEmpty) return false;
+    for (final t in tokens.take(2)) {
+      for (final p in _cmdPatterns) {
+        if (t == p || t.startsWith(p) || _ratio(t, p) >= 0.85) return true;
+      }
+    }
+    return false;
+  }
+
+  // LLM interpreter for fuzzy commands (the cmdInterpreter setting): a
+  // SILENT one-shot request that parses the phrase into a strict JSON action.
+  static const String _interpretSystem =
+      'Ты — парсер голосовых команд для управления компьютером Windows. '
+      'Преобразуй фразу пользователя в СТРОГИЙ JSON без пояснений:\n'
+      '{"action":"app|url|search|none","value":"..."}\n'
+      '- app: исполняемое имя программы (notepad, calc, chrome, explorer …)\n'
+      '- url: полный URL, если просят открыть сайт\n'
+      '- search: поисковый запрос, если просят что-то найти\n'
+      '- none: если это не команда управления компьютером\n'
+      'Отвечай ТОЛЬКО JSON.';
+
+  Future<VoiceCommand?> _interpretCommand(AppState app, String text) async {
+    final raw = await app.silentAsk(
+      system: _interpretSystem,
+      user: text,
+      model: app.cmdModel,
+      maxTokens: 120,
+    );
+    if (raw == null) return null;
+    final jsonStr = RegExp(r'\{[\s\S]*?\}').firstMatch(raw)?.group(0);
+    if (jsonStr == null) return null;
+    try {
+      final m = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final action = (m['action'] as String? ?? 'none').toLowerCase();
+      final value = (m['value'] as String? ?? '').trim();
+      if (value.isEmpty) return null;
+      switch (action) {
+        case 'app':
+          return VoiceCommand(
+              phrase: text, type: VoiceCommandType.app, value: value);
+        case 'url':
+          return VoiceCommand(
+              phrase: text, type: VoiceCommandType.url, value: value);
+        case 'search':
+          return VoiceCommand(
+              phrase: text,
+              type: VoiceCommandType.url,
+              value:
+                  'https://www.google.com/search?q=${Uri.encodeComponent(value)}');
+        default:
+          return null;
+      }
+    } catch (_) {
+      return null;
+    }
   }
 
   VoiceCommand? _matchCommand(AppState app, String text) {
@@ -8015,38 +8516,19 @@ class _DesktopSystemWidget extends StatelessWidget {
 // input (MicMeter) + TTS playback level (`tts.level` events streamed by the
 // sidecars while the assistant speaks). Keeps a short rolling history so the
 // bar/ring visualizers show a real moving waveform, not a canned loop.
+/// Transient notice shown on the floating widget (command executed/failed …):
+/// (text, kind 'ok'|'err'|'info', timestamp-ms). Set by the widget process's
+/// WS client on `note` messages; auto-expires in _VaStageBadge.
+final ValueNotifier<(String, String, int)?> vizNotice = ValueNotifier(null);
+
 class VoiceLevels {
-  VoiceLevels._() {
-    MicMeter.instance.level.addListener(_recompute);
-    tts.addListener(_recompute);
-    Timer.periodic(const Duration(milliseconds: 33), (_) => _tick());
-  }
+  VoiceLevels._();
   static final VoiceLevels instance = VoiceLevels._();
 
-  /// Level of the assistant's speech output (0..1), fed by the sidecars.
+  /// Level of the assistant's speech output (0..1) — fed by the sidecars'
+  /// tts.level events in the main process, or by the WS mirror in the widget
+  /// process. ALL visualizations react to this (never to the microphone).
   final ValueNotifier<double> tts = ValueNotifier(0.0);
-
-  /// max(mic, tts) — "is there voice happening right now".
-  final ValueNotifier<double> combined = ValueNotifier(0.0);
-
-  static const int historyLen = 48;
-  final List<double> history =
-      List<double>.filled(historyLen, 0.0, growable: true);
-
-  /// Bumped ~30 Hz whenever the history scrolls — repaint trigger.
-  final ValueNotifier<int> tick = ValueNotifier(0);
-
-  void _recompute() {
-    final m = MicMeter.instance.level.value;
-    final t = tts.value;
-    combined.value = m > t ? m : t;
-  }
-
-  void _tick() {
-    history.removeAt(0);
-    history.add(combined.value.clamp(0.0, 1.0));
-    tick.value++;
-  }
 }
 
 // ---- Voice-reactive visualizations (home hero variants) ----
@@ -8061,33 +8543,68 @@ double _wakeGlow(int wakeMs) {
   return 1.0 - dt / 1400.0;
 }
 
-// Mirrored bar spectrum (scrolling level history around a center axis).
-class EvsBarsViz extends StatelessWidget {
+// Mirrored bar "spectrum": bars are FIXED in place and move ONLY up/down
+// (no sideways scrolling — user request). Heights = assistant speech level
+// shaped by a center bell + light per-bar shimmer, VU-style attack/decay.
+class EvsBarsViz extends StatefulWidget {
   final double width;
   final double height;
   const EvsBarsViz({super.key, this.width = 340, this.height = 150});
+  @override
+  State<EvsBarsViz> createState() => _EvsBarsVizState();
+}
+
+class _EvsBarsVizState extends State<EvsBarsViz>
+    with SingleTickerProviderStateMixin {
+  static const int _n = 33;
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(seconds: 1))
+        ..repeat()
+        ..addListener(_tick);
+  final List<double> _cur = List<double>.filled(_n, 0);
+  double _t = 0;
+
+  void _tick() {
+    _t += 1 / 60;
+    final lvl = VoiceLevels.instance.tts.value;
+    final glow = _wakeGlow(VoiceAssistant.instance.wakePulse.value);
+    const center = (_n - 1) / 2;
+    for (var i = 0; i < _n; i++) {
+      final d = (i - center).abs() / center;
+      final bell = math.cos(d * math.pi / 2);
+      final shimmer =
+          0.85 + 0.15 * math.sin(_t * (3.1 + (i % 7) * 0.37) + i * 1.7);
+      final target =
+          (lvl * (0.25 + 0.75 * bell) * shimmer * (1 + glow * 0.6))
+              .clamp(0.0, 1.0);
+      final k = target > _cur[i] ? 0.45 : 0.14;
+      _cur[i] += (target - _cur[i]) * k;
+    }
+  }
+
+  @override
+  void dispose() {
+    _c
+      ..removeListener(_tick)
+      ..dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return RepaintBoundary(
-      child: ValueListenableBuilder<int>(
-        valueListenable: VoiceLevels.instance.tick,
-        builder: (_, __, ___) => CustomPaint(
-          size: Size(width, height),
-          painter: _BarsPainter(
-            List<double>.from(VoiceLevels.instance.history),
-            VoiceAssistant.instance.wakePulse.value,
-          ),
-        ),
+      child: CustomPaint(
+        size: Size(widget.width, widget.height),
+        painter: _BarsPainter(_cur, repaint: _c),
       ),
     );
   }
 }
 
 class _BarsPainter extends CustomPainter {
-  final List<double> hist;
-  final int wakeMs;
-  _BarsPainter(this.hist, this.wakeMs);
+  final List<double> heights;
+  _BarsPainter(this.heights, {required Listenable repaint})
+      : super(repaint: repaint);
 
   static const _c1 = Color(0xFF5068D8);
   static const _c2 = Color(0xFF8855CC);
@@ -8096,11 +8613,10 @@ class _BarsPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final n = hist.length;
+    final n = heights.length;
     final midY = size.height / 2;
     final slot = size.width / n;
     final barW = slot * 0.55;
-    final glow = _wakeGlow(wakeMs);
     canvas.drawLine(
         Offset(0, midY),
         Offset(size.width, midY),
@@ -8108,7 +8624,7 @@ class _BarsPainter extends CustomPainter {
           ..color = Colors.white.withValues(alpha: 0.06)
           ..strokeWidth = 1);
     for (var i = 0; i < n; i++) {
-      final v = (hist[i] * (1 + glow * 0.6)).clamp(0.0, 1.0);
+      final v = heights[i].clamp(0.0, 1.0);
       final h = 2 + v * (size.height / 2 - 4);
       final x = slot * i + slot / 2;
       final color = v < 0.35
@@ -8130,8 +8646,9 @@ class _BarsPainter extends CustomPainter {
   bool shouldRepaint(covariant _BarsPainter old) => true;
 }
 
-// Circular ring with radial spikes (spike lengths = level history around the
-// circle), slowly rotating EVS-gradient stroke.
+// Circular ring with radial spikes. Spikes sit at FIXED angles and only
+// extend/retract with the assistant speech level (no rotation/circular
+// travel — user request); the color sweep still slowly cycles for life.
 class EvsRingViz extends StatefulWidget {
   final double size;
   const EvsRingViz({super.key, this.size = 230});
@@ -8141,13 +8658,32 @@ class EvsRingViz extends StatefulWidget {
 
 class _EvsRingVizState extends State<EvsRingViz>
     with SingleTickerProviderStateMixin {
+  static const int _spikes = 90;
   late final AnimationController _rot =
       AnimationController(vsync: this, duration: const Duration(seconds: 24))
-        ..repeat();
+        ..repeat()
+        ..addListener(_tick);
+  final List<double> _cur = List<double>.filled(_spikes, 0);
+  double _t = 0;
+
+  void _tick() {
+    _t += 1 / 60;
+    final lvl = VoiceLevels.instance.tts.value;
+    final glow = _wakeGlow(VoiceAssistant.instance.wakePulse.value);
+    for (var i = 0; i < _spikes; i++) {
+      final shimmer =
+          0.8 + 0.2 * math.sin(_t * (2.7 + (i % 9) * 0.53) + i * 2.39);
+      final target = (lvl * shimmer * (1 + glow * 0.8)).clamp(0.0, 1.0);
+      final k = target > _cur[i] ? 0.45 : 0.14;
+      _cur[i] += (target - _cur[i]) * k;
+    }
+  }
 
   @override
   void dispose() {
-    _rot.dispose();
+    _rot
+      ..removeListener(_tick)
+      ..dispose();
     super.dispose();
   }
 
@@ -8155,11 +8691,11 @@ class _EvsRingVizState extends State<EvsRingViz>
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: AnimatedBuilder(
-        animation: Listenable.merge([_rot, VoiceLevels.instance.tick]),
+        animation: _rot,
         builder: (_, __) => CustomPaint(
           size: Size.square(widget.size),
           painter: _RingPainter(
-            List<double>.from(VoiceLevels.instance.history),
+            _cur,
             _rot.value,
             VoiceAssistant.instance.wakePulse.value,
           ),
@@ -8170,10 +8706,10 @@ class _EvsRingVizState extends State<EvsRingViz>
 }
 
 class _RingPainter extends CustomPainter {
-  final List<double> hist;
-  final double phase; // 0..1 slow decorative rotation
+  final List<double> lens; // per-spike smoothed levels, fixed angles
+  final double phase; // 0..1 — rotates ONLY the color sweep, not the spikes
   final int wakeMs;
-  _RingPainter(this.hist, this.phase, this.wakeMs);
+  _RingPainter(this.lens, this.phase, this.wakeMs);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -8208,13 +8744,10 @@ class _RingPainter extends CustomPainter {
             ..shader = sweep
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12));
     }
-    const spikes = 90;
-    for (var i = 0; i < spikes; i++) {
-      final ang = (i / spikes + phase) * 2 * math.pi;
-      final hIdx =
-          ((i * hist.length) ~/ spikes + (phase * hist.length).floor()) %
-              hist.length;
-      final v = (hist[hIdx] * (1 + glow * 0.8)).clamp(0.0, 1.0);
+    final n = lens.length;
+    for (var i = 0; i < n; i++) {
+      final ang = (i / n) * 2 * math.pi;
+      final v = lens[i].clamp(0.0, 1.0);
       final len = 2 + v * maxSpike;
       final dir = Offset(math.cos(ang), math.sin(ang));
       canvas.drawLine(
@@ -8264,12 +8797,14 @@ class EvsLiveViz extends StatelessWidget {
     final app = context.watch<AppState>();
     return AnimatedBuilder(
       animation: Listenable.merge([
-        VoiceLevels.instance.combined,
         VoiceLevels.instance.tts,
         VoiceAssistant.instance.state,
       ]),
       builder: (_, __) {
-        final lv = VoiceLevels.instance.combined.value;
+        // Visualizations react ONLY to the assistant's speech output — the
+        // microphone never moves them (user decision; the sidebar mic widget
+        // is the mic monitor).
+        final lv = VoiceLevels.instance.tts.value;
         final va = VoiceAssistant.instance.state.value;
         final speaking = VoiceLevels.instance.tts.value > 0.001;
         final thinking = !speaking &&
@@ -8319,13 +8854,15 @@ class EvsLiveViz extends StatelessWidget {
 }
 
 // ---- Floating overlay-widget view ----
-// Rendered instead of the whole app UI while AppState.overlayMode is on (see
-// MiraiApp.builder). The window at that point is a small transparent
-// always-on-top square (DesktopIntegration.enterOverlay), so everything drawn
-// here floats directly on the user's desktop. Drag anywhere to move it;
-// double-click (or the hover button) returns to the full window.
+// The root UI of the WIDGET PROCESS (VizOverlayApp): a small transparent
+// always-on-top window floating directly on the desktop, independent of the
+// chat window. Drag anywhere to move it; double-click (or the hover button)
+// asks the main process to open the chat.
 class OverlayWidgetView extends StatefulWidget {
-  const OverlayWidgetView({super.key});
+  final VoidCallback onOpen;
+  final VoidCallback onHide;
+  const OverlayWidgetView(
+      {super.key, required this.onOpen, required this.onHide});
   @override
   State<OverlayWidgetView> createState() => _OverlayWidgetViewState();
 }
@@ -8345,7 +8882,7 @@ class _OverlayWidgetViewState extends State<OverlayWidgetView> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onPanStart: (_) => windowManager.startDragging(),
-          onDoubleTap: () => app.setOverlayMode(false),
+          onDoubleTap: widget.onOpen,
           child: LayoutBuilder(builder: (context, box) {
             final s = box.biggest.shortestSide;
             return Stack(alignment: Alignment.center, children: [
@@ -8380,39 +8917,13 @@ class _OverlayWidgetViewState extends State<OverlayWidgetView> {
                   size: s * 0.62,
                   color: Colors.white,
                   scattered: false,
-                  soundLevel: VoiceLevels.instance.combined,
+                  soundLevel: VoiceLevels.instance.tts,
                 ),
-              // Wake-word flash: same green confirmation as the topbar pill.
+              // Assistant stage badge: wake flash → "say the command" →
+              // thinking → running. Hidden while idle/plain listening.
               Positioned(
-                bottom: s * 0.10,
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: VoiceAssistant.instance.wakeActive,
-                  builder: (_, wake, __) => AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: wake ? 1 : 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xE0143D2B),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0x6654E0B0)),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.check_circle,
-                            size: 13, color: Color(0xFF54E0B0)),
-                        const SizedBox(width: 5),
-                        Text(
-                          app.t('vaWakeHeard'),
-                          style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFFB2F0D4)),
-                        ),
-                      ]),
-                    ),
-                  ),
-                ),
+                bottom: s * 0.08,
+                child: _VaStageBadge(app: app),
               ),
               // Hover controls: open the full window / hide the widget.
               Positioned(
@@ -8422,10 +8933,9 @@ class _OverlayWidgetViewState extends State<OverlayWidgetView> {
                   opacity: _hover ? 1 : 0,
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     _ovlBtn(Icons.open_in_full, app.t('ovlOpenChat'),
-                        () => app.setOverlayMode(false)),
+                        widget.onOpen),
                     const SizedBox(width: 6),
-                    _ovlBtn(Icons.close, app.t('ovlHide'),
-                        () => windowManager.hide()),
+                    _ovlBtn(Icons.close, app.t('ovlHide'), widget.onHide),
                   ]),
                 ),
               ),
@@ -8457,6 +8967,86 @@ class _OverlayWidgetViewState extends State<OverlayWidgetView> {
   }
 }
 
+// Assistant stage badge for the floating widget: wake-word flash (green),
+// "say the command" while armed (cyan), thinking (violet), running (amber).
+// Hidden during idle/plain listening. Reads the (possibly WS-mirrored)
+// VoiceAssistant notifiers, so it works in both processes.
+class _VaStageBadge extends StatelessWidget {
+  final AppState app;
+  const _VaStageBadge({required this.app});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        VoiceAssistant.instance.state,
+        VoiceAssistant.instance.wakeActive,
+        vizNotice,
+      ]),
+      builder: (_, __) {
+        final wake = VoiceAssistant.instance.wakeActive.value;
+        final st = VoiceAssistant.instance.state.value;
+        final notice = vizNotice.value;
+        String? label;
+        var icon = Icons.check_circle;
+        var base = const Color(0xFF54E0B0);
+        if (notice != null && notice.$1.isNotEmpty) {
+          // Command result notice takes priority (main window may be hidden).
+          label = notice.$1;
+          switch (notice.$2) {
+            case 'ok':
+              icon = Icons.check_circle;
+              base = const Color(0xFF54E0B0);
+              break;
+            case 'err':
+              icon = Icons.error_outline;
+              base = const Color(0xFFF08080);
+              break;
+            default:
+              icon = Icons.info_outline;
+              base = const Color(0xFFB09CFF);
+          }
+        } else if (wake) {
+          label = '«${app.wakeWord}» — ${app.t('vaWakeHeard')}';
+        } else if (st == VaState.armed) {
+          label = app.t('vaArmed');
+          icon = Icons.hearing;
+          base = const Color(0xFF4FC3F7);
+        } else if (st == VaState.thinking) {
+          label = app.t('vaThinking');
+          icon = Icons.auto_awesome;
+          base = const Color(0xFFB09CFF);
+        } else if (st == VaState.running) {
+          label = app.t('vaRunning');
+          icon = Icons.bolt;
+          base = const Color(0xFFE0C07A);
+        }
+        return AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: label == null ? 0 : 1,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xE0141520),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: base.withValues(alpha: 0.45)),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 13, color: base),
+              const SizedBox(width: 5),
+              Text(label ?? '',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: base)),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+}
+
 // Live microphone amplitude meter: streams raw PCM via `record` and turns it
 // into a smoothed 0..1 level (RMS). If streaming is unavailable on this
 // platform/device, `active` stays false and the widget falls back to a
@@ -8470,6 +9060,7 @@ class MicMeter {
   StreamSubscription<Uint8List>? _sub;
   bool active = false;
   String _deviceId = '';
+  String currentLabel = ''; // label of the selected mic ('' = default)
   bool _starting = false;
 
   // Start (or restart, if the selected device changed) the live meter on the
@@ -8496,6 +9087,9 @@ class MicMeter {
           }
         }
       }
+      // Human-readable name of the selected mic — the Python sidecar matches
+      // its PortAudio input by (a prefix of) this label (stt.start device).
+      currentLabel = device?.label ?? '';
       final stream = await _rec.startStream(RecordConfig(
         encoder: AudioEncoder.pcm16bits,
         sampleRate: 16000,
@@ -8584,9 +9178,9 @@ class _DesktopMicWidgetState extends State<_DesktopMicWidget>
       if (!mounted) return;
       setState(() {
         _hist.removeAt(0);
-        // Combined = mic + assistant speech, so the sidebar breathes during
-        // TTS replies too.
-        _hist.add(VoiceLevels.instance.combined.value);
+        // Pure microphone level — this widget is the mic monitor (the
+        // visualizations elsewhere react to the assistant's speech instead).
+        _hist.add(MicMeter.instance.level.value);
       });
     });
   }
@@ -8769,7 +9363,7 @@ class _VizPreviewCardState extends State<_VizPreviewCard>
       _lvl.value = v;
       VoiceLevels.instance.tts.value = v;
     } else {
-      _lvl.value = VoiceLevels.instance.combined.value;
+      _lvl.value = VoiceLevels.instance.tts.value;
     }
   }
 
@@ -10212,10 +10806,9 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           title: app.t('ovlEnter'),
           rows: [
             evsRow(
-              label: app.t('ovlEnter'),
+              label: app.t('ovlShow'),
               desc: app.t('ovlEnterDesc'),
-              control: evsSelectButton(app.t('ovlEnterBtn'),
-                  onTap: () => app.setOverlayMode(true)),
+              control: evsToggle(app.overlayMode, app.setOverlayMode),
             ),
             evsRow(
               stacked: true,
@@ -10226,11 +10819,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                 (260.0, app.t('ovlSizeM')),
                 (330.0, app.t('ovlSizeL')),
               ], app.overlaySize, app.setOverlaySize),
-            ),
-            evsRow(
-              label: app.t('ovlOnTray'),
-              desc: app.t('ovlOnTrayDesc'),
-              control: evsToggle(app.overlayOnTray, app.setOverlayOnTray),
             ),
           ])),
     ];
@@ -10266,7 +10854,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         return ParticleSphere(
             size: 46,
             color: Colors.white,
-            soundLevel: VoiceLevels.instance.combined);
+            soundLevel: VoiceLevels.instance.tts);
     }
   }
 
@@ -11563,13 +12151,14 @@ class _WindowTitleBar extends StatelessWidget {
       child: Row(
         children: [
           const Expanded(child: DragToMoveArea(child: SizedBox.expand())),
-          // Collapse into the floating overlay widget (transparent
-          // always-on-top mini window with the voice visualization).
+          // Toggle the floating widget (separate transparent always-on-top
+          // window with the voice visualization).
           Tooltip(
             message: context.read<AppState>().t('ovlEnter'),
-            child: _WinBtn(Icons.picture_in_picture_alt_outlined,
-                () => context.read<AppState>().setOverlayMode(true),
-                iconSize: 14),
+            child: _WinBtn(Icons.picture_in_picture_alt_outlined, () {
+              final app = context.read<AppState>();
+              app.setOverlayMode(!app.overlayMode);
+            }, iconSize: 14),
           ),
           _WinBtn(Icons.remove, () => windowManager.minimize()),
           _WinBtn(Icons.crop_square, () async {
@@ -12043,6 +12632,7 @@ class _ChatScreenState extends State<ChatScreen> {
           valueListenable: VoiceAssistant.instance.state,
           builder: (_, s, __) {
             final (label, color) = switch (s) {
+              VaState.armed => (app.t('vaArmed'), const Color(0xFF4FC3F7)),
               VaState.thinking => (app.t('vaThinking'), const Color(0xFF54E08A)),
               VaState.running => (app.t('vaRunning'), const Color(0xFFE0C07A)),
               _ => (app.t('vaListening'), const Color(0xFF8A7BE0)),
@@ -12591,7 +13181,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ? Colors.white
                       : const Color(0xFF2F6BFF),
                   scattered: keyboardOpen,
-                  soundLevel: VoiceLevels.instance.combined,
+                  soundLevel: VoiceLevels.instance.tts,
                 ),
             ],
             const SizedBox(height: 20),
