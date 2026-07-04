@@ -2628,6 +2628,10 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('1.0.9', [
+    'Исправлен запуск голосового движка (иногда показывал «Не запущен»): фоновый процесс распознавания больше не зависает на старте.',
+    'Все вспомогательные процессы (движок распознавания, виджет, синтез голоса) теперь гарантированно закрываются вместе с приложением — даже при аварийном завершении или снятии через диспетчер задач, ничего не остаётся висеть в фоне.',
+  ]),
   ChangelogEntry('1.0.8', [
     'Лучше распознавание речи: подсказка распознавателю (слово-активатор + словарь команд) и более точный разбор завершённых фраз (шире поиск + перебор температур) — короткие команды слышатся стабильнее.',
     'Остановка голосом: скажите «стоп», «хватит» (или «EVS, стоп») — ассистент сразу прервёт озвучку и текущую генерацию ответа. Набор стоп-слов редактируется в настройках.',
@@ -6512,6 +6516,94 @@ class SystemMonitor {
   }
 }
 
+// Ties every helper process the app spawns (Python voice sidecar, the floating
+// widget process, the XTTS voice-clone engine) to THIS process's lifetime via a
+// Windows Job Object with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE. When the app
+// exits — cleanly, on a crash, or force-killed from Task Manager — the OS
+// closes the job handle and terminates every assigned child, so nothing is left
+// running. Graceful shutdown still kills them explicitly first; this is the
+// safety net for the paths where that code never runs. No-ops off Windows.
+class ProcessJob {
+  ProcessJob._();
+  static final ProcessJob instance = ProcessJob._();
+
+  int _job = 0; // job HANDLE (0 = unavailable)
+  bool _init = false;
+  _OpenProcessDart? _openProcess;
+  _AssignJobDart? _assign;
+  _CloseHandleDart? _closeHandle;
+
+  void _ensure() {
+    if (_init) return;
+    _init = true;
+    if (defaultTargetPlatform != TargetPlatform.windows) return;
+    try {
+      final k32 = DynamicLibrary.open('kernel32.dll');
+      final createJob =
+          k32.lookupFunction<_CreateJobNative, _CreateJobDart>('CreateJobObjectW');
+      final setInfo = k32.lookupFunction<_SetJobInfoNative, _SetJobInfoDart>(
+          'SetInformationJobObject');
+      _openProcess = k32
+          .lookupFunction<_OpenProcessNative, _OpenProcessDart>('OpenProcess');
+      _assign = k32
+          .lookupFunction<_AssignJobNative, _AssignJobDart>('AssignProcessToJobObject');
+      _closeHandle = k32
+          .lookupFunction<_CloseHandleNative, _CloseHandleDart>('CloseHandle');
+      final job = createJob(nullptr, nullptr);
+      if (job == 0) return;
+      // JOBOBJECT_EXTENDED_LIMIT_INFORMATION is 144 bytes on x64; its LimitFlags
+      // (a DWORD) sits at offset 16. Set JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE.
+      final info = calloc<Uint8>(144);
+      try {
+        final bd = ByteData.sublistView(info.asTypedList(144));
+        bd.setUint32(16, 0x00002000, Endian.little); // LimitFlags
+        const jobObjectExtendedLimitInformation = 9;
+        if (setInfo(job, jobObjectExtendedLimitInformation, info, 144) == 0) {
+          _closeHandle?.call(job);
+          return;
+        }
+      } finally {
+        calloc.free(info);
+      }
+      _job = job;
+    } catch (_) {
+      _job = 0;
+    }
+  }
+
+  // Assign a freshly spawned helper process to the job. Safe to call for any
+  // pid; silently no-ops if the job is unavailable.
+  void add(int pid) {
+    _ensure();
+    final job = _job;
+    final open = _openProcess, assign = _assign, close = _closeHandle;
+    if (job == 0 || pid <= 0 || open == null || assign == null || close == null) {
+      return;
+    }
+    try {
+      // PROCESS_SET_QUOTA (0x0100) | PROCESS_TERMINATE (0x0001).
+      final h = open(0x0101, 0, pid);
+      if (h == 0) return;
+      try {
+        assign(job, h);
+      } finally {
+        close(h);
+      }
+    } catch (_) {}
+  }
+}
+
+typedef _CreateJobNative = IntPtr Function(Pointer<Void>, Pointer<Void>);
+typedef _CreateJobDart = int Function(Pointer<Void>, Pointer<Void>);
+typedef _SetJobInfoNative = Int32 Function(IntPtr, Int32, Pointer<Uint8>, Uint32);
+typedef _SetJobInfoDart = int Function(int, int, Pointer<Uint8>, int);
+typedef _OpenProcessNative = IntPtr Function(Uint32, Int32, Uint32);
+typedef _OpenProcessDart = int Function(int, int, int);
+typedef _AssignJobNative = Int32 Function(IntPtr, IntPtr);
+typedef _AssignJobDart = int Function(int, int);
+typedef _CloseHandleNative = Int32 Function(IntPtr);
+typedef _CloseHandleDart = int Function(int);
+
 // Windows desktop integration: system tray, minimize/close-to-tray, a global
 // "show window" hotkey (Ctrl+Shift+Space) and launch-at-startup. All calls are
 // guarded to Windows and wrapped in try/catch so an unsupported platform or a
@@ -6581,6 +6673,7 @@ class VizOverlayServer {
       final proc = await io.Process.start(io.Platform.resolvedExecutable,
           ['--viz-overlay', '--port=${_http!.port}']);
       _proc = proc;
+      ProcessJob.instance.add(proc.pid); // die with the app
       unawaited(proc.exitCode.then((_) {
         if (!identical(_proc, proc)) return;
         _proc = null;
@@ -6834,11 +6927,17 @@ class DesktopIntegration with WindowListener, TrayListener {
   }
 
   Future<void> _quit() async {
+    // Explicitly stop every helper process on a clean exit. The Job Object
+    // (ProcessJob) is the backstop for crashes / force-kills where this code
+    // never runs.
     try {
       VizOverlayServer.instance.dispose();
     } catch (_) {}
     try {
       await SidecarClient.instance.stop();
+    } catch (_) {}
+    try {
+      await TtsCloneClient.instance.shutdown();
     } catch (_) {}
     try {
       await windowManager.setPreventClose(false);
@@ -7559,6 +7658,7 @@ class SidecarClient {
       } catch (_) {}
       _proc = await io.Process.start(launch.$1, launch.$2,
           runInShell: false, environment: env);
+      ProcessJob.instance.add(_proc!.pid); // die with the app
       _proc!.stderr.listen((_) {}); // drain
       final ready = Completer<int>();
       _proc!.stdout
@@ -7766,6 +7866,7 @@ class TtsCloneClient {
       status.value = TtsCloneStatus.starting;
       _proc = await io.Process.start(launch.$1, launch.$2,
           runInShell: false, environment: env);
+      ProcessJob.instance.add(_proc!.pid); // die with the app
       _proc!.stderr.listen((_) {});
       final ready = Completer<int>();
       _proc!.stdout
