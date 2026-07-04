@@ -111,6 +111,12 @@ async def _main(args) -> None:
         port = args.port or server.sockets[0].getsockname()[1]
         # Flutter parses this line from stdout to learn the port.
         print(f"EVS_SIDECAR_READY {port}", flush=True)
+        # Start the parent-death watcher ONLY now — after the heavy engine
+        # imports (sounddevice/faster-whisper) and the READY print. Its blocking
+        # `sys.stdin.buffer.read()` holds the stdin BufferedReader lock, and if
+        # it runs during those imports it can deadlock startup so READY never
+        # prints (observed: sidecar "Не запущен", process alive but no socket).
+        _watch_parent()
         await asyncio.Future()  # run forever
 
 
@@ -143,7 +149,9 @@ def main() -> None:
     ap.add_argument("--device", default="cpu", help="cpu | cuda")
     ap.add_argument("--compute-type", dest="compute_type", default="int8")
     args = ap.parse_args()
-    _watch_parent()
+    # NOTE: _watch_parent() is started from inside _main(), AFTER the server is
+    # up and READY is printed — starting it here (before the heavy imports)
+    # deadlocked startup on some Windows setups (stdin BufferedReader lock).
     try:
         asyncio.run(_main(args))
     except KeyboardInterrupt:
