@@ -28,6 +28,36 @@
 
     <!-- Newest release first. Duplicate this block for each new version. -->
     <item>
+      <title>EVS 1.0.8</title>
+      <description><![CDATA[
+        <style>
+          html,body{background:#0E0E15;color:#E6E8F0;margin:0;padding:14px 18px;
+            font-family:'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;}
+          h1,h2,h3,b,strong{color:#FFFFFF;}
+          a{color:#8A7BE0;}
+          ul{margin:6px 0;padding-left:20px;}
+          li{margin:5px 0;}
+        </style>
+        <ul>
+          <li>Лучше распознавание речи: подсказка распознавателю (активатор + словарь команд) и более точный разбор фраз — короткие команды слышатся стабильнее.</li>
+          <li>Остановка голосом: «стоп», «хватит» (или «EVS, стоп») сразу прерывают озвучку и текущую генерацию ответа. Набор стоп-слов редактируется в настройках.</li>
+          <li>Несколько адресов серверов: сохраняйте адреса и переключайтесь между ними в один тап.</li>
+          <li>Плашка статуса больше не залипает — показывает только состояние (Слушаю / услышал активатор / ошибка).</li>
+          <li>Понимание команд улучшено: после активатора команды выполняются точнее, обычные вопросы по-прежнему уходят в чат.</li>
+        </ul>
+      ]]></description>
+      <pubDate>Sat, 04 Jul 2026 12:00:00 +0000</pubDate>
+      <enclosure
+        url="https://github.com/kekw2077/mirai/releases/download/desktop-v1.0.8/EVS-Setup-1.0.8.exe"
+        sparkle:version="1.0.8"
+        sparkle:os="windows"
+        sparkle:dsaSignature="MD0CHH54hTLZN2GIgrzb1bGQ8cVEai3zN1TxpRB5qzkCHQCPeNaxUizq6ntq+v0SNN0jfVn2ZaKGvyWgUieV"
+        evs:sha256="64667bfee3177c6cb8637b4fbdeca8eb8a69f6ea3066358c9cb917beb4893ec5"
+        length="15834666"
+        type="application/octet-stream" />
+    </item>
+
+    <item>
       <title>EVS 1.0.7</title>
       <description><![CDATA[
         <style>

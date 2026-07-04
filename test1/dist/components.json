@@ -2,10 +2,10 @@
   "components": {
     "sidecar": {
       "file": "evs_sidecar.exe",
-      "version": "4",
+      "version": "5",
       "url": "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_sidecar.exe",
-      "sha256": "42feb00a002b1f1b0db8ccc1e74afeb836ccb9631dbcf8f79c3c6a6b61baee06",
-      "size": 101317912
+      "sha256": "31643f2c71c4fb1276624d9719cb878724acc3248271356fdcc943b666460db9",
+      "size": 101318723
     },
     "tts-clone": {
       "file": "evs_tts.zip",

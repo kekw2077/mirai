@@ -65,13 +65,16 @@ async def _handle(ws, stt: SttEngine, tts: TtsEngine) -> None:
             t = data.get("type")
             if t == "stt.start":
                 stt.start(data.get("language", "ru"), emit,
-                          device=data.get("device"))
+                          device=data.get("device"),
+                          prompt=data.get("prompt"))
             elif t == "stt.stop":
                 stt.stop()
             elif t == "stt.config":
                 model = data.get("model")
                 if model:
                     stt.set_model(str(model))
+                if "prompt" in data:
+                    stt.set_prompt(data.get("prompt"))
             elif t == "tts.speak":
                 tts.speak(str(data.get("text", "")),
                           rate=float(data.get("rate", 1.0)),

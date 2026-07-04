@@ -470,6 +470,9 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdModeFirst': 'Сначала команда',
     'cmdActivator': 'Слово-активатор',
     'cmdActivatorDesc': 'Скажите «EVS» перед командой, напр. «EVS, открой браузер»',
+    'cmdStopWords': 'Слова остановки',
+    'cmdStopWordsDesc': 'Через запятую. Прервут озвучку и генерацию (напр. «стоп, хватит, отмена»)',
+    'saveServerBtn': 'Сохранить адрес',
     'cmdInterpreter': 'Нейросеть-интерпретатор',
     'cmdInterpreterDesc': 'Использовать LLM для нечёткого понимания команд',
     'cmdModel': 'Модель для команд',
@@ -492,6 +495,7 @@ const Map<String, Map<String, String>> _i18n = {
     'vaWakeHeard': 'услышал, говорите!',
     'vaArmed': 'Говорите команду…',
     'vaCmdUnknown': 'Команду не понял',
+    'vaStopped': 'Остановлено',
     'vaConfirmTitle': 'Выполнить команду?',
     'vaConfirmBody': 'EVS распознал команду:',
     'cardSecurity': 'Безопасность',
@@ -1135,6 +1139,9 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdModeFirst': 'Command first',
     'cmdActivator': 'Wake word',
     'cmdActivatorDesc': 'Say “EVS” before a command, e.g. “EVS, open browser”',
+    'cmdStopWords': 'Stop words',
+    'cmdStopWordsDesc': 'Comma-separated. Interrupt speech and generation (e.g. “stop, cancel, quiet”)',
+    'saveServerBtn': 'Save address',
     'cmdInterpreter': 'Neural interpreter',
     'cmdInterpreterDesc': 'Use the LLM for fuzzy command understanding',
     'cmdModel': 'Model for commands',
@@ -1157,6 +1164,7 @@ const Map<String, Map<String, String>> _i18n = {
     'vaWakeHeard': 'heard you, go ahead!',
     'vaArmed': 'Say the command…',
     'vaCmdUnknown': 'Could not understand the command',
+    'vaStopped': 'Stopped',
     'vaConfirmTitle': 'Run command?',
     'vaConfirmBody': 'EVS recognized a command:',
     'cardSecurity': 'Security',
@@ -2620,6 +2628,13 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('1.0.8', [
+    'Лучше распознавание речи: подсказка распознавателю (слово-активатор + словарь команд) и более точный разбор завершённых фраз (шире поиск + перебор температур) — короткие команды слышатся стабильнее.',
+    'Остановка голосом: скажите «стоп», «хватит» (или «EVS, стоп») — ассистент сразу прервёт озвучку и текущую генерацию ответа. Набор стоп-слов редактируется в настройках.',
+    'Несколько адресов серверов: сохраняйте адреса локального/удалённого сервера и переключайтесь между ними в один тап (настройки → подключение).',
+    'Плашка статуса больше не залипает: показывает только состояние (Слушаю / услышал активатор / ошибка), без зависающих распознанных фраз.',
+    'Понимание команд улучшено: после активатора команды выполняются точнее (расширенный список действий и примеры для интерпретатора), а обычные вопросы по-прежнему уходят в чат.',
+  ]),
   ChangelogEntry('1.0.7', [
     'Виджет стал отдельным окном (собственный процесс): чат и виджет видны одновременно, виджет всегда поверх окон, приложение стартует только виджетом у правого края.',
     'Починено распознавание речи: фразы теперь корректно завершаются и обрабатываются за секунды (VAD + шумовой гейт + сброс отстающей очереди), отфильтрованы галлюцинации Whisper («Субтитры…»), выбранный микрофон реально передаётся распознавателю, medium автоматически заменён на small (на CPU он обрабатывал фразу ~минуту).',
@@ -3252,12 +3267,14 @@ class RemoteLLMService implements ILLMService {
     Conversation conv,
     List<ChatMessage> history,
   ) async {
+    final client = http.Client();
+    _activeClient = client;
     try {
       final headers = {'Content-Type': 'application/json'};
       if (app.apiKey.isNotEmpty) {
         headers['Authorization'] = 'Bearer ${app.apiKey}';
       }
-      final res = await http
+      final res = await client
           .post(
             Uri.parse('${app.baseUrl}/api/chat'),
             headers: headers,
@@ -3277,7 +3294,12 @@ class RemoteLLMService implements ILLMService {
       }
       return '${app.t('serverError')} ${res.statusCode}: ${res.body}';
     } catch (e) {
+      // A cancel-triggered client.close() lands here too; the caller checks
+      // _genCancelled and drops this string rather than showing it.
       return '${app.t('unreachable')} ${app.baseUrl}.\n($e)\n\n${app.t('checkAddress')}';
+    } finally {
+      client.close();
+      if (identical(_activeClient, client)) _activeClient = null;
     }
   }
 
@@ -3448,6 +3470,8 @@ class AppState extends ChangeNotifier {
 
   String serverUrl = '';
   String apiKey = '';
+  // User-saved server addresses (local Ollama / remote API) for quick switching.
+  List<String> savedServers = [];
   List<String> models = [];
   String selectedModel = '';
   bool loadingModels = false;
@@ -3468,7 +3492,14 @@ class AppState extends ChangeNotifier {
   // actually interrupt itself.
   bool isGenerating = false;
   void Function()? _cancelGeneration;
-  void cancelGeneration() => _cancelGeneration?.call();
+  // Set when a cancel was requested (voice "stop" or the Stop button) so the
+  // non-streaming path can drop the aborted reply instead of writing an error
+  // message into the chat.
+  bool _genCancelled = false;
+  void cancelGeneration() {
+    _genCancelled = true;
+    _cancelGeneration?.call();
+  }
 
   // Proactive local-model warm-up state: true while a downloaded local model
   // is being loaded into memory (via a tiny warm-up inference) so the UI can
@@ -3602,6 +3633,24 @@ class AppState extends ChangeNotifier {
   // Voice assistant / command recognition.
   String cmdMode = 'wakeword'; // 'wakeword' | 'separate' | 'first'
   String wakeWord = 'EVS';
+  // Voice "stop" vocabulary (interrupts speech + generation). User-editable;
+  // seeded with sensible defaults. Matched fuzzily on the first 1-2 tokens
+  // after an optional wake word (see VoiceAssistant._isStopPhrase).
+  static const List<String> kDefaultStopWords = [
+    'стоп', 'стой', 'хватит', 'отмена', 'замолчи', 'тихо', 'прекрати',
+    'заткнись', 'stop', 'cancel', 'quiet', 'enough',
+  ];
+  List<String> stopWords = List<String>.from(kDefaultStopWords);
+  // Whisper decoding primer sent to the sidecar: the current wake word plus a
+  // command/stop vocabulary, so recognition is biased toward the phrases the
+  // assistant actually listens for.
+  String get sttBiasPrompt {
+    const vocab = 'Открой, закрой, запусти, останови, включи, выключи, найди, '
+        'поставь, громкость, яркость, скриншот, музыка, браузер, блокнот.';
+    final stops = stopWords.take(6).join(', ');
+    return '$wakeWord. $vocab${stops.isEmpty ? '' : ' $stops.'}';
+  }
+
   bool cmdInterpreter = true; // use the LLM to interpret fuzzy commands
   String cmdModel = ''; // '' = use selectedModel for interpretation
   double cmdThreshold = 0.65; // 0..1 fuzzy phrase-match threshold
@@ -3744,6 +3793,7 @@ class AppState extends ChangeNotifier {
     micAutoSend = prefs.getBool('micAutoSend') ?? true;
     micPauseSeconds = prefs.getInt('micPauseSeconds') ?? 3;
     serverUrl = prefs.getString('serverUrl') ?? '';
+    savedServers = prefs.getStringList('savedServers') ?? [];
     // Migrate away placeholder values that earlier versions persisted as if
     // they were real user data.
     if (serverUrl == '192.168.1.100:11434') serverUrl = '';
@@ -3810,6 +3860,10 @@ class AppState extends ChangeNotifier {
     sttEngine = prefs.getString('sttEngine') ?? 'whisper';
     cmdMode = prefs.getString('cmdMode') ?? 'wakeword';
     wakeWord = prefs.getString('wakeWord') ?? 'EVS';
+    final sw = prefs.getStringList('stopWords');
+    stopWords = (sw == null || sw.isEmpty)
+        ? List<String>.from(kDefaultStopWords)
+        : sw;
     cmdInterpreter = prefs.getBool('cmdInterpreter') ?? true;
     cmdModel = prefs.getString('cmdModel') ?? '';
     cmdThreshold = prefs.getDouble('cmdThreshold') ?? 0.65;
@@ -3880,6 +3934,7 @@ class AppState extends ChangeNotifier {
     await prefs.setBool('micAutoSend', micAutoSend);
     await prefs.setInt('micPauseSeconds', micPauseSeconds);
     await prefs.setString('serverUrl', serverUrl);
+    await prefs.setStringList('savedServers', savedServers);
     await prefs.setString('apiKey', apiKey);
     await prefs.setStringList('models', models);
     await prefs.setString('selectedModel', selectedModel);
@@ -3901,6 +3956,7 @@ class AppState extends ChangeNotifier {
     await prefs.setString('sttEngine', sttEngine);
     await prefs.setString('cmdMode', cmdMode);
     await prefs.setString('wakeWord', wakeWord);
+    await prefs.setStringList('stopWords', stopWords);
     await prefs.setBool('cmdInterpreter', cmdInterpreter);
     await prefs.setString('cmdModel', cmdModel);
     await prefs.setDouble('cmdThreshold', cmdThreshold);
@@ -3998,6 +4054,38 @@ class AppState extends ChangeNotifier {
     _save();
     notifyListeners();
   }
+
+  // Replace the voice "stop" vocabulary from a free-text field (comma/newline
+  // separated). Falls back to the defaults if the user clears it entirely.
+  void setStopWords(String csv) {
+    final list = csv
+        .split(RegExp(r'[,\n]'))
+        .map((s) => s.trim().toLowerCase())
+        .where((s) => s.isNotEmpty)
+        .toSet()
+        .toList();
+    stopWords = list.isEmpty ? List<String>.from(kDefaultStopWords) : list;
+    _save();
+    notifyListeners();
+  }
+
+  // --- Saved server addresses (quick-switch chips) ---
+  void saveCurrentServer() {
+    final url = serverUrl.trim();
+    if (url.isEmpty || savedServers.contains(url)) return;
+    savedServers.insert(0, url);
+    if (savedServers.length > 8) savedServers = savedServers.sublist(0, 8);
+    _save();
+    notifyListeners();
+  }
+
+  void removeSavedServer(String url) {
+    savedServers.remove(url);
+    _save();
+    notifyListeners();
+  }
+
+  void selectSavedServer(String url) => setServer(url, apiKey);
 
   void setCmdInterpreter(bool v) {
     cmdInterpreter = v;
@@ -4688,6 +4776,7 @@ class AppState extends ChangeNotifier {
     String? userTextForMemory,
   }) async {
     String replyText;
+    _genCancelled = false;
     if (conv.rpModeEnabled) {
       final history = List<ChatMessage>.from(conv.messages);
       final assistantMessage = ChatMessage(role: 'assistant', content: '');
@@ -4723,9 +4812,23 @@ class AppState extends ChangeNotifier {
       }
       replyText = assistantMessage.content;
     } else {
-      final rawReply = selectedModel.isEmpty
-          ? t('noModelsAvailable')
-          : await _llmFactory.current.generateResponse(conv, conv.messages);
+      final service = _llmFactory.current;
+      _cancelGeneration = () => unawaited(service.stopGeneration());
+      String rawReply;
+      try {
+        rawReply = selectedModel.isEmpty
+            ? t('noModelsAvailable')
+            : await service.generateResponse(conv, conv.messages);
+      } finally {
+        _cancelGeneration = null;
+      }
+      // Cancelled (voice "stop"/Stop button): drop the aborted reply instead
+      // of writing the backend's error string into the chat.
+      if (_genCancelled) {
+        conv.updatedAt = DateTime.now();
+        notifyListeners();
+        return '';
+      }
       final reply = (conv.persona ?? persona).enforceEmojiPolicy(rawReply);
       conv.messages.add(ChatMessage(role: 'assistant', content: reply.trim()));
       conv.updatedAt = DateTime.now();
@@ -7572,13 +7675,16 @@ class SidecarClient {
     } catch (_) {}
   }
 
-  void sttStart(String language) => _send({
+  void sttStart(String language, {String? prompt}) => _send({
         'type': 'stt.start',
         'language': language,
         // Selected mic by name — otherwise the sidecar records from the
         // system default device, which may differ from the one picked in
         // Settings (the level meter there uses the picked one).
         'device': MicMeter.instance.currentLabel,
+        // Whisper decoding primer (wake word + command vocabulary) to bias
+        // recognition toward the phrases the assistant expects.
+        if (prompt != null && prompt.isNotEmpty) 'prompt': prompt,
       });
   void sttStop() => _send({'type': 'stt.stop'});
   // Switch the Whisper model size live (sidecar reloads on next transcription).
@@ -7588,6 +7694,9 @@ class SidecarClient {
   }
   void speak(String text, {double rate = 1.0, double volume = 1.0}) =>
       _send({'type': 'tts.speak', 'text': text, 'rate': rate, 'volume': volume});
+  // Cut off any in-progress speech synthesis/playback immediately (voice stop
+  // command). The sidecar's main.py already handles `tts.stop`.
+  void stopSpeaking() => _send({'type': 'tts.stop'});
   void parseIntent(String text, List<Map<String, dynamic>> commands,
           {double threshold = 0.5}) =>
       _send({
@@ -7803,6 +7912,9 @@ class VoiceAssistant {
   bool _attached = false;
   bool _listening = false;
   bool _busy = false;
+  // Set true when a voice "stop" phrase interrupts the current command/reply so
+  // the in-flight `_handle` won't speak the (now-cancelled) result.
+  bool _stopFlag = false;
 
   // UI signals (home-screen indicator).
   final ValueNotifier<VaState> state = ValueNotifier(VaState.idle);
@@ -7892,7 +8004,8 @@ class VoiceAssistant {
         connected && app.sttEngine == 'whisper' && app.cmdMode == 'wakeword';
     if (want && !_listening) {
       _listening = true;
-      SidecarClient.instance.sttStart(app.effectiveSttLanguage);
+      SidecarClient.instance
+          .sttStart(app.effectiveSttLanguage, prompt: app.sttBiasPrompt);
       if (state.value == VaState.idle) state.value = VaState.listening;
     } else if (!want && _listening) {
       _listening = false;
@@ -7904,23 +8017,39 @@ class VoiceAssistant {
 
   Future<void> _onFinal(String text) async {
     final app = _app;
-    if (app == null || _busy || !_listening) return;
+    if (app == null || !_listening) return;
     final raw = text.trim();
     if (raw.isEmpty) return;
-    // Surface what was heard so the user can confirm recognition works.
+
+    // Voice "stop" — checked BEFORE the busy guard so it interrupts an
+    // in-progress reply/speech (with or without the wake word: "Ирис стоп" /
+    // "хватит").
+    if (_isStopPhrase(raw, app.wakeWord)) {
+      _stopEverything(app);
+      return;
+    }
+    if (_busy) return;
+    // Surface what was heard so the user can confirm recognition works. Not
+    // shown on the pill anymore (only the status is), kept for potential logs.
     lastHeard.value = raw;
 
     String? command;
+    // Whether the wake word was explicitly present in this turn (or the
+    // assistant was already armed by a bare wake word). Explicit commands are
+    // interpreted more aggressively (see _handle).
+    var explicit = false;
     if (app.cmdMode == 'wakeword') {
       if (state.value == VaState.armed) {
         // Wake word already heard on its own — this whole utterance is the
         // command.
         _disarm();
         command = raw;
+        explicit = true;
       } else {
         command = _stripWakeWord(raw, app.wakeWord);
         if (command == null) return; // wake word not heard — ignore
         _flagWake(); // visible "heard you!" pulse in the pill + visualizers
+        explicit = true;
         command = command.trim();
         if (command.isEmpty) {
           // Bare wake word: arm command capture — the next phrase is the
@@ -7938,14 +8067,57 @@ class VoiceAssistant {
     if (command.isEmpty) return;
 
     _busy = true;
+    _stopFlag = false;
     try {
-      await _handle(app, command);
+      await _handle(app, command, explicit: explicit);
     } catch (e) {
       unawaited(appendLog('errors', 'VoiceAssistant._handle: $e'));
     } finally {
       _busy = false;
       if (_listening) state.value = VaState.listening;
     }
+  }
+
+  // Stop-command detection: interrupts speech + generation. Matched on the
+  // first 1-2 tokens after an optional wake word, against the user-editable
+  // AppState.stopWords vocabulary.
+  bool _isStopPhrase(String text, String wake) {
+    final words = _app?.stopWords ?? AppState.kDefaultStopWords;
+    if (words.isEmpty) return false;
+    // Allow an optional leading wake word ("Ирис, стоп"). If the wake word is
+    // present, use the remainder; otherwise test the phrase as-is.
+    final stripped = _stripWakeWord(text, wake);
+    final body = (stripped != null && stripped.trim().isNotEmpty)
+        ? stripped
+        : text;
+    final tokens = body.toLowerCase().split(RegExp(r'[\s,.:;!?]+'))
+      ..removeWhere((t) => t.isEmpty);
+    if (tokens.isEmpty) return false;
+    for (final t in tokens.take(2)) {
+      for (final w in words) {
+        if (w.isEmpty) continue;
+        if (t == w || t.startsWith(w) || _ratio(t, w) >= 0.85) return true;
+      }
+    }
+    return false;
+  }
+
+  // Interrupt everything the assistant is doing: cut off TTS (both engines),
+  // cancel any in-flight generation, and flag so a pending reply isn't spoken.
+  void _stopEverything(AppState app) {
+    _stopFlag = true;
+    try {
+      SidecarClient.instance.stopSpeaking();
+    } catch (_) {}
+    try {
+      TtsCloneClient.instance.stopSpeaking();
+    } catch (_) {}
+    app.cancelGeneration();
+    _disarm();
+    _toast(app.t('vaStopped'));
+    VizOverlayServer.instance.note(app.t('vaStopped'), kind: 'info');
+    unawaited(appendLog('commands', 'STOP (voice)'));
+    if (_listening && !_busy) state.value = VaState.listening;
   }
 
   // Strip a leading wake word; returns the remaining command, or null if the
@@ -7984,7 +8156,8 @@ class VoiceAssistant {
 
   // Message routing (user spec): COMMANDS are executed silently — they must
   // NEVER appear in the chat history. Only plain speech becomes a chat turn.
-  Future<void> _handle(AppState app, String command) async {
+  Future<void> _handle(AppState app, String command,
+      {bool explicit = false}) async {
     state.value = VaState.thinking;
     // 1) The user's command catalog (fuzzy match).
     final match = _matchCommand(app, command);
@@ -7992,27 +8165,43 @@ class VoiceAssistant {
       await _runCommand(app, match);
       return;
     }
-    // 2) Command-shaped, but not in the catalog → the LLM interpreter
-    //    (silent request — the chat is never involved).
-    if (_isCommandLike(command)) {
+    final commandLike = _isCommandLike(command);
+    // 2) Try the LLM interpreter (silent — never touches the chat) when the
+    //    utterance looks like a command OR the wake word was used explicitly
+    //    (the user clearly addressed the assistant, so give it a chance to act
+    //    even if it doesn't start with a known verb — "Ирис, поставь музыку").
+    if (app.cmdInterpreter && (commandLike || explicit)) {
       unawaited(appendLog('commands', 'interpret: $command'));
-      if (app.cmdInterpreter) {
-        final interpreted = await _interpretCommand(app, command);
-        if (interpreted != null) {
-          await _runCommand(app, interpreted);
-          return;
-        }
+      final interpreted = await _interpretCommand(app, command);
+      if (interpreted != null) {
+        await _runCommand(app, interpreted);
+        return;
       }
+      // Interpreter found no actionable command. Verb-shaped phrases stay out
+      // of the chat ("не понял"); a conversational phrase after an explicit
+      // wake word falls through to the chat (it was probably a question).
+      if (commandLike) {
+        _toast(app.t('vaCmdUnknown'));
+        VizOverlayServer.instance.note(app.t('vaCmdUnknown'), kind: 'err');
+        if (app.voiceResponses) _speak(app, app.t('vaCmdUnknown'));
+        unawaited(appendLog('commands', 'UNKNOWN: $command'));
+        return;
+      }
+    } else if (commandLike) {
+      // Command-shaped but the interpreter is off → don't send it to the chat.
       _toast(app.t('vaCmdUnknown'));
       VizOverlayServer.instance.note(app.t('vaCmdUnknown'), kind: 'err');
       if (app.voiceResponses) _speak(app, app.t('vaCmdUnknown'));
       unawaited(appendLog('commands', 'UNKNOWN: $command'));
       return;
     }
-    // 3) Plain speech → a regular (visible) chat turn, reply spoken.
+    // 3) Plain speech → a regular (visible) chat turn, reply spoken (unless a
+    //    voice "stop" interrupted the generation meanwhile).
     _toast('${app.t('vaThinking')} $command');
     final reply = await app.sendMessage(command);
-    if (app.voiceResponses && reply.trim().isNotEmpty) _speak(app, reply);
+    if (!_stopFlag && app.voiceResponses && reply.trim().isNotEmpty) {
+      _speak(app, reply);
+    }
   }
 
   // Execute a catalog/interpreted command with the usual safety policies.
@@ -8049,10 +8238,12 @@ class VoiceAssistant {
   static const List<String> _cmdPatterns = [
     'открой', 'закрой', 'запусти', 'останови', 'нажми', 'напечатай',
     'найди', 'выключи', 'перезагрузи', 'громкость', 'яркость', 'скриншот',
-    'запиши', 'включи', 'сверни', 'разверни', 'поставь',
+    'запиши', 'включи', 'сверни', 'разверни', 'поставь', 'сделай', 'покажи',
+    'переключи', 'воспроизведи', 'проиграй', 'убавь', 'прибавь', 'заглуши',
     'open', 'close', 'launch', 'start', 'stop', 'press', 'type', 'find',
     'search', 'mute', 'volume', 'brightness', 'screenshot', 'record',
-    'shutdown', 'restart',
+    'shutdown', 'restart', 'play', 'pause', 'next', 'previous', 'show',
+    'switch', 'run',
   ];
 
   bool _isCommandLike(String text) {
@@ -8071,12 +8262,22 @@ class VoiceAssistant {
   // SILENT one-shot request that parses the phrase into a strict JSON action.
   static const String _interpretSystem =
       'Ты — парсер голосовых команд для управления компьютером Windows. '
-      'Преобразуй фразу пользователя в СТРОГИЙ JSON без пояснений:\n'
+      'Преобразуй фразу пользователя (возможно с ошибками распознавания речи) '
+      'в СТРОГИЙ JSON без пояснений:\n'
       '{"action":"app|url|search|none","value":"..."}\n'
-      '- app: исполняемое имя программы (notepad, calc, chrome, explorer …)\n'
-      '- url: полный URL, если просят открыть сайт\n'
-      '- search: поисковый запрос, если просят что-то найти\n'
-      '- none: если это не команда управления компьютером\n'
+      '- app: исполняемое имя программы Windows '
+      '(notepad, calc, chrome, explorer, mspaint, cmd …)\n'
+      '- url: полный URL (с https://), если просят открыть сайт\n'
+      '- search: поисковый запрос, если просят найти/поставить/включить '
+      'музыку, видео или что-то в интернете\n'
+      '- none: если это не команда управления компьютером (обычный вопрос)\n'
+      'Примеры:\n'
+      '«открой блокнот» -> {"action":"app","value":"notepad"}\n'
+      '«запусти калькулятор» -> {"action":"app","value":"calc"}\n'
+      '«открой ютуб» -> {"action":"url","value":"https://youtube.com"}\n'
+      '«поставь музыку» -> {"action":"search","value":"музыка"}\n'
+      '«найди рецепт борща» -> {"action":"search","value":"рецепт борща"}\n'
+      '«какая столица Японии» -> {"action":"none","value":""}\n'
       'Отвечай ТОЛЬКО JSON.';
 
   Future<VoiceCommand?> _interpretCommand(AppState app, String text) async {
@@ -9574,6 +9775,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
   ];
   final TextEditingController _activatorCtrl =
       TextEditingController(text: 'EVS');
+  final TextEditingController _stopWordsCtrl = TextEditingController();
 
   late final TextEditingController _nameCtrl;
   late final TextEditingController _promptCtrl;
@@ -9594,6 +9796,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     _serverCtrl = TextEditingController(text: app.serverUrl);
     _apiKeyCtrl = TextEditingController(text: app.apiKey);
     _activatorCtrl.text = app.wakeWord;
+    _stopWordsCtrl.text = app.stopWords.join(', ');
     // Keep the meter alive for the input-level bar, and enumerate mics.
     MicMeter.instance.start(deviceId: app.inputDeviceId);
     _loadMicDevices();
@@ -9691,6 +9894,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       _apiKeyCtrl.dispose();
     }
     _activatorCtrl.dispose();
+    _stopWordsCtrl.dispose();
     super.dispose();
   }
 
@@ -10405,6 +10609,72 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       );
     }
 
+    Widget saveBtn() => InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => app.saveCurrentServer(),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _evsStroke),
+              color: Colors.white.withValues(alpha: 0.04),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.bookmark_add_outlined,
+                  size: 14, color: Color(0xFF9AA0B4)),
+              const SizedBox(width: 5),
+              Text(app.t('saveServerBtn'),
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF9AA0B4),
+                      fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        );
+
+    Widget chip(String s) {
+      final active = s == app.serverUrl.trim();
+      const accent = Color(0xFF8A7BE0);
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 240),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            _serverCtrl.text = s;
+            app.selectSavedServer(s);
+          },
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(11, 5, 6, 5),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              color: active
+                  ? accent.withValues(alpha: 0.16)
+                  : Colors.white.withValues(alpha: 0.04),
+              border: Border.all(
+                  color: active ? accent.withValues(alpha: 0.5) : _evsStroke),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Flexible(
+                child: Text(s,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        color: active ? accent : const Color(0xFFB8BCCB),
+                        fontWeight: FontWeight.w600)),
+              ),
+              const SizedBox(width: 5),
+              InkWell(
+                onTap: () => app.removeSavedServer(s),
+                borderRadius: BorderRadius.circular(10),
+                child: const Icon(Icons.close,
+                    size: 13, color: Color(0xFF7A8090)),
+              ),
+            ]),
+          ),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -10413,6 +10683,16 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           const SizedBox(height: 6),
           field(_apiKeyCtrl, app.t('apiKeyHint'),
               (v) => app.setServer(app.serverUrl, v)),
+        ],
+        const SizedBox(height: 8),
+        Align(alignment: Alignment.centerLeft, child: saveBtn()),
+        if (app.savedServers.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [for (final s in app.savedServers) chip(s)],
+          ),
         ],
       ],
     );
@@ -10451,6 +10731,13 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               width: 110,
               child: _inlineField(_activatorCtrl,
                   mono: true, onChanged: (v) => app.setWakeWord(v))),
+        ),
+        evsRow(
+          stacked: true,
+          label: app.t('cmdStopWords'),
+          desc: app.t('cmdStopWordsDesc'),
+          control: _inlineField(_stopWordsCtrl,
+              onChanged: (v) => app.setStopWords(v)),
         ),
         evsRow(
           label: app.t('cmdInterpreter'),
@@ -12338,7 +12625,7 @@ class _ChatScreenState extends State<ChatScreen> {
       sc.sttStop();
       setState(() => _scListening = false);
     } else {
-      sc.sttStart(app.effectiveSttLanguage);
+      sc.sttStart(app.effectiveSttLanguage, prompt: app.sttBiasPrompt);
       setState(() => _scListening = true);
     }
   }
@@ -12639,7 +12926,9 @@ class _ChatScreenState extends State<ChatScreen> {
             };
             if (s == VaState.listening || s == VaState.idle) {
               // Flash a bright "wake word heard!" state for ~2.5 s so the
-              // trigger is unmistakable, then fall back to the live transcript.
+              // trigger is unmistakable, then fall back to the plain status.
+              // We deliberately do NOT surface the raw transcript here — it
+              // lingered and cluttered the pill with mis-heard phrases.
               return ValueListenableBuilder<bool>(
                 valueListenable: VoiceAssistant.instance.wakeActive,
                 builder: (_, woke, __) {
@@ -12649,11 +12938,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         '«${app.wakeWord}» — ${app.t('vaWakeHeard')}',
                         const Color(0xFF54E08A));
                   }
-                  return ValueListenableBuilder<String>(
-                    valueListenable: VoiceAssistant.instance.lastHeard,
-                    builder: (_, heard, __) => _vaPill(Icons.graphic_eq,
-                        heard.isEmpty ? label : '🎤 $heard', color),
-                  );
+                  return _vaPill(Icons.graphic_eq, label, color);
                 },
               );
             }

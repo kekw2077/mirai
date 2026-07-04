@@ -17,6 +17,15 @@ FRAME_MS = 30
 FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS // 1000  # 480
 FRAME_BYTES = FRAME_SAMPLES * 2  # int16
 
+# Default Whisper decoding primer (Russian command vocabulary). Biases the
+# decoder toward the words the assistant actually expects. The Dart side may
+# override this via `stt.start`/`stt.config` (wake word + vocabulary).
+_DEFAULT_PROMPT = (
+    "Ирис. Открой, закрой, запусти, останови, включи, выключи, найди, "
+    "поставь, громкость, яркость, скриншот, музыка, браузер, блокнот, "
+    "стоп, хватит."
+)
+
 
 class SttEngine:
     def __init__(self, model_size: str = "small", device: str = "cpu",
@@ -42,6 +51,9 @@ class SttEngine:
         self._worker: threading.Thread | None = None
         self._on_event = None
         self._language = None
+        # Whisper decoding bias: the wake word + a command vocabulary primer so
+        # short domain phrases ("открой блокнот") are transcribed more reliably.
+        self._prompt: str | None = _DEFAULT_PROMPT
 
     @property
     def available(self) -> bool:
@@ -52,6 +64,11 @@ class SttEngine:
         if model_size and model_size != self.model_size:
             self.model_size = model_size
             self._model = None  # force _ensure_model() to reload the new size
+
+    def set_prompt(self, prompt: str | None) -> None:
+        """Update the Whisper decoding primer (wake word + command vocabulary)."""
+        p = (prompt or "").strip()
+        self._prompt = p if p else _DEFAULT_PROMPT
 
     def _ensure_model(self):
         if self._model is None:
@@ -96,11 +113,13 @@ class SttEngine:
         return None
 
     def start(self, language: str | None, on_event,
-              device: str | None = None) -> bool:
+              device: str | None = None, prompt: str | None = None) -> bool:
         if not self._available or self._running:
             return self._running
         self._on_event = on_event
         self._language = (language or "ru") if language != "auto" else None
+        if prompt is not None:
+            self.set_prompt(prompt)
         try:
             import sounddevice as sd
 
@@ -240,11 +259,15 @@ class SttEngine:
             )
             # Finals get a silero VAD pass inside faster-whisper: it strips
             # non-speech, so noise segments mostly return empty instead of
-            # hallucinated subtitle credits. Partials stay cheap/raw.
+            # hallucinated subtitle credits. Finals also use a wider beam +
+            # temperature fallback for accuracy (they're infrequent, so the
+            # extra CPU is fine); partials stay cheap/raw for low latency.
             segments, _ = model.transcribe(
                 samples,
                 language=self._language,
-                beam_size=1,
+                beam_size=5 if final else 1,
+                temperature=[0.0, 0.2, 0.4] if final else 0.0,
+                initial_prompt=self._prompt,
                 vad_filter=final,
                 condition_on_previous_text=False,
             )
