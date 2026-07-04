@@ -46,6 +46,11 @@ const _minSplashDuration = Duration(milliseconds: 300);
 const int _kSingleInstancePort = 47653;
 io.ServerSocket? _singleInstanceLock;
 
+// The floating widget window is this many times larger than `overlaySize` so
+// there's transparent breathing room around the visualization (the viz itself
+// keeps its size — see OverlayWidgetView).
+const double kWidgetWindowScale = 1.35;
+
 void main(List<String> args) async {
   final startedAt = DateTime.now();
   WidgetsFlutterBinding.ensureInitialized();
@@ -147,8 +152,10 @@ Future<void> _vizOverlayMain(List<String> args) async {
   try {
     await acrylic.Window.initialize();
   } catch (_) {}
+  // Placeholder size; the first cfg from the main process sets the real one
+  // (overlaySize * kWidgetWindowScale). Pre-scaled to avoid a resize flash.
   const opts = WindowOptions(
-    size: Size(260, 260),
+    size: Size(260 * kWidgetWindowScale, 260 * kWidgetWindowScale),
     minimumSize: Size(120, 120),
     title: 'EVS Widget',
     titleBarStyle: TitleBarStyle.hidden,
@@ -507,11 +514,6 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdStopWords': 'Слова остановки',
     'cmdStopWordsDesc': 'Через запятую. Прервут озвучку и генерацию (напр. «стоп, хватит, отмена»)',
     'saveServerBtn': 'Сохранить адрес',
-    'cmdInterpreter': 'Нейросеть-интерпретатор',
-    'cmdInterpreterDesc': 'Использовать LLM для нечёткого понимания команд',
-    'cmdModel': 'Модель для команд',
-    'cmdModelDesc': 'Рекомендуется быстрая модель (3–7B)',
-    'cmdModelSame': 'Как у чата',
     'vaListening': 'Слушаю…',
     'vaThinking': 'Думаю…',
     'vaRunning': 'Выполняю…',
@@ -544,6 +546,32 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdAdd': 'Добавить команду',
     'cmdPhrase': 'Фраза-триггер',
     'cmdValue': 'Значение (путь, URL, действие)',
+    'next': 'Далее',
+    'cmdWizType': 'Что добавить?',
+    'cmdWizProgram': 'Программа',
+    'cmdWizFile': 'Файл',
+    'cmdWizSite': 'Сайт',
+    'cmdWizSystem': 'Система',
+    'cmdWizMedia': 'Медиа',
+    'cmdWizPickProgram': 'Выберите программу',
+    'cmdWizPickExe': 'Выбрать файл вручную…',
+    'cmdWizNoPrograms': 'Программы не найдены',
+    'cmdWizSearch': 'Поиск…',
+    'cmdWizPhrase': 'Фраза-триггер',
+    'cmdWizPhraseHint': 'Скажите эту фразу, чтобы выполнить',
+    'sysLock': 'Блокировка экрана',
+    'sysSleep': 'Спящий режим',
+    'sysVolUp': 'Громкость +',
+    'sysVolDown': 'Громкость −',
+    'sysMute': 'Без звука',
+    'mediaPlay': 'Плей / Пауза',
+    'mediaNext': 'Следующий трек',
+    'mediaPrev': 'Предыдущий трек',
+    'sttTest': 'Тест распознавания',
+    'sttTestDesc': 'Произнесите фразу и посмотрите, как её записал распознаватель — удобно, чтобы подобрать фразу-триггер.',
+    'sttTestStart': 'Начать тест',
+    'sttTestStop': 'Остановить',
+    'sttTestHint': 'Скажите что-нибудь — здесь появится распознанный текст…',
     'run': 'Запустить',
     'cmdRunTitle': 'Выполнить команду?',
     'cmdRunOk': 'Команда выполнена',
@@ -1176,11 +1204,6 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdStopWords': 'Stop words',
     'cmdStopWordsDesc': 'Comma-separated. Interrupt speech and generation (e.g. “stop, cancel, quiet”)',
     'saveServerBtn': 'Save address',
-    'cmdInterpreter': 'Neural interpreter',
-    'cmdInterpreterDesc': 'Use the LLM for fuzzy command understanding',
-    'cmdModel': 'Model for commands',
-    'cmdModelDesc': 'A fast model (3–7B) is recommended',
-    'cmdModelSame': 'Same as chat',
     'vaListening': 'Listening…',
     'vaThinking': 'Thinking…',
     'vaRunning': 'Running…',
@@ -1213,6 +1236,32 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdAdd': 'Add command',
     'cmdPhrase': 'Trigger phrase',
     'cmdValue': 'Value (path, URL, action)',
+    'next': 'Next',
+    'cmdWizType': 'What to add?',
+    'cmdWizProgram': 'Program',
+    'cmdWizFile': 'File',
+    'cmdWizSite': 'Website',
+    'cmdWizSystem': 'System',
+    'cmdWizMedia': 'Media',
+    'cmdWizPickProgram': 'Pick a program',
+    'cmdWizPickExe': 'Choose a file manually…',
+    'cmdWizNoPrograms': 'No programs found',
+    'cmdWizSearch': 'Search…',
+    'cmdWizPhrase': 'Trigger phrase',
+    'cmdWizPhraseHint': 'Say this phrase to run it',
+    'sysLock': 'Lock screen',
+    'sysSleep': 'Sleep',
+    'sysVolUp': 'Volume +',
+    'sysVolDown': 'Volume −',
+    'sysMute': 'Mute',
+    'mediaPlay': 'Play / Pause',
+    'mediaNext': 'Next track',
+    'mediaPrev': 'Previous track',
+    'sttTest': 'Recognition test',
+    'sttTestDesc': 'Say a phrase and see how the recognizer wrote it — handy for designing a trigger phrase.',
+    'sttTestStart': 'Start test',
+    'sttTestStop': 'Stop',
+    'sttTestHint': 'Say something — the recognized text appears here…',
     'run': 'Run',
     'cmdRunTitle': 'Run this command?',
     'cmdRunOk': 'Command executed',
@@ -2662,6 +2711,12 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('1.0.11', [
+    'Тест распознавания в настройках: произнесите фразу и сразу увидите, как её записал распознаватель — удобно подбирать фразу-триггер.',
+    'Добавление команды переделано в пошаговый мастер: выбор типа (программа / файл / сайт / система / медиа) → для программы список установленных приложений → фраза-триггер.',
+    'Убраны «встроенные» команды: теперь выполняются ТОЛЬКО добавленные вами команды. «Открой калькулятор/браузер/музыку» без добавления больше ничего не запускает.',
+    'Виджет без текстовых плашек: прозрачная область больше, а реакции («услышал», «думаю», «выполняю») показываются сменой цвета с возвратом к исходному.',
+  ]),
   ChangelogEntry('1.0.10', [
     'Один экземпляр приложения: повторный запуск ярлыка больше не открывает вторую копию, а разворачивает уже запущенное окно.',
     'Удаление чата правой кнопкой мыши: клик ПКМ по чату в списке открывает меню (переименовать / закрепить / удалить).',
@@ -3695,8 +3750,6 @@ class AppState extends ChangeNotifier {
     return '$wakeWord. $vocab${stops.isEmpty ? '' : ' $stops.'}';
   }
 
-  bool cmdInterpreter = true; // use the LLM to interpret fuzzy commands
-  String cmdModel = ''; // '' = use selectedModel for interpretation
   double cmdThreshold = 0.65; // 0..1 fuzzy phrase-match threshold
   String cmdConfirm = 'risky'; // 'always' | 'risky' | 'never'
   bool cmdEnabled = false; // allow command execution (off by default for safety)
@@ -3766,41 +3819,6 @@ class AppState extends ChangeNotifier {
   /// Silent one-shot LLM request: no conversation is touched, isGenerating
   /// stays false — used by the voice-command interpreter so commands never
   /// leak into the chat history. Returns null on any failure.
-  Future<String?> silentAsk({
-    required String system,
-    required String user,
-    String model = '',
-    int maxTokens = 200,
-  }) async {
-    try {
-      final m = model.isNotEmpty ? model : selectedModel;
-      if (m.isEmpty || isLocalModel(m)) return null;
-      final headers = {'Content-Type': 'application/json'};
-      if (apiKey.isNotEmpty) headers['Authorization'] = 'Bearer $apiKey';
-      final res = await http
-          .post(
-            Uri.parse('$baseUrl/api/chat'),
-            headers: headers,
-            body: jsonEncode({
-              'model': m,
-              'stream': false,
-              'messages': [
-                {'role': 'system', 'content': system},
-                {'role': 'user', 'content': user},
-              ],
-              'options': {'temperature': 0.1, 'num_predict': maxTokens},
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-      if (res.statusCode != 200) return null;
-      final data = jsonDecode(utf8.decode(res.bodyBytes));
-      if (data is! Map<String, dynamic>) return null;
-      return _extractContent(data);
-    } catch (_) {
-      return null;
-    }
-  }
-
   bool get isDarkMode {
     switch (themeMode) {
       case AppThemeMode.dark:
@@ -3908,8 +3926,6 @@ class AppState extends ChangeNotifier {
     stopWords = (sw == null || sw.isEmpty)
         ? List<String>.from(kDefaultStopWords)
         : sw;
-    cmdInterpreter = prefs.getBool('cmdInterpreter') ?? true;
-    cmdModel = prefs.getString('cmdModel') ?? '';
     cmdThreshold = prefs.getDouble('cmdThreshold') ?? 0.65;
     cmdConfirm = prefs.getString('cmdConfirm') ?? 'risky';
     cmdEnabled = prefs.getBool('cmdEnabled') ?? false;
@@ -4001,8 +4017,6 @@ class AppState extends ChangeNotifier {
     await prefs.setString('cmdMode', cmdMode);
     await prefs.setString('wakeWord', wakeWord);
     await prefs.setStringList('stopWords', stopWords);
-    await prefs.setBool('cmdInterpreter', cmdInterpreter);
-    await prefs.setString('cmdModel', cmdModel);
     await prefs.setDouble('cmdThreshold', cmdThreshold);
     await prefs.setString('cmdConfirm', cmdConfirm);
     await prefs.setBool('cmdEnabled', cmdEnabled);
@@ -4130,18 +4144,6 @@ class AppState extends ChangeNotifier {
   }
 
   void selectSavedServer(String url) => setServer(url, apiKey);
-
-  void setCmdInterpreter(bool v) {
-    cmdInterpreter = v;
-    _save();
-    notifyListeners();
-  }
-
-  void setCmdModel(String v) {
-    cmdModel = v;
-    _save();
-    notifyListeners();
-  }
 
   void setCmdThreshold(double v) {
     cmdThreshold = v;
@@ -6864,7 +6866,7 @@ class VizOverlayServer {
       'orbSpeed': app.orbSpeed,
       'barCount': app.barCount,
       'wakeWord': app.wakeWord,
-      'size': app.overlaySize,
+      'size': app.overlaySize * kWidgetWindowScale,
       'x': app.prefs.getDouble('overlayX'),
       'y': app.prefs.getDouble('overlayY'),
     };
@@ -8262,22 +8264,16 @@ class VoiceAssistant {
     lastHeard.value = raw;
 
     String? command;
-    // Whether the wake word was explicitly present in this turn (or the
-    // assistant was already armed by a bare wake word). Explicit commands are
-    // interpreted more aggressively (see _handle).
-    var explicit = false;
     if (app.cmdMode == 'wakeword') {
       if (state.value == VaState.armed) {
         // Wake word already heard on its own — this whole utterance is the
         // command.
         _disarm();
         command = raw;
-        explicit = true;
       } else {
         command = _stripWakeWord(raw, app.wakeWord);
         if (command == null) return; // wake word not heard — ignore
         _flagWake(); // visible "heard you!" pulse in the pill + visualizers
-        explicit = true;
         command = command.trim();
         if (command.isEmpty) {
           // Bare wake word: arm command capture — the next phrase is the
@@ -8297,7 +8293,7 @@ class VoiceAssistant {
     _busy = true;
     _stopFlag = false;
     try {
-      await _handle(app, command, explicit: explicit);
+      await _handle(app, command);
     } catch (e) {
       unawaited(appendLog('errors', 'VoiceAssistant._handle: $e'));
     } finally {
@@ -8384,46 +8380,17 @@ class VoiceAssistant {
 
   // Message routing (user spec): COMMANDS are executed silently — they must
   // NEVER appear in the chat history. Only plain speech becomes a chat turn.
-  Future<void> _handle(AppState app, String command,
-      {bool explicit = false}) async {
+  Future<void> _handle(AppState app, String command) async {
     state.value = VaState.thinking;
-    // 1) The user's command catalog (fuzzy match).
+    // 1) The user's command catalog (fuzzy match) — the ONLY thing that runs a
+    //    command. No built-in/auto-interpreted launches: if the user didn't add
+    //    it, it's not a command.
     final match = _matchCommand(app, command);
     if (match != null) {
       await _runCommand(app, match);
       return;
     }
-    final commandLike = _isCommandLike(command);
-    // 2) Try the LLM interpreter (silent — never touches the chat) when the
-    //    utterance looks like a command OR the wake word was used explicitly
-    //    (the user clearly addressed the assistant, so give it a chance to act
-    //    even if it doesn't start with a known verb — "Ирис, поставь музыку").
-    if (app.cmdInterpreter && (commandLike || explicit)) {
-      unawaited(appendLog('commands', 'interpret: $command'));
-      final interpreted = await _interpretCommand(app, command);
-      if (interpreted != null) {
-        await _runCommand(app, interpreted);
-        return;
-      }
-      // Interpreter found no actionable command. Verb-shaped phrases stay out
-      // of the chat ("не понял"); a conversational phrase after an explicit
-      // wake word falls through to the chat (it was probably a question).
-      if (commandLike) {
-        _toast(app.t('vaCmdUnknown'));
-        VizOverlayServer.instance.note(app.t('vaCmdUnknown'), kind: 'err');
-        if (app.voiceResponses) _speak(app, app.t('vaCmdUnknown'));
-        unawaited(appendLog('commands', 'UNKNOWN: $command'));
-        return;
-      }
-    } else if (commandLike) {
-      // Command-shaped but the interpreter is off → don't send it to the chat.
-      _toast(app.t('vaCmdUnknown'));
-      VizOverlayServer.instance.note(app.t('vaCmdUnknown'), kind: 'err');
-      if (app.voiceResponses) _speak(app, app.t('vaCmdUnknown'));
-      unawaited(appendLog('commands', 'UNKNOWN: $command'));
-      return;
-    }
-    // 3) Plain speech → a regular (visible) chat turn.
+    // 2) Everything else is normal speech → a regular (visible) chat turn.
     _toast('${app.t('vaThinking')} $command');
     final cloned = app.ttsVoice == 'cloned' && app.cloneSamplePath.isNotEmpty;
     if (app.voiceResponses && !cloned) {
@@ -8470,89 +8437,6 @@ class VoiceAssistant {
     }
     unawaited(appendLog('commands',
         '${cmd.phrase} -> [${cmd.type.name}] ${cmd.value} : ${ok ? 'OK' : 'FAIL'}'));
-  }
-
-  // Command-intent detection (spec patterns): the utterance starts with an
-  // action verb → treat as a command, keep away from the chat.
-  static const List<String> _cmdPatterns = [
-    'открой', 'закрой', 'запусти', 'останови', 'нажми', 'напечатай',
-    'найди', 'выключи', 'перезагрузи', 'громкость', 'яркость', 'скриншот',
-    'запиши', 'включи', 'сверни', 'разверни', 'поставь', 'сделай', 'покажи',
-    'переключи', 'воспроизведи', 'проиграй', 'убавь', 'прибавь', 'заглуши',
-    'open', 'close', 'launch', 'start', 'stop', 'press', 'type', 'find',
-    'search', 'mute', 'volume', 'brightness', 'screenshot', 'record',
-    'shutdown', 'restart', 'play', 'pause', 'next', 'previous', 'show',
-    'switch', 'run',
-  ];
-
-  bool _isCommandLike(String text) {
-    final tokens = text.toLowerCase().split(RegExp(r'[\s,.:;!?]+'))
-      ..removeWhere((t) => t.isEmpty);
-    if (tokens.isEmpty) return false;
-    for (final t in tokens.take(2)) {
-      for (final p in _cmdPatterns) {
-        if (t == p || t.startsWith(p) || _ratio(t, p) >= 0.85) return true;
-      }
-    }
-    return false;
-  }
-
-  // LLM interpreter for fuzzy commands (the cmdInterpreter setting): a
-  // SILENT one-shot request that parses the phrase into a strict JSON action.
-  static const String _interpretSystem =
-      'Ты — парсер голосовых команд для управления компьютером Windows. '
-      'Преобразуй фразу пользователя (возможно с ошибками распознавания речи) '
-      'в СТРОГИЙ JSON без пояснений:\n'
-      '{"action":"app|url|search|none","value":"..."}\n'
-      '- app: исполняемое имя программы Windows '
-      '(notepad, calc, chrome, explorer, mspaint, cmd …)\n'
-      '- url: полный URL (с https://), если просят открыть сайт\n'
-      '- search: поисковый запрос, если просят найти/поставить/включить '
-      'музыку, видео или что-то в интернете\n'
-      '- none: если это не команда управления компьютером (обычный вопрос)\n'
-      'Примеры:\n'
-      '«открой блокнот» -> {"action":"app","value":"notepad"}\n'
-      '«запусти калькулятор» -> {"action":"app","value":"calc"}\n'
-      '«открой ютуб» -> {"action":"url","value":"https://youtube.com"}\n'
-      '«поставь музыку» -> {"action":"search","value":"музыка"}\n'
-      '«найди рецепт борща» -> {"action":"search","value":"рецепт борща"}\n'
-      '«какая столица Японии» -> {"action":"none","value":""}\n'
-      'Отвечай ТОЛЬКО JSON.';
-
-  Future<VoiceCommand?> _interpretCommand(AppState app, String text) async {
-    final raw = await app.silentAsk(
-      system: _interpretSystem,
-      user: text,
-      model: app.cmdModel,
-      maxTokens: 120,
-    );
-    if (raw == null) return null;
-    final jsonStr = RegExp(r'\{[\s\S]*?\}').firstMatch(raw)?.group(0);
-    if (jsonStr == null) return null;
-    try {
-      final m = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final action = (m['action'] as String? ?? 'none').toLowerCase();
-      final value = (m['value'] as String? ?? '').trim();
-      if (value.isEmpty) return null;
-      switch (action) {
-        case 'app':
-          return VoiceCommand(
-              phrase: text, type: VoiceCommandType.app, value: value);
-        case 'url':
-          return VoiceCommand(
-              phrase: text, type: VoiceCommandType.url, value: value);
-        case 'search':
-          return VoiceCommand(
-              phrase: text,
-              type: VoiceCommandType.url,
-              value:
-                  'https://www.google.com/search?q=${Uri.encodeComponent(value)}');
-        default:
-          return null;
-      }
-    } catch (_) {
-      return null;
-    }
   }
 
   VoiceCommand? _matchCommand(AppState app, String text) {
@@ -8989,7 +8873,9 @@ double _wakeGlow(int wakeMs) {
 class EvsBarsViz extends StatefulWidget {
   final double width;
   final double height;
-  const EvsBarsViz({super.key, this.width = 340, this.height = 150});
+  final Color? color; // state/accent tint (blended into the bar gradient)
+  const EvsBarsViz(
+      {super.key, this.width = 340, this.height = 150, this.color});
   @override
   State<EvsBarsViz> createState() => _EvsBarsVizState();
 }
@@ -9035,7 +8921,7 @@ class _EvsBarsVizState extends State<EvsBarsViz>
     return RepaintBoundary(
       child: CustomPaint(
         size: Size(widget.width, widget.height),
-        painter: _BarsPainter(_cur, repaint: _c),
+        painter: _BarsPainter(_cur, tint: widget.color, repaint: _c),
       ),
     );
   }
@@ -9043,7 +8929,8 @@ class _EvsBarsVizState extends State<EvsBarsViz>
 
 class _BarsPainter extends CustomPainter {
   final List<double> heights;
-  _BarsPainter(this.heights, {required Listenable repaint})
+  final Color? tint;
+  _BarsPainter(this.heights, {this.tint, required Listenable repaint})
       : super(repaint: repaint);
 
   static const _c1 = Color(0xFF5068D8);
@@ -9067,11 +8954,12 @@ class _BarsPainter extends CustomPainter {
       final v = heights[i].clamp(0.0, 1.0);
       final h = 2 + v * (size.height / 2 - 4);
       final x = slot * i + slot / 2;
-      final color = v < 0.35
+      var color = v < 0.35
           ? Color.lerp(_c1, _c2, v / 0.35)!
           : v < 0.7
               ? Color.lerp(_c2, _c3, (v - 0.35) / 0.35)!
               : Color.lerp(_c3, _c4, (v - 0.7) / 0.3)!;
+      if (tint != null) color = Color.lerp(color, tint!, 0.6)!;
       canvas.drawLine(
           Offset(x, midY - h),
           Offset(x, midY + h),
@@ -9091,7 +8979,8 @@ class _BarsPainter extends CustomPainter {
 // travel — user request); the color sweep still slowly cycles for life.
 class EvsRingViz extends StatefulWidget {
   final double size;
-  const EvsRingViz({super.key, this.size = 230});
+  final Color? color; // state/accent tint (blended into the sweep)
+  const EvsRingViz({super.key, this.size = 230, this.color});
   @override
   State<EvsRingViz> createState() => _EvsRingVizState();
 }
@@ -9138,6 +9027,7 @@ class _EvsRingVizState extends State<EvsRingViz>
             _cur,
             _rot.value,
             VoiceAssistant.instance.wakePulse.value,
+            widget.color,
           ),
         ),
       ),
@@ -9149,7 +9039,8 @@ class _RingPainter extends CustomPainter {
   final List<double> lens; // per-spike smoothed levels, fixed angles
   final double phase; // 0..1 — rotates ONLY the color sweep, not the spikes
   final int wakeMs;
-  _RingPainter(this.lens, this.phase, this.wakeMs);
+  final Color? tint;
+  _RingPainter(this.lens, this.phase, this.wakeMs, this.tint);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -9157,14 +9048,19 @@ class _RingPainter extends CustomPainter {
     final r = size.width * 0.30;
     final maxSpike = size.width * 0.17;
     final glow = _wakeGlow(wakeMs);
+    var sweepColors = const [
+      Color(0xFF5068D8),
+      Color(0xFF8855CC),
+      Color(0xFFC060D8),
+      Color(0xFF54E0B0),
+      Color(0xFF5068D8),
+    ];
+    if (tint != null) {
+      sweepColors =
+          sweepColors.map((c) => Color.lerp(c, tint!, 0.55)!).toList();
+    }
     final sweep = SweepGradient(
-      colors: const [
-        Color(0xFF5068D8),
-        Color(0xFF8855CC),
-        Color(0xFFC060D8),
-        Color(0xFF54E0B0),
-        Color(0xFF5068D8),
-      ],
+      colors: sweepColors,
       transform: GradientRotation(phase * 2 * math.pi),
     ).createShader(Rect.fromCircle(center: c, radius: r + maxSpike));
     canvas.drawCircle(
@@ -9227,6 +9123,38 @@ SiriOrbColors evsOrbColors(Color accent) {
 /// Siri Orb / LK bars fed with the REAL combined voice level and the live
 /// assistant state: speaking while TTS audio plays, thinking while the LLM
 /// works, listening while the mic streams, idle otherwise.
+// State-reactive accent for the voice visualizations: the widget/orb changes
+// color to signal what the assistant is doing (heard the wake word → green,
+// thinking → violet, running → amber, command ok/err → green/red), then returns
+// to the user's accent when idle. Replaces the old text badges. Reads the
+// (WS-mirrored) VoiceAssistant notifiers + vizNotice, so it works in both the
+// main app and the widget process.
+Color vizStateAccent(AppState app) {
+  final base = Color(app.vizAccent);
+  final notice = vizNotice.value;
+  if (notice != null && notice.$1.isNotEmpty) {
+    switch (notice.$2) {
+      case 'ok':
+        return const Color(0xFF54E0B0);
+      case 'err':
+        return const Color(0xFFF0685E);
+      default:
+        return base;
+    }
+  }
+  if (VoiceAssistant.instance.wakeActive.value) return const Color(0xFF54E0B0);
+  switch (VoiceAssistant.instance.state.value) {
+    case VaState.armed:
+      return const Color(0xFF4FC3F7);
+    case VaState.thinking:
+      return const Color(0xFFB09CFF);
+    case VaState.running:
+      return const Color(0xFFE0C07A);
+    default:
+      return base; // idle / listening / speaking → the user's accent
+  }
+}
+
 class EvsLiveViz extends StatelessWidget {
   final String kind; // 'orb' | 'lkbars'
   final double maxSize;
@@ -9239,6 +9167,9 @@ class EvsLiveViz extends StatelessWidget {
       animation: Listenable.merge([
         VoiceLevels.instance.tts,
         VoiceAssistant.instance.state,
+        VoiceAssistant.instance.wakeActive,
+        VoiceAssistant.instance.wakePulse,
+        vizNotice,
       ]),
       builder: (_, __) {
         // Visualizations react ONLY to the assistant's speech output — the
@@ -9253,40 +9184,49 @@ class EvsLiveViz extends StatelessWidget {
         final listening = !speaking &&
             !thinking &&
             (va == VaState.listening || MicMeter.instance.active);
-        final accent = Color(app.vizAccent);
-        if (kind == 'lkbars') {
-          final st = speaking
-              ? LkVisualizerState.speaking
-              : thinking
-                  ? LkVisualizerState.thinking
-                  : listening
-                      ? LkVisualizerState.listening
-                      : LkVisualizerState.idle;
-          final barW = maxSize / (app.barCount * 1.7);
-          return LkBarVisualizer(
-            level: lv,
-            state: st,
-            count: app.barCount,
-            color: accent,
-            barWidth: barW,
-            spacing: barW * 0.7,
-            minHeight: barW,
-            maxHeight: maxSize * 0.55,
-          );
-        }
-        final st = speaking
-            ? SiriOrbState.speaking
-            : thinking
-                ? SiriOrbState.thinking
-                : listening
-                    ? SiriOrbState.listening
-                    : SiriOrbState.idle;
-        return SiriOrb(
-          size: math.min(app.orbSize, maxSize),
-          level: lv,
-          state: st,
-          colors: evsOrbColors(accent),
-          animationDuration: app.orbSpeed,
+        // Colour by assistant state (green wake / violet think / amber run …),
+        // smoothly fading back to the user's accent when idle.
+        final target = vizStateAccent(app);
+        return TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: target),
+          duration: const Duration(milliseconds: 320),
+          builder: (context, tweened, __) {
+            final accent = tweened ?? target;
+            if (kind == 'lkbars') {
+              final st = speaking
+                  ? LkVisualizerState.speaking
+                  : thinking
+                      ? LkVisualizerState.thinking
+                      : listening
+                          ? LkVisualizerState.listening
+                          : LkVisualizerState.idle;
+              final barW = maxSize / (app.barCount * 1.7);
+              return LkBarVisualizer(
+                level: lv,
+                state: st,
+                count: app.barCount,
+                color: accent,
+                barWidth: barW,
+                spacing: barW * 0.7,
+                minHeight: barW,
+                maxHeight: maxSize * 0.55,
+              );
+            }
+            final st = speaking
+                ? SiriOrbState.speaking
+                : thinking
+                    ? SiriOrbState.thinking
+                    : listening
+                        ? SiriOrbState.listening
+                        : SiriOrbState.idle;
+            return SiriOrb(
+              size: math.min(app.orbSize, maxSize),
+              level: lv,
+              state: st,
+              colors: evsOrbColors(accent),
+              animationDuration: app.orbSpeed,
+            );
+          },
         );
       },
     );
@@ -9325,61 +9265,83 @@ class _OverlayWidgetViewState extends State<OverlayWidgetView> {
           onDoubleTap: widget.onOpen,
           child: LayoutBuilder(builder: (context, box) {
             final s = box.biggest.shortestSide;
-            return Stack(alignment: Alignment.center, children: [
-              // Soft dark backdrop so the widget stays readable over light
-              // desktops, fading to fully transparent at the window edge.
-              Container(
-                width: s,
-                height: s,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [
-                    Color(0x59000000),
-                    Color(0x33000000),
-                    Color(0x00000000),
-                  ], stops: [
-                    0.0,
-                    0.62,
-                    1.0,
-                  ]),
-                ),
-              ),
-              if (viz == 'bars')
-                EvsBarsViz(width: s * 0.86, height: s * 0.46)
-              else if (viz == 'waves')
-                EvsRingViz(size: s * 0.86)
-              else if (viz == 'orb')
-                EvsLiveViz(kind: 'orb', maxSize: s * 0.72)
-              else if (viz == 'lkbars')
-                EvsLiveViz(kind: 'lkbars', maxSize: s * 0.8)
-              else
-                ParticleSphere(
-                  size: s * 0.62,
-                  color: Colors.white,
-                  scattered: false,
-                  soundLevel: VoiceLevels.instance.tts,
-                ),
-              // Assistant stage badge: wake flash → "say the command" →
-              // thinking → running. Hidden while idle/plain listening.
-              Positioned(
-                bottom: s * 0.08,
-                child: _VaStageBadge(app: app),
-              ),
-              // Hover controls: open the full window / hide the widget.
-              Positioned(
-                top: 8,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 150),
-                  opacity: _hover ? 1 : 0,
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    _ovlBtn(Icons.open_in_full, app.t('ovlOpenChat'),
-                        widget.onOpen),
-                    const SizedBox(width: 6),
-                    _ovlBtn(Icons.close, app.t('ovlHide'), widget.onHide),
-                  ]),
-                ),
-              ),
-            ]);
+            // The window is kWidgetWindowScale× larger than the visualization
+            // so there's transparent margin around it; size the backdrop and
+            // viz by `content` (the inner box) so the widgets keep their size.
+            final content = s / kWidgetWindowScale;
+            final pad = (s - content) / 2;
+            // Recompute the state colour when the assistant state changes and
+            // tween it, so all styles (bars/waves/sphere) react by colour —
+            // no more text badges.
+            return AnimatedBuilder(
+              animation: Listenable.merge([
+                VoiceAssistant.instance.state,
+                VoiceAssistant.instance.wakeActive,
+                VoiceAssistant.instance.wakePulse,
+                vizNotice,
+              ]),
+              builder: (context, __) {
+                final targetColor = vizStateAccent(app);
+                return TweenAnimationBuilder<Color?>(
+                  tween: ColorTween(end: targetColor),
+                  duration: const Duration(milliseconds: 320),
+                  builder: (context, tweened, __) {
+                    final accent = tweened ?? targetColor;
+                    return Stack(alignment: Alignment.center, children: [
+                      // Soft dark backdrop, fading to transparent at its edge.
+                      Container(
+                        width: content,
+                        height: content,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(colors: [
+                            Color(0x59000000),
+                            Color(0x33000000),
+                            Color(0x00000000),
+                          ], stops: [
+                            0.0,
+                            0.62,
+                            1.0,
+                          ]),
+                        ),
+                      ),
+                      if (viz == 'bars')
+                        EvsBarsViz(
+                            width: content * 0.86,
+                            height: content * 0.46,
+                            color: accent)
+                      else if (viz == 'waves')
+                        EvsRingViz(size: content * 0.86, color: accent)
+                      else if (viz == 'orb')
+                        EvsLiveViz(kind: 'orb', maxSize: content * 0.72)
+                      else if (viz == 'lkbars')
+                        EvsLiveViz(kind: 'lkbars', maxSize: content * 0.8)
+                      else
+                        ParticleSphere(
+                          size: content * 0.62,
+                          color: accent,
+                          scattered: false,
+                          soundLevel: VoiceLevels.instance.tts,
+                        ),
+                      // Hover controls: open the full window / hide the widget.
+                      Positioned(
+                        top: pad + 6,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 150),
+                          opacity: _hover ? 1 : 0,
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            _ovlBtn(Icons.open_in_full, app.t('ovlOpenChat'),
+                                widget.onOpen),
+                            const SizedBox(width: 6),
+                            _ovlBtn(Icons.close, app.t('ovlHide'), widget.onHide),
+                          ]),
+                        ),
+                      ),
+                    ]);
+                  },
+                );
+              },
+            );
           }),
         ),
       ),
@@ -9403,86 +9365,6 @@ class _OverlayWidgetViewState extends State<OverlayWidgetView> {
         ),
         child: Icon(icon, size: 15, color: Colors.white70),
       ),
-    );
-  }
-}
-
-// Assistant stage badge for the floating widget: wake-word flash (green),
-// "say the command" while armed (cyan), thinking (violet), running (amber).
-// Hidden during idle/plain listening. Reads the (possibly WS-mirrored)
-// VoiceAssistant notifiers, so it works in both processes.
-class _VaStageBadge extends StatelessWidget {
-  final AppState app;
-  const _VaStageBadge({required this.app});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([
-        VoiceAssistant.instance.state,
-        VoiceAssistant.instance.wakeActive,
-        vizNotice,
-      ]),
-      builder: (_, __) {
-        final wake = VoiceAssistant.instance.wakeActive.value;
-        final st = VoiceAssistant.instance.state.value;
-        final notice = vizNotice.value;
-        String? label;
-        var icon = Icons.check_circle;
-        var base = const Color(0xFF54E0B0);
-        if (notice != null && notice.$1.isNotEmpty) {
-          // Command result notice takes priority (main window may be hidden).
-          label = notice.$1;
-          switch (notice.$2) {
-            case 'ok':
-              icon = Icons.check_circle;
-              base = const Color(0xFF54E0B0);
-              break;
-            case 'err':
-              icon = Icons.error_outline;
-              base = const Color(0xFFF08080);
-              break;
-            default:
-              icon = Icons.info_outline;
-              base = const Color(0xFFB09CFF);
-          }
-        } else if (wake) {
-          label = '«${app.wakeWord}» — ${app.t('vaWakeHeard')}';
-        } else if (st == VaState.armed) {
-          label = app.t('vaArmed');
-          icon = Icons.hearing;
-          base = const Color(0xFF4FC3F7);
-        } else if (st == VaState.thinking) {
-          label = app.t('vaThinking');
-          icon = Icons.auto_awesome;
-          base = const Color(0xFFB09CFF);
-        } else if (st == VaState.running) {
-          label = app.t('vaRunning');
-          icon = Icons.bolt;
-          base = const Color(0xFFE0C07A);
-        }
-        return AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
-          opacity: label == null ? 0 : 1,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: const Color(0xE0141520),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: base.withValues(alpha: 0.45)),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: 13, color: base),
-              const SizedBox(width: 5),
-              Text(label ?? '',
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: base)),
-            ]),
-          ),
-        );
-      },
     );
   }
 }
@@ -9760,6 +9642,520 @@ class VoiceCommand {
       );
 }
 
+// Enumerate installed programs from the Start Menu (.lnk shortcuts), both the
+// all-users and per-user trees. Returns (display name, .lnk full path) sorted &
+// de-duplicated by name. CommandExecutor's `start` resolves the .lnk.
+Future<List<(String, String)>> listInstalledPrograms() async {
+  final out = <String, String>{}; // name -> path (dedupe by name)
+  final roots = <String>[];
+  final programData = io.Platform.environment['ProgramData'];
+  final appData = io.Platform.environment['APPDATA'];
+  if (programData != null) {
+    roots.add('$programData\\Microsoft\\Windows\\Start Menu\\Programs');
+  }
+  if (appData != null) {
+    roots.add('$appData\\Microsoft\\Windows\\Start Menu\\Programs');
+  }
+  for (final root in roots) {
+    final dir = io.Directory(root);
+    if (!await dir.exists()) continue;
+    try {
+      await for (final e in dir.list(recursive: true, followLinks: false)) {
+        if (e is! io.File) continue;
+        final path = e.path;
+        if (!path.toLowerCase().endsWith('.lnk')) continue;
+        var name = path.split(io.Platform.pathSeparator).last;
+        name = name.substring(0, name.length - 4); // drop ".lnk"
+        // Skip uninstallers and obvious noise.
+        final lower = name.toLowerCase();
+        if (lower.contains('uninstall') ||
+            lower.contains('удал') ||
+            lower.contains('readme') ||
+            lower.contains('license')) {
+          continue;
+        }
+        out.putIfAbsent(name, () => path);
+      }
+    } catch (_) {}
+  }
+  final list = out.entries.map((e) => (e.key, e.value)).toList()
+    ..sort((a, b) => a.$1.toLowerCase().compareTo(b.$1.toLowerCase()));
+  return list;
+}
+
+// Step-by-step "add command" wizard: pick a category (program / file / site /
+// system / media) → choose the value (installed-program list, file picker, URL,
+// or a system/media action) → enter the trigger phrase. Pops the built
+// VoiceCommand, or null on cancel.
+class _AddCommandWizard extends StatefulWidget {
+  final AppState app;
+  const _AddCommandWizard({required this.app});
+  @override
+  State<_AddCommandWizard> createState() => _AddCommandWizardState();
+}
+
+class _AddCommandWizardState extends State<_AddCommandWizard> {
+  int _step = 0; // 0 = category, 1 = value, 2 = phrase
+  VoiceCommandType? _type;
+  String _value = '';
+  String _valueLabel = ''; // human-friendly summary
+  final _phraseCtrl = TextEditingController();
+  final _urlCtrl = TextEditingController();
+  List<(String, String)>? _programs; // null = loading
+  String _progFilter = '';
+
+  AppState get app => widget.app;
+
+  @override
+  void dispose() {
+    _phraseCtrl.dispose();
+    _urlCtrl.dispose();
+    super.dispose();
+  }
+
+  static const _cats = <(VoiceCommandType, String, IconData)>[
+    (VoiceCommandType.app, 'cmdWizProgram', Icons.apps),
+    (VoiceCommandType.file, 'cmdWizFile', Icons.insert_drive_file_outlined),
+    (VoiceCommandType.url, 'cmdWizSite', Icons.language),
+    (VoiceCommandType.system, 'cmdWizSystem', Icons.settings_suggest_outlined),
+    (VoiceCommandType.media, 'cmdWizMedia', Icons.music_note_outlined),
+  ];
+
+  Future<void> _pickCategory(VoiceCommandType t) async {
+    setState(() {
+      _type = t;
+      _value = '';
+      _valueLabel = '';
+    });
+    if (t == VoiceCommandType.app) {
+      setState(() {
+        _programs = null;
+        _step = 1;
+      });
+      final progs = await listInstalledPrograms();
+      if (mounted) setState(() => _programs = progs);
+    } else if (t == VoiceCommandType.file) {
+      await _pickFileValue();
+    } else {
+      setState(() => _step = 1);
+    }
+  }
+
+  Future<void> _pickFileValue() async {
+    try {
+      final res = await FilePicker.pickFiles();
+      final p = res?.files.single.path;
+      if (p != null && p.isNotEmpty && mounted) {
+        setState(() {
+          _value = p;
+          _valueLabel = p.split(io.Platform.pathSeparator).last;
+          _step = 2;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _chooseValue(String value, String label) {
+    setState(() {
+      _value = value;
+      _valueLabel = label;
+      _step = 2;
+    });
+  }
+
+  void _finish() {
+    final phrase = _phraseCtrl.text.trim();
+    if (phrase.isEmpty || _type == null || _value.trim().isEmpty) return;
+    Navigator.pop(
+        context, VoiceCommand(phrase: phrase, type: _type!, value: _value.trim()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF15151E),
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+      contentPadding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      title: Row(children: [
+        if (_step > 0)
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: const Icon(Icons.arrow_back, color: Colors.white70, size: 20),
+            onPressed: () => setState(() => _step -= 1),
+          ),
+        if (_step > 0) const SizedBox(width: 8),
+        Expanded(
+          child: Text(_stepTitle(),
+              style: const TextStyle(color: Colors.white, fontSize: 17)),
+        ),
+      ]),
+      content: SizedBox(width: 380, child: _stepBody()),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(app.t('cancel')),
+        ),
+        if (_step == 2)
+          TextButton(
+            onPressed: _finish,
+            child: Text(app.t('add')),
+          ),
+      ],
+    );
+  }
+
+  String _stepTitle() {
+    if (_step == 0) return app.t('cmdWizType');
+    if (_step == 2) return app.t('cmdWizPhrase');
+    switch (_type) {
+      case VoiceCommandType.app:
+        return app.t('cmdWizPickProgram');
+      case VoiceCommandType.url:
+        return app.t('cmdWizSite');
+      case VoiceCommandType.system:
+        return app.t('cmdWizSystem');
+      case VoiceCommandType.media:
+        return app.t('cmdWizMedia');
+      default:
+        return app.t('cmdAdd');
+    }
+  }
+
+  Widget _stepBody() {
+    if (_step == 0) return _categoryStep();
+    if (_step == 2) return _phraseStep();
+    switch (_type) {
+      case VoiceCommandType.app:
+        return _programStep();
+      case VoiceCommandType.url:
+        return _urlStep();
+      case VoiceCommandType.system:
+        return _actionStep(const [
+          ('lock', 'sysLock', Icons.lock_outline),
+          ('sleep', 'sysSleep', Icons.bedtime_outlined),
+          ('vol up', 'sysVolUp', Icons.volume_up),
+          ('vol down', 'sysVolDown', Icons.volume_down),
+          ('mute', 'sysMute', Icons.volume_off),
+        ]);
+      case VoiceCommandType.media:
+        return _actionStep(const [
+          ('play', 'mediaPlay', Icons.play_arrow),
+          ('next', 'mediaNext', Icons.skip_next),
+          ('prev', 'mediaPrev', Icons.skip_previous),
+        ]);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _categoryStep() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (type, key, icon) in _cats)
+          _wizTile(icon, app.t(key), () => _pickCategory(type)),
+      ],
+    );
+  }
+
+  Widget _programStep() {
+    final progs = _programs;
+    return SizedBox(
+      height: 360,
+      child: Column(
+        children: [
+          TextField(
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 18, color: Color(0xFF7A8090)),
+              hintText: app.t('cmdWizSearch'),
+              hintStyle: const TextStyle(color: Color(0xFF5A6070), fontSize: 13),
+            ),
+            onChanged: (v) => setState(() => _progFilter = v.toLowerCase()),
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _pickFileValue,
+              icon: const Icon(Icons.folder_open, size: 16),
+              label: Text(app.t('cmdWizPickExe')),
+            ),
+          ),
+          Expanded(
+            child: progs == null
+                ? const Center(child: CircularProgressIndicator())
+                : Builder(builder: (_) {
+                    final filtered = _progFilter.isEmpty
+                        ? progs
+                        : progs
+                            .where((p) => p.$1.toLowerCase().contains(_progFilter))
+                            .toList();
+                    if (filtered.isEmpty) {
+                      return Center(
+                          child: Text(app.t('cmdWizNoPrograms'),
+                              style: const TextStyle(color: Color(0xFF6E7280))));
+                    }
+                    return ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (_, i) {
+                        final p = filtered[i];
+                        return ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.launch,
+                              size: 16, color: Color(0xFF8A7BE0)),
+                          title: Text(p.$1,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Color(0xFFD0D4E2), fontSize: 13)),
+                          onTap: () => _chooseValue(p.$2, p.$1),
+                        );
+                      },
+                    );
+                  }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _urlStep() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _urlCtrl,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(hintText: 'https://…'),
+          onSubmitted: (_) => _confirmUrl(),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _confirmUrl,
+            child: Text(app.t('next')),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _confirmUrl() {
+    var u = _urlCtrl.text.trim();
+    if (u.isEmpty) return;
+    if (!u.contains('://')) u = 'https://$u';
+    _chooseValue(u, u);
+  }
+
+  Widget _actionStep(List<(String, String, IconData)> actions) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (value, key, icon) in actions)
+          _wizTile(icon, app.t(key), () => _chooseValue(value, app.t(key))),
+      ],
+    );
+  }
+
+  Widget _phraseStep() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(children: [
+            const Icon(Icons.bolt, size: 15, color: Color(0xFFB0A8F0)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _valueLabel.isNotEmpty ? _valueLabel : _value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Color(0xFFB8BCCB), fontSize: 12.5),
+              ),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _phraseCtrl,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: app.t('cmdWizPhrase'),
+            hintText: app.t('cmdWizPhraseHint'),
+          ),
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) => _finish(),
+        ),
+      ],
+    );
+  }
+
+  Widget _wizTile(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.white.withValues(alpha: 0.04),
+          border: Border.all(color: const Color(0x14FFFFFF)),
+        ),
+        child: Row(children: [
+          Icon(icon, size: 19, color: const Color(0xFF8A7BE0)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(label,
+                style: const TextStyle(
+                    color: Color(0xFFD0D4E2),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600)),
+          ),
+          const Icon(Icons.chevron_right, size: 18, color: Color(0xFF5A6070)),
+        ]),
+      ),
+    );
+  }
+}
+
+// Recognition-test panel: speak and see exactly how the recognizer transcribes
+// your phrase (to design a trigger phrase). Reuses the shared sidecar STT
+// streams; only drives STT itself if the always-on assistant isn't already
+// listening — so it never breaks the assistant.
+class _SttTestCard extends StatefulWidget {
+  const _SttTestCard();
+  @override
+  State<_SttTestCard> createState() => _SttTestCardState();
+}
+
+class _SttTestCardState extends State<_SttTestCard> {
+  bool _testing = false;
+  bool _startedStt = false;
+  String _partial = '';
+  String _final = '';
+  StreamSubscription<String>? _pSub;
+  StreamSubscription<String>? _fSub;
+
+  @override
+  void dispose() {
+    _stop();
+    super.dispose();
+  }
+
+  void _start() {
+    final app = context.read<AppState>();
+    _pSub = SidecarClient.instance.partial.listen((t) {
+      if (mounted) setState(() => _partial = t);
+    });
+    _fSub = SidecarClient.instance.finalText.listen((t) {
+      if (mounted) {
+        setState(() {
+          _final = t;
+          _partial = '';
+        });
+      }
+    });
+    // Only take over STT if the assistant isn't already listening.
+    if (!VoiceAssistant.instance.isListening) {
+      SidecarClient.instance
+          .sttStart(app.effectiveSttLanguage, prompt: app.sttBiasPrompt);
+      _startedStt = true;
+    }
+    setState(() => _testing = true);
+  }
+
+  void _stop() {
+    _pSub?.cancel();
+    _pSub = null;
+    _fSub?.cancel();
+    _fSub = null;
+    if (_startedStt) {
+      SidecarClient.instance.sttStop();
+      _startedStt = false;
+    }
+    if (mounted) setState(() => _testing = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    return ValueListenableBuilder<SidecarStatus>(
+      valueListenable: SidecarClient.instance.status,
+      builder: (_, sc, __) {
+        final connected = sc == SidecarStatus.connected;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(app.t('sttTestDesc'),
+                  style: const TextStyle(fontSize: 12.5, color: Color(0xFF7A8090))),
+              const SizedBox(height: 12),
+              if (!connected)
+                Text(app.t('vaSttOffline'),
+                    style: const TextStyle(color: Color(0xFFE0985D), fontSize: 13))
+              else ...[
+                Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(minHeight: 64),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: Colors.white.withValues(alpha: 0.03),
+                    border: Border.all(color: const Color(0x14FFFFFF)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_final.isNotEmpty)
+                        Text(_final,
+                            style: const TextStyle(
+                                color: Color(0xFFEAECF5),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600)),
+                      if (_partial.isNotEmpty) ...[
+                        if (_final.isNotEmpty) const SizedBox(height: 6),
+                        Text(_partial,
+                            style: const TextStyle(
+                                color: Color(0xFF7A8090),
+                                fontSize: 13.5,
+                                fontStyle: FontStyle.italic)),
+                      ],
+                      if (_final.isEmpty && _partial.isEmpty)
+                        Text(app.t('sttTestHint'),
+                            style: const TextStyle(
+                                color: Color(0xFF5A6070), fontSize: 13)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                evsGhostButton(
+                  _testing ? app.t('sttTestStop') : app.t('sttTestStart'),
+                  _testing ? Icons.stop : Icons.mic,
+                  onTap: () => _testing ? _stop() : _start(),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 // A settings card occupying one or both grid columns.
 class _CardSpec {
   final Widget child;
@@ -9990,7 +10386,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     'showPartial': true,
     'showVizBg': true,
     'cmdEnabled': true,
-    'cmdInterpreter': true,
     'permFiles': true,
     'permBrowser': true,
     'permMedia': true,
@@ -10093,30 +10488,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           PopupMenuItem<String>(
             value: s.$1,
             child: Text(s.$2,
-                style: const TextStyle(color: Color(0xFFD0D4E2), fontSize: 13)),
-          ),
-      ],
-      child: evsSelectButton(current.$2, minWidth: 120),
-    );
-  }
-
-  // Model used to interpret fuzzy voice commands ('' = same as the chat model).
-  Widget _cmdModelControl(AppState app) {
-    final items = <(String, String)>[('', app.t('cmdModelSame'))];
-    for (final m in app.models) {
-      items.add((m, app.modelDisplayName(m, withSuffix: false)));
-    }
-    final current = items.firstWhere((e) => e.$1 == app.cmdModel,
-        orElse: () => items.first);
-    return PopupMenuButton<String>(
-      tooltip: '',
-      color: const Color(0xFF1C1C26),
-      onSelected: (v) => app.setCmdModel(v),
-      itemBuilder: (_) => [
-        for (final it in items)
-          PopupMenuItem<String>(
-            value: it.$1,
-            child: Text(it.$2,
                 style: const TextStyle(color: Color(0xFFD0D4E2), fontSize: 13)),
           ),
       ],
@@ -10978,16 +11349,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           control: _inlineField(_stopWordsCtrl,
               onChanged: (v) => app.setStopWords(v)),
         ),
-        evsRow(
-          label: app.t('cmdInterpreter'),
-          desc: app.t('cmdInterpreterDesc'),
-          control: evsToggle(app.cmdInterpreter, app.setCmdInterpreter),
-        ),
-        evsRow(
-          label: app.t('cmdModel'),
-          desc: app.t('cmdModelDesc'),
-          control: _cmdModelControl(app),
-        ),
       ])),
       _CardSpec(evsCard(context,
           icon: Icons.shield_outlined, title: app.t('cardSecurity'), rows: [
@@ -11027,7 +11388,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             padding: const EdgeInsets.all(12),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: evsAddButton(app.t('cmdAdd'), () => _addCommandDialog(app)),
+              child: evsAddButton(app.t('cmdAdd'), () => _openAddCommandWizard(app)),
             ),
           ),
         ]),
@@ -11140,65 +11501,12 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     );
   }
 
-  Future<void> _addCommandDialog(AppState app) async {
-    final phrase = TextEditingController();
-    final value = TextEditingController();
-    var type = VoiceCommandType.app;
-    await showDialog(
+  Future<void> _openAddCommandWizard(AppState app) async {
+    final cmd = await showDialog<VoiceCommand>(
       context: context,
-      builder: (dctx) => StatefulBuilder(
-        builder: (dctx, setLocal) => AlertDialog(
-          backgroundColor: const Color(0xFF15151E),
-          title: Text(app.t('cmdAdd'),
-              style: const TextStyle(color: Colors.white, fontSize: 17)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: phrase,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(labelText: app.t('cmdPhrase')),
-              ),
-              const SizedBox(height: 12),
-              DropdownButton<VoiceCommandType>(
-                value: type,
-                isExpanded: true,
-                dropdownColor: const Color(0xFF1C1C26),
-                style: const TextStyle(color: Colors.white),
-                items: [
-                  for (final t in VoiceCommandType.values)
-                    DropdownMenuItem(value: t, child: Text(t.name)),
-                ],
-                onChanged: (v) => setLocal(() => type = v ?? type),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: value,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(labelText: app.t('cmdValue')),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dctx),
-                child: Text(app.t('cancel'))),
-            TextButton(
-              onPressed: () {
-                if (phrase.text.trim().isEmpty) return;
-                app.addVoiceCommand(VoiceCommand(
-                  phrase: phrase.text.trim(),
-                  type: type,
-                  value: value.text.trim(),
-                ));
-                Navigator.pop(dctx);
-              },
-              child: Text(app.t('add')),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => _AddCommandWizard(app: app),
     );
+    if (cmd != null) app.addVoiceCommand(cmd);
   }
 
   // =================== SECTION 2: WIDGETS ===================
@@ -11970,6 +12278,13 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           ),
         ],
       )),
+      _CardSpec(
+        evsCard(context,
+            icon: Icons.spellcheck,
+            title: app.t('sttTest'),
+            rows: [const _SttTestCard()]),
+        full: true,
+      ),
       _CardSpec(evsCard(
         context,
         icon: Icons.settings_voice_outlined,

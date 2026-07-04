@@ -28,6 +28,35 @@
 
     <!-- Newest release first. Duplicate this block for each new version. -->
     <item>
+      <title>EVS 1.0.11</title>
+      <description><![CDATA[
+        <style>
+          html,body{background:#0E0E15;color:#E6E8F0;margin:0;padding:14px 18px;
+            font-family:'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;}
+          h1,h2,h3,b,strong{color:#FFFFFF;}
+          a{color:#8A7BE0;}
+          ul{margin:6px 0;padding-left:20px;}
+          li{margin:5px 0;}
+        </style>
+        <ul>
+          <li>Тест распознавания в настройках: скажите фразу и увидите, как её записал распознаватель.</li>
+          <li>Добавление команды — пошаговый мастер: тип (программа/файл/сайт/система/медиа) → список программ → фраза-триггер.</li>
+          <li>Убраны «встроенные» команды: выполняются только добавленные вами. «Открой калькулятор/браузер/музыку» без добавления больше ничего не запускает.</li>
+          <li>Виджет без текстовых плашек: прозрачная область больше, состояние показывается сменой цвета.</li>
+        </ul>
+      ]]></description>
+      <pubDate>Sat, 04 Jul 2026 20:00:00 +0000</pubDate>
+      <enclosure
+        url="https://github.com/kekw2077/mirai/releases/download/desktop-v1.0.11/EVS-Setup-1.0.11.exe"
+        sparkle:version="1.0.11"
+        sparkle:os="windows"
+        sparkle:dsaSignature="MDwCHF7fxjTE9buFba4HQ4DqkIlOdKHM8rKdER8TCZECHAavmXdyi8Q00N8g6jT8d7oJVifP37Gv7O5CnQ4="
+        evs:sha256="f1e556ab9aae974a790e0d5c45a4c100185ed1c4c8d4e89576d078cca80fb048"
+        length="15832178"
+        type="application/octet-stream" />
+    </item>
+
+    <item>
       <title>EVS 1.0.10</title>
       <description><![CDATA[
         <style>
