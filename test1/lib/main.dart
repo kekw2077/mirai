@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:record/record.dart';
 import 'package:window_manager/window_manager.dart';
@@ -74,6 +75,107 @@ typedef _CreateMutexNative = IntPtr Function(
     Pointer<Void>, Int32, Pointer<Utf16>);
 typedef _CreateMutexDart = int Function(Pointer<Void>, int, Pointer<Utf16>);
 
+// Back SharedPreferences with a JSON file in the app data root (which is
+// <exeDir>\userdata in portable mode) instead of the fixed AppData location, so
+// chats/settings live next to the program too. Migrates the existing AppData
+// prefs once; the legacy file is never deleted (safety net against data loss).
+// Must be installed BEFORE any SharedPreferences.getInstance() call.
+Future<void> _installPortablePrefs() async {
+  try {
+    // Only override the store in portable mode. In the AppData fallback the
+    // default shared_preferences_windows store already reads the right file
+    // (shared_preferences.json) — installing ours (prefs.json) there would hide
+    // the user's existing settings/chats.
+    final root = await appDataRoot();
+    final legacy = await legacyDataRoot();
+    if (root == legacy) return;
+    SharedPreferencesStorePlatform.instance =
+        await _PortablePrefsStore.create();
+  } catch (_) {}
+}
+
+class _PortablePrefsStore extends SharedPreferencesStorePlatform {
+  final io.File _file;
+  final Map<String, Object> _cache;
+  _PortablePrefsStore._(this._file, this._cache);
+
+  static Future<_PortablePrefsStore> create() async {
+    final root = await appDataRoot();
+    final sep = io.Platform.pathSeparator;
+    final file = io.File('$root${sep}prefs.json');
+    var data = <String, Object>{};
+    try {
+      if (await file.exists()) {
+        data = _decode(await file.readAsString());
+      } else {
+        // One-time migration from the legacy AppData shared_preferences.json.
+        final legacyRoot = await legacyDataRoot();
+        if (legacyRoot != root) {
+          final legacy = io.File('$legacyRoot${sep}shared_preferences.json');
+          if (await legacy.exists()) {
+            data = _decode(await legacy.readAsString());
+            try {
+              await file.writeAsString(jsonEncode(data));
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
+    return _PortablePrefsStore._(file, data);
+  }
+
+  static Map<String, Object> _decode(String s) {
+    final out = <String, Object>{};
+    try {
+      final m = jsonDecode(s);
+      if (m is Map) {
+        m.forEach((k, v) {
+          if (v != null) out[k.toString()] = v as Object;
+        });
+      }
+    } catch (_) {}
+    return out;
+  }
+
+  Future<void> _persist() async {
+    try {
+      await _file.writeAsString(jsonEncode(_cache));
+    } catch (_) {}
+  }
+
+  @override
+  Future<bool> clear() async {
+    _cache.clear();
+    await _persist();
+    return true;
+  }
+
+  @override
+  Future<Map<String, Object>> getAll() async {
+    // JSON turns List<String> into List<dynamic>; restore the type
+    // SharedPreferences expects.
+    final out = <String, Object>{};
+    _cache.forEach((k, v) {
+      out[k] = v is List ? v.map((e) => e.toString()).toList() : v;
+    });
+    return out;
+  }
+
+  @override
+  Future<bool> remove(String key) async {
+    _cache.remove(key);
+    await _persist();
+    return true;
+  }
+
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) async {
+    _cache[key] = value;
+    await _persist();
+    return true;
+  }
+}
+
 void main(List<String> args) async {
   final startedAt = DateTime.now();
   WidgetsFlutterBinding.ensureInitialized();
@@ -119,6 +221,13 @@ void main(List<String> args) async {
     }
   }
 
+  // Portable data (when the app folder is writable): move existing engines/logs
+  // next to the program, and back SharedPreferences with a file there. Both run
+  // before getInstance / any data access. No-op / AppData fallback otherwise.
+  if (isWindows) {
+    await migrateHeavyDataIfPortable();
+    await _installPortablePrefs();
+  }
   final prefs = await SharedPreferences.getInstance();
   final app = AppState(prefs);
   if (isWindows) {
@@ -238,6 +347,9 @@ class _VizOverlayAppState extends State<VizOverlayApp> with WindowListener {
   }
 
   Future<void> _boot() async {
+    // Same portable prefs store as the main process (same exe folder → same
+    // root). Read-only here, but keeps both processes pointed at one file.
+    await _installPortablePrefs();
     final prefs = await SharedPreferences.getInstance();
     setState(() => _cfg = AppState(prefs));
     await _connect();
@@ -627,6 +739,8 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdWizSearch': 'Поиск…',
     'cmdWizPhrase': 'Фраза-триггер',
     'cmdWizPhraseHint': 'Скажите эту фразу, чтобы выполнить',
+    'cmdWizSpeak': 'Фраза для озвучки (необязательно)',
+    'cmdWizSpeakHint': 'например: Открываю Яндекс Музыку',
     'sysLock': 'Блокировка экрана',
     'sysSleep': 'Спящий режим',
     'sysVolUp': 'Громкость +',
@@ -1327,6 +1441,8 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdWizSearch': 'Search…',
     'cmdWizPhrase': 'Trigger phrase',
     'cmdWizPhraseHint': 'Say this phrase to run it',
+    'cmdWizSpeak': 'Phrase to speak (optional)',
+    'cmdWizSpeakHint': 'e.g. Opening Yandex Music',
     'sysLock': 'Lock screen',
     'sysSleep': 'Sleep',
     'sysVolUp': 'Volume +',
@@ -2791,6 +2907,13 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('1.0.13', [
+    'Фраза-озвучка команды: при добавлении команды можно вписать фразу, которую ассистент произнесёт при её выполнении (например «Открываю Яндекс Музыку»). Работает при включённых голосовых ответах.',
+    'В список программ для команд добавлены приложения из Microsoft Store — их теперь можно назначать на голосовые команды и запускать.',
+    'В списке приложений при добавлении команды показываются их иконки.',
+    'Портативный режим: если папка программы доступна для записи, все данные (движки, модели, чаты, настройки, логи) хранятся рядом с программой, а не в системной папке. Существующие данные переносятся автоматически.',
+    'Удаление чатов на компьютере: правый клик по чату в боковой панели (или кнопка «⋮») открывает меню — переименовать, закрепить, удалить (с отменой).',
+  ]),
   ChangelogEntry('1.0.12', [
     'Веб-поиск: ассистент сам ищет свежие данные в интернете (курс валют, погода, новости), когда вопрос этого требует, и отвечает по ним. Включается в «Модель», работает без ключа (DuckDuckGo) или с ключом Tavily/Brave.',
     'Исправлен микрофон, который «переставал слышать» после перезапуска: распознавание теперь надёжно перезапускается при каждом переподключении голосового движка. Тест распознавания снова показывает текст.',
@@ -6623,10 +6746,19 @@ class CommandExecutor {
         case VoiceCommandType.app:
         case VoiceCommandType.file:
         case VoiceCommandType.url:
+          final target = _unquote(c.value);
+          // Microsoft Store / UWP apps are launched by their AppsFolder id
+          // ("shell:AppsFolder\<AUMID>") via explorer, which cmd's `start`
+          // doesn't handle reliably.
+          if (target.toLowerCase().startsWith('shell:')) {
+            await io.Process.start('explorer.exe', [target],
+                runInShell: false);
+            return true;
+          }
           // `start` resolves .lnk shortcuts, exes, folders and URLs alike. The
           // empty "" is the window-title arg `start` requires before the path.
           final r = await io.Process.run(
-              'cmd', ['/c', 'start', '', _unquote(c.value)],
+              'cmd', ['/c', 'start', '', target],
               runInShell: false);
           return r.exitCode == 0;
         case VoiceCommandType.shell:
@@ -8873,7 +9005,12 @@ class VoiceAssistant {
     VizOverlayServer.instance
         .note(ok ? app.t('vaDone') : app.t('vaFailed'), kind: ok ? 'ok' : 'err');
     if (app.voiceResponses) {
-      _speak(app, ok ? app.t('vaDone') : app.t('vaFailed'));
+      // A command with its own spoken phrase announces itself (e.g. "Открываю
+      // Яндекс Музыку"); otherwise fall back to the generic done/failed line.
+      final say = (ok && cmd.speakPhrase.trim().isNotEmpty)
+          ? cmd.speakPhrase.trim()
+          : (ok ? app.t('vaDone') : app.t('vaFailed'));
+      _speak(app, say);
     }
     unawaited(appendLog('commands',
         '${cmd.phrase} -> [${cmd.type.name}] ${cmd.value} : ${ok ? 'OK' : 'FAIL'}'));
@@ -9098,7 +9235,7 @@ class _DesktopSidebar extends StatelessWidget {
                       itemBuilder: (_, i) {
                         final c = convs[i];
                         final active = c.id == app.current?.id;
-                        return _historyItem(app, c, active);
+                        return _historyItem(context, app, c, active);
                       },
                     ),
             ),
@@ -9117,71 +9254,213 @@ class _DesktopSidebar extends StatelessWidget {
     );
   }
 
-  Widget _historyItem(AppState app, Conversation c, bool active) {
+  Widget _historyItem(
+      BuildContext context, AppState app, Conversation c, bool active) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            app.buzz();
-            app.openChat(c);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: active ? const Color(0x12FFFFFF) : Colors.transparent,
-              border: Border.all(
-                color: active ? const Color(0x338A7BE0) : Colors.transparent,
+      // Right-click anywhere on the row → context menu (rename / pin / delete).
+      // Desktop uses mouse, so this replaces the old mobile long-press.
+      child: GestureDetector(
+        onSecondaryTapDown: (d) =>
+            showChatContextMenu(context, d.globalPosition, c, app),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () {
+              app.buzz();
+              app.openChat(c);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: active ? const Color(0x12FFFFFF) : Colors.transparent,
+                border: Border.all(
+                  color: active ? const Color(0x338A7BE0) : Colors.transparent,
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(9),
-                    color: Colors.white.withValues(alpha: 0.042),
+              child: Row(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(9),
+                      color: Colors.white.withValues(alpha: 0.042),
+                    ),
+                    child: Icon(
+                        c.pinned
+                            ? Icons.push_pin
+                            : Icons.chat_bubble_outline,
+                        size: 13,
+                        color: const Color(0xFF9691C0)),
                   ),
-                  child: const Icon(Icons.chat_bubble_outline,
-                      size: 13, color: Color(0xFF9691C0)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        c.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFD4D7E2),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFD4D7E2),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _evsRelTime(app, c.updatedAt),
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: Color(0xFF6E7280),
+                        const SizedBox(height: 2),
+                        Text(
+                          _evsRelTime(app, c.updatedAt),
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF6E7280),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  // Visible affordance for users who don't try right-click.
+                  Builder(
+                    builder: (btnCtx) => InkResponse(
+                      radius: 16,
+                      onTap: () {
+                        final box =
+                            btnCtx.findRenderObject() as RenderBox?;
+                        final pos = box != null
+                            ? box.localToGlobal(box.size.center(Offset.zero))
+                            : Offset.zero;
+                        showChatContextMenu(context, pos, c, app);
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.only(left: 4),
+                        child: Icon(Icons.more_vert,
+                            size: 16, color: Color(0xFF5A6070)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
+
+// Shared chat context menu (rename / pin / delete-with-undo), anchored at [pos]
+// (global coords). Top-level so both the ConversationsSheet rows AND the
+// desktop sidebar history items can use it. Glass mode uses the blurred glass
+// menu; standard mode uses showMenu.
+Future<void> showChatContextMenu(
+    BuildContext ctx, Offset pos, Conversation c, AppState app) async {
+  void handle(String? v) {
+    if (v == 'rename') promptRenameChat(ctx, c, app);
+    if (v == 'pin') app.togglePin(c);
+    if (v == 'delete') deleteChatWithUndo(ctx, c, app);
+  }
+
+  if (_isGlass(ctx)) {
+    final v = await showGlassMenu(
+      ctx,
+      position: pos,
+      items: [
+        GlassMenuItem('rename', app.t('rename')),
+        GlassMenuItem('pin', c.pinned ? app.t('unpin') : app.t('pin')),
+        GlassMenuItem('delete', app.t('delete'), color: Colors.redAccent),
+      ],
+    );
+    handle(v);
+    return;
+  }
+  final overlay = Overlay.of(ctx).context.findRenderObject() as RenderBox?;
+  final v = await showMenu<String>(
+    context: ctx,
+    color: _card(ctx),
+    position: RelativeRect.fromRect(
+      Rect.fromPoints(pos, pos),
+      Offset.zero & (overlay?.size ?? const Size(0, 0)),
+    ),
+    items: [
+      PopupMenuItem(
+        value: 'rename',
+        child: Text(app.t('rename'), style: TextStyle(color: _txt(ctx))),
+      ),
+      PopupMenuItem(
+        value: 'pin',
+        child: Text(c.pinned ? app.t('unpin') : app.t('pin'),
+            style: TextStyle(color: _txt(ctx))),
+      ),
+      PopupMenuItem(
+        value: 'delete',
+        child: Text(app.t('delete'),
+            style: const TextStyle(color: Colors.redAccent)),
+      ),
+    ],
+  );
+  handle(v);
+}
+
+// Delete a chat but offer a few seconds to undo (deletes are otherwise
+// irreversible — easy to hit by accident from the context menu).
+void deleteChatWithUndo(BuildContext ctx, Conversation c, AppState app) {
+  app.deleteChat(c);
+  final messenger = ScaffoldMessenger.of(ctx);
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(SnackBar(
+    behavior: SnackBarBehavior.floating,
+    backgroundColor: _card(ctx),
+    duration: const Duration(seconds: 4),
+    content: Text(app.t('chatDeleted'), style: TextStyle(color: _txt(ctx))),
+    action: SnackBarAction(
+      label: app.t('undo'),
+      textColor: const Color(0xFF8A7BE0),
+      onPressed: () => app.undoDeleteChat(),
+    ),
+  ));
+}
+
+// Rename dialog for a chat. Pre-fills the current title; saving an empty title
+// is a no-op (keeps the old one).
+void promptRenameChat(BuildContext ctx, Conversation c, AppState app) {
+  final ctrl = TextEditingController(text: c.title);
+  showDialog(
+    context: ctx,
+    builder: (dialogContext) => _AppDialog(
+      backgroundColor:
+          _isGlass(ctx) ? _card(ctx).withValues(alpha: 0.9) : _card(ctx),
+      title: Text(app.t('renameChat'), style: TextStyle(color: _txt(ctx))),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        style: TextStyle(color: _txt(ctx)),
+        decoration: InputDecoration(
+          hintText: app.t('renameChatHint'),
+          hintStyle: TextStyle(color: _sub(ctx)),
+        ),
+        onSubmitted: (_) {
+          app.renameChat(c, ctrl.text);
+          Navigator.pop(dialogContext);
+        },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: Text(app.t('cancel')),
+        ),
+        TextButton(
+          onPressed: () {
+            app.renameChat(c, ctrl.text);
+            Navigator.pop(dialogContext);
+          },
+          child: Text(app.t('save')),
+        ),
+      ],
+    ),
+  );
 }
 
 // System monitor widget — live CPU/RAM from SystemMonitor (Win32 FFI). VRAM
@@ -10063,14 +10342,23 @@ class VoiceCommand {
   String phrase;
   VoiceCommandType type;
   String value;
+  // Optional phrase spoken (TTS) when the command runs — e.g. "Открываю Яндекс
+  // Музыку". Only spoken when voice responses are enabled. Empty = say the
+  // generic "done" line instead.
+  String speakPhrase;
   VoiceCommand({
     required this.phrase,
     required this.type,
     required this.value,
+    this.speakPhrase = '',
   });
 
-  Map<String, dynamic> toJson() =>
-      {'phrase': phrase, 'type': type.name, 'value': value};
+  Map<String, dynamic> toJson() => {
+        'phrase': phrase,
+        'type': type.name,
+        'value': value,
+        if (speakPhrase.isNotEmpty) 'speak': speakPhrase,
+      };
 
   factory VoiceCommand.fromJson(Map<String, dynamic> j) => VoiceCommand(
         phrase: j['phrase'] as String? ?? '',
@@ -10079,14 +10367,27 @@ class VoiceCommand {
           orElse: () => VoiceCommandType.app,
         ),
         value: j['value'] as String? ?? '',
+        speakPhrase: j['speak'] as String? ?? '',
       );
 }
 
-// Enumerate installed programs from the Start Menu (.lnk shortcuts), both the
-// all-users and per-user trees. Returns (display name, .lnk full path) sorted &
-// de-duplicated by name. CommandExecutor's `start` resolves the .lnk.
-Future<List<(String, String)>> listInstalledPrograms() async {
-  final out = <String, String>{}; // name -> path (dedupe by name)
+// One launchable program in the add-command picker.
+class ProgramEntry {
+  final String name;
+  // Command value: a .lnk/.exe path (classic) or "shell:AppsFolder\<AppID>"
+  // (Microsoft Store / UWP). CommandExecutor.execute launches both.
+  final String value;
+  // Key for the icon cache: the .lnk/.exe path, or "uwp:<AppID>".
+  final String iconSource;
+  const ProgramEntry(this.name, this.value, this.iconSource);
+}
+
+// Enumerate installed programs: classic apps from the Start Menu (.lnk, both
+// all-users and per-user trees) PLUS Microsoft Store / UWP apps (Get-StartApps,
+// AppIDs containing "!"). De-duplicated by name, sorted. CommandExecutor
+// resolves .lnk shortcuts and launches UWP via shell:AppsFolder.
+Future<List<ProgramEntry>> listInstalledPrograms() async {
+  final out = <String, ProgramEntry>{}; // name -> entry (dedupe by name)
   final roots = <String>[];
   final programData = io.Platform.environment['ProgramData'];
   final appData = io.Platform.environment['APPDATA'];
@@ -10096,6 +10397,14 @@ Future<List<(String, String)>> listInstalledPrograms() async {
   if (appData != null) {
     roots.add('$appData\\Microsoft\\Windows\\Start Menu\\Programs');
   }
+  bool isNoise(String name) {
+    final lower = name.toLowerCase();
+    return lower.contains('uninstall') ||
+        lower.contains('удал') ||
+        lower.contains('readme') ||
+        lower.contains('license');
+  }
+
   for (final root in roots) {
     final dir = io.Directory(root);
     if (!await dir.exists()) continue;
@@ -10106,20 +10415,39 @@ Future<List<(String, String)>> listInstalledPrograms() async {
         if (!path.toLowerCase().endsWith('.lnk')) continue;
         var name = path.split(io.Platform.pathSeparator).last;
         name = name.substring(0, name.length - 4); // drop ".lnk"
-        // Skip uninstallers and obvious noise.
-        final lower = name.toLowerCase();
-        if (lower.contains('uninstall') ||
-            lower.contains('удал') ||
-            lower.contains('readme') ||
-            lower.contains('license')) {
-          continue;
-        }
-        out.putIfAbsent(name, () => path);
+        if (isNoise(name)) continue;
+        out.putIfAbsent(name, () => ProgramEntry(name, path, path));
       }
     } catch (_) {}
   }
-  final list = out.entries.map((e) => (e.key, e.value)).toList()
-    ..sort((a, b) => a.$1.toLowerCase().compareTo(b.$1.toLowerCase()));
+
+  // Microsoft Store / UWP apps via Get-StartApps (AppID with "!" = AUMID).
+  try {
+    final res = await io.Process.run('powershell', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      "Get-StartApps | Where-Object { \$_.AppID -like '*!*' } | "
+          'Select-Object Name,AppID | ConvertTo-Json -Compress'
+    ]).timeout(const Duration(seconds: 12));
+    if (res.exitCode == 0) {
+      final decoded = jsonDecode((res.stdout as String).trim());
+      final items = decoded is List ? decoded : [decoded];
+      for (final it in items) {
+        if (it is! Map) continue;
+        final name = (it['Name'] ?? '').toString().trim();
+        final appId = (it['AppID'] ?? '').toString().trim();
+        if (name.isEmpty || appId.isEmpty || isNoise(name)) continue;
+        out.putIfAbsent(
+            name,
+            () => ProgramEntry(
+                name, 'shell:AppsFolder\\$appId', 'uwp:$appId'));
+      }
+    }
+  } catch (_) {}
+
+  final list = out.values.toList()
+    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   return list;
 }
 
@@ -10140,15 +10468,18 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
   String _value = '';
   String _valueLabel = ''; // human-friendly summary
   final _phraseCtrl = TextEditingController();
+  final _speakCtrl = TextEditingController();
   final _urlCtrl = TextEditingController();
-  List<(String, String)>? _programs; // null = loading
+  List<ProgramEntry>? _programs; // null = loading
   String _progFilter = '';
+  final Map<String, String> _iconPaths = {}; // iconSource -> cached PNG path
 
   AppState get app => widget.app;
 
   @override
   void dispose() {
     _phraseCtrl.dispose();
+    _speakCtrl.dispose();
     _urlCtrl.dispose();
     super.dispose();
   }
@@ -10174,6 +10505,10 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
       });
       final progs = await listInstalledPrograms();
       if (mounted) setState(() => _programs = progs);
+      // Extract real app icons in the background; fill them in as they arrive.
+      final map =
+          await buildProgramIcons(progs.map((e) => e.iconSource).toList());
+      if (mounted && map.isNotEmpty) setState(() => _iconPaths.addAll(map));
     } else if (t == VoiceCommandType.file) {
       await _pickFileValue();
     } else {
@@ -10207,7 +10542,13 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
     final phrase = _phraseCtrl.text.trim();
     if (phrase.isEmpty || _type == null || _value.trim().isEmpty) return;
     Navigator.pop(
-        context, VoiceCommand(phrase: phrase, type: _type!, value: _value.trim()));
+        context,
+        VoiceCommand(
+          phrase: phrase,
+          type: _type!,
+          value: _value.trim(),
+          speakPhrase: _speakCtrl.text.trim(),
+        ));
   }
 
   @override
@@ -10299,6 +10640,29 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
     );
   }
 
+  // Real app icon (from the PowerShell-built cache) when available, else a
+  // neutral fallback. UWP entries use "uwp:" iconSource; classic use the path.
+  Widget _progIcon(ProgramEntry p) {
+    final path = _iconPaths[p.iconSource];
+    if (path != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(5),
+        child: Image.file(io.File(path),
+            width: 22,
+            height: 22,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _progIconFallback(p)),
+      );
+    }
+    return _progIconFallback(p);
+  }
+
+  Widget _progIconFallback(ProgramEntry p) => Icon(
+        p.iconSource.startsWith('uwp:') ? Icons.storefront : Icons.launch,
+        size: 18,
+        color: const Color(0xFF8A7BE0),
+      );
+
   Widget _programStep() {
     final progs = _programs;
     return SizedBox(
@@ -10331,7 +10695,8 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
                     final filtered = _progFilter.isEmpty
                         ? progs
                         : progs
-                            .where((p) => p.$1.toLowerCase().contains(_progFilter))
+                            .where((p) =>
+                                p.name.toLowerCase().contains(_progFilter))
                             .toList();
                     if (filtered.isEmpty) {
                       return Center(
@@ -10344,14 +10709,13 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
                         final p = filtered[i];
                         return ListTile(
                           dense: true,
-                          leading: const Icon(Icons.launch,
-                              size: 16, color: Color(0xFF8A7BE0)),
-                          title: Text(p.$1,
+                          leading: _progIcon(p),
+                          title: Text(p.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                   color: Color(0xFFD0D4E2), fontSize: 13)),
-                          onTap: () => _chooseValue(p.$2, p.$1),
+                          onTap: () => _chooseValue(p.value, p.name),
                         );
                       },
                     );
@@ -10436,6 +10800,18 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
             hintText: app.t('cmdWizPhraseHint'),
           ),
           onChanged: (_) => setState(() {}),
+          onSubmitted: (_) => _finish(),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _speakCtrl,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: app.t('cmdWizSpeak'),
+            hintText: app.t('cmdWizSpeakHint'),
+            prefixIcon: const Icon(Icons.volume_up_outlined,
+                size: 18, color: Color(0xFF7A8090)),
+          ),
           onSubmitted: (_) => _finish(),
         ),
       ],
@@ -11965,11 +12341,26 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         children: [
           Expanded(
               flex: 3,
-              child: Text(c.phrase,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFD0D4E2)))),
+              child: Row(children: [
+                Flexible(
+                  child: Text(c.phrase,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFD0D4E2))),
+                ),
+                if (c.speakPhrase.trim().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Tooltip(
+                      message: c.speakPhrase,
+                      child: const Icon(Icons.volume_up_outlined,
+                          size: 13, color: Color(0xFF7A8090)),
+                    ),
+                  ),
+              ])),
           Expanded(
               flex: 2,
               child: Align(
@@ -16939,76 +17330,11 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
     );
   }
 
-  // Shared chat context menu (rename / pin / delete), anchored at [pos] (global
-  // coords). Used by both the ⋮ button and a right-click (secondary tap) on the
-  // row. Glass mode uses the blurred glass menu; standard mode uses showMenu.
+  // Chat context menu (rename / pin / delete-with-undo) — delegates to the
+  // shared top-level helper (also used by the desktop sidebar).
   Future<void> _openChatMenu(
-      BuildContext ctx, Offset pos, Conversation c, AppState app) async {
-    void handle(String? v) {
-      if (v == 'rename') _promptRename(c, app);
-      if (v == 'pin') app.togglePin(c);
-      if (v == 'delete') _deleteChatWithUndo(ctx, c, app);
-    }
-
-    if (_isGlass(ctx)) {
-      final v = await showGlassMenu(
-        ctx,
-        position: pos,
-        items: [
-          GlassMenuItem('rename', app.t('rename')),
-          GlassMenuItem('pin', c.pinned ? app.t('unpin') : app.t('pin')),
-          GlassMenuItem('delete', app.t('delete'), color: Colors.redAccent),
-        ],
-      );
-      handle(v);
-      return;
-    }
-    final overlay = Overlay.of(ctx).context.findRenderObject() as RenderBox?;
-    final v = await showMenu<String>(
-      context: ctx,
-      color: _card(ctx),
-      position: RelativeRect.fromRect(
-        Rect.fromPoints(pos, pos),
-        Offset.zero & (overlay?.size ?? const Size(0, 0)),
-      ),
-      items: [
-        PopupMenuItem(
-          value: 'rename',
-          child: Text(app.t('rename'), style: TextStyle(color: _txt(ctx))),
-        ),
-        PopupMenuItem(
-          value: 'pin',
-          child: Text(c.pinned ? app.t('unpin') : app.t('pin'),
-              style: TextStyle(color: _txt(ctx))),
-        ),
-        PopupMenuItem(
-          value: 'delete',
-          child: Text(app.t('delete'),
-              style: const TextStyle(color: Colors.redAccent)),
-        ),
-      ],
-    );
-    handle(v);
-  }
-
-  // Delete a chat but offer a few seconds to undo (deletes are otherwise
-  // irreversible — easy to hit by accident from the context menu).
-  void _deleteChatWithUndo(BuildContext ctx, Conversation c, AppState app) {
-    app.deleteChat(c);
-    final messenger = ScaffoldMessenger.of(ctx);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: _card(ctx),
-      duration: const Duration(seconds: 4),
-      content: Text(app.t('chatDeleted'), style: TextStyle(color: _txt(ctx))),
-      action: SnackBarAction(
-        label: app.t('undo'),
-        textColor: const Color(0xFF8A7BE0),
-        onPressed: () => app.undoDeleteChat(),
-      ),
-    ));
-  }
+          BuildContext ctx, Offset pos, Conversation c, AppState app) =>
+      showChatContextMenu(ctx, pos, c, app);
 
   // Overflow (⋮) button for a chat row — opens the shared menu at the button.
   Widget _chatTileMenuButton(Conversation c, AppState app) {
@@ -17021,47 +17347,6 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
               box != null ? box.localToGlobal(Offset.zero) : Offset.zero;
           _openChatMenu(context, pos, c, app);
         },
-      ),
-    );
-  }
-
-  // Rename dialog for a chat. Pre-fills the current title; saving an empty
-  // title is a no-op (keeps the old one).
-  void _promptRename(Conversation c, AppState app) {
-    final ctrl = TextEditingController(text: c.title);
-    showDialog(
-      context: context,
-      builder: (dialogContext) => _AppDialog(
-        backgroundColor: _isGlass(context)
-            ? _card(context).withValues(alpha: 0.9)
-            : _card(context),
-        title: Text(app.t('renameChat'), style: TextStyle(color: _txt(context))),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          style: TextStyle(color: _txt(context)),
-          decoration: InputDecoration(
-            hintText: app.t('renameChatHint'),
-            hintStyle: TextStyle(color: _sub(context)),
-          ),
-          onSubmitted: (_) {
-            app.renameChat(c, ctrl.text);
-            Navigator.pop(dialogContext);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(app.t('cancel')),
-          ),
-          TextButton(
-            onPressed: () {
-              app.renameChat(c, ctrl.text);
-              Navigator.pop(dialogContext);
-            },
-            child: Text(app.t('save')),
-          ),
-        ],
       ),
     );
   }

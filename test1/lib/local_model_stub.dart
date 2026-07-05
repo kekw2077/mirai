@@ -1,5 +1,10 @@
 import 'package:flutter/widgets.dart';
 
+Future<String> appDataRoot() async => '';
+Future<String> legacyDataRoot() async => '';
+Future<void> migrateHeavyDataIfPortable() async {}
+Future<Map<String, String>> buildProgramIcons(List<String> sources) async => {};
+
 Future<String> localModelsDirPath() async {
   throw UnsupportedError('Local models are not supported on this platform.');
 }
