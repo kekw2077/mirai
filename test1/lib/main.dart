@@ -17,6 +17,7 @@ import 'package:shared_preferences_platform_interface/shared_preferences_platfor
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:record/record.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'package:tray_manager/tray_manager.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
@@ -92,6 +93,71 @@ Future<void> _sweepOrphanBackends() async {
         'taskkill', ['/F', '/IM', 'evs_sidecar.exe', '/IM', 'evs_tts.exe'],
         runInShell: false);
   } catch (_) {}
+}
+
+// Restore the main window's saved geometry (size / position / maximized) before
+// the first show, validated against the current monitor layout so it never
+// lands off-screen after a display change. Geometry lives in prefs (userdata),
+// so it survives app updates — the installer replaces the program files in
+// {app} but never touches {app}\userdata. DPI note: window_manager and
+// screen_retriever both work in logical pixels, so the comparison is
+// consistent; mixed-DPI multi-monitor may still be approximate.
+Future<void> _restoreWindowBounds(SharedPreferences prefs) async {
+  try {
+    final w = prefs.getDouble('winW');
+    final h = prefs.getDouble('winH');
+    final x = prefs.getDouble('winX');
+    final y = prefs.getDouble('winY');
+    // No saved geometry (first run) — keep WindowOptions' centered default.
+    if (w == null || h == null || x == null || y == null) return;
+    final rect = await _clampToVisibleArea(Rect.fromLTWH(x, y, w, h));
+    await windowManager.setBounds(rect);
+    if (prefs.getBool('winMax') ?? false) await windowManager.maximize();
+  } catch (_) {}
+}
+
+// Fit a saved window rect into the current displays: shrink it to the target
+// monitor's work area and, if its title bar isn't visible on any monitor
+// (config changed), re-center it on the monitor it most overlaps.
+Future<Rect> _clampToVisibleArea(Rect rect) async {
+  try {
+    final displays = await screenRetriever.getAllDisplays();
+    final rects = <Rect>[];
+    for (final d in displays) {
+      final pos = d.visiblePosition ?? Offset.zero;
+      final size = d.visibleSize ?? d.size;
+      rects.add(pos & size);
+    }
+    if (rects.isEmpty) return rect;
+    // Pick the display the window overlaps most (fallback: the first/primary).
+    var target = rects.first;
+    var bestOverlap = -1.0;
+    for (final r in rects) {
+      final ix = math.min(rect.right, r.right) - math.max(rect.left, r.left);
+      final iy = math.min(rect.bottom, r.bottom) - math.max(rect.top, r.top);
+      final overlap = (ix > 0 && iy > 0) ? ix * iy : 0.0;
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        target = r;
+      }
+    }
+    var width = rect.width.clamp(900.0, target.width);
+    var height = rect.height.clamp(600.0, target.height);
+    // Is a meaningful part of the title bar on any monitor?
+    final probe = Offset(rect.left + rect.width / 2, rect.top + 12);
+    final onScreen = rects.any((r) => r.contains(probe));
+    double left, top;
+    if (onScreen) {
+      left = rect.left.clamp(target.left, target.right - width);
+      top = rect.top.clamp(target.top, target.bottom - height);
+    } else {
+      left = target.left + (target.width - width) / 2;
+      top = target.top + (target.height - height) / 2;
+    }
+    return Rect.fromLTWH(left, top, width, height);
+  } catch (_) {
+    return rect;
+  }
 }
 
 // Back SharedPreferences with a JSON file in the app data root (which is
@@ -268,6 +334,10 @@ void main(List<String> args) async {
     );
     final startHidden = prefs.getBool('overlayMode') ?? true;
     unawaited(windowManager.waitUntilReadyToShow(windowOptions, () async {
+      // Restore saved geometry before the first paint (no jump from the default
+      // size to the saved one). Applied even while hidden, so a later show from
+      // the tray/widget already lands at the right spot.
+      await _restoreWindowBounds(prefs);
       if (startHidden) {
         // The native runner shows the window on the first frame regardless —
         // hide explicitly: with the widget enabled, only the floating widget
@@ -7323,6 +7393,7 @@ class DesktopIntegration with WindowListener, TrayListener {
   }
 
   AppState? _app;
+  Timer? _winSaveTimer;
 
   Future<void> init(AppState app) async {
     if (defaultTargetPlatform != TargetPlatform.windows) return;
@@ -7435,6 +7506,8 @@ class DesktopIntegration with WindowListener, TrayListener {
   }
 
   Future<void> _quit() async {
+    // Capture final geometry while the window is still alive.
+    await saveWindowNow();
     // Explicitly stop every helper process on a clean exit. The Job Object
     // (ProcessJob) is the backstop for crashes / force-kills where this code
     // never runs.
@@ -7453,8 +7526,53 @@ class DesktopIntegration with WindowListener, TrayListener {
     } catch (_) {}
   }
 
+  // Persist the main window's geometry, debounced. Fired on every move/resize/
+  // (un)maximize; the 500 ms debounce collapses a drag into one write. Skips
+  // hidden/minimized states so a tray-hidden window never overwrites the real
+  // geometry with garbage. Written to prefs (userdata) → survives updates.
+  void _scheduleWindowSave() {
+    _winSaveTimer?.cancel();
+    _winSaveTimer =
+        Timer(const Duration(milliseconds: 500), () => unawaited(saveWindowNow()));
+  }
+
+  Future<void> saveWindowNow() async {
+    final app = _app;
+    if (app == null) return;
+    try {
+      if (!await windowManager.isVisible()) return;
+      if (await windowManager.isMinimized()) return;
+      final maximized = await windowManager.isMaximized();
+      await app.prefs.setBool('winMax', maximized);
+      // Keep the last *restored* size while maximized, so unmaximizing later
+      // returns to it instead of a full-screen rect.
+      if (!maximized) {
+        final b = await windowManager.getBounds();
+        await app.prefs.setDouble('winX', b.left);
+        await app.prefs.setDouble('winY', b.top);
+        await app.prefs.setDouble('winW', b.width);
+        await app.prefs.setDouble('winH', b.height);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void onWindowResized() => _scheduleWindowSave();
+
+  @override
+  void onWindowMoved() => _scheduleWindowSave();
+
+  @override
+  void onWindowMaximize() => _scheduleWindowSave();
+
+  @override
+  void onWindowUnmaximize() => _scheduleWindowSave();
+
   @override
   void onWindowClose() {
+    // Flush geometry synchronously enough to survive a hard close (the debounce
+    // timer may not fire before we hide/quit).
+    unawaited(saveWindowNow());
     if (_app?.closeToTray ?? false) {
       windowManager.hide();
     } else {
