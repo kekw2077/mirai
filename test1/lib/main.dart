@@ -3987,13 +3987,14 @@ class TokenCounter {
 
 /* ============================ СОСТОЯНИЕ ============================ */
 
-enum AppThemeMode { system, light, dark, gray }
+// Only one theme ships today: dark (the palette the user's OS resolved to). The
+// enum and its selector are kept single-valued on purpose — new palettes will be
+// added as new enum values + list entries, and the switching mechanism stays.
+enum AppThemeMode { dark }
 
-// Visual style of the app's chrome, orthogonal to AppThemeMode: `standard`
-// keeps the existing solid surfaces, `liquidGlass` swaps them for
-// translucent blurred (iOS 26 "Liquid Glass") surfaces over whatever theme
-// is active. See GlassSurface / _isGlass.
-enum AppStyle { standard, liquidGlass }
+// Liquid Glass was removed — only the standard (solid) style remains. Kept as a
+// single-value enum so the appStyle field / prefs migration stay graceful.
+enum AppStyle { standard }
 
 // Real connection/readiness state of the selected model, shown by the desktop
 // status badge (and its detail dialog).
@@ -4008,7 +4009,7 @@ class AppState extends ChangeNotifier {
   String lang = 'ru';
   String t(String key) => _i18n[lang]?[key] ?? _i18n['en']?[key] ?? key;
 
-  AppThemeMode themeMode = AppThemeMode.system;
+  AppThemeMode themeMode = AppThemeMode.dark;
   AppStyle appStyle = AppStyle.standard;
   bool haptics = true;
   bool showKeyboardOnLaunch = false;
@@ -4284,29 +4285,19 @@ class AppState extends ChangeNotifier {
   /// Silent one-shot LLM request: no conversation is touched, isGenerating
   /// stays false — used by the voice-command interpreter so commands never
   /// leak into the chat history. Returns null on any failure.
-  bool get isDarkMode {
-    switch (themeMode) {
-      case AppThemeMode.dark:
-      case AppThemeMode.gray:
-        return true;
-      case AppThemeMode.light:
-        return false;
-      case AppThemeMode.system:
-        final brightness =
-            WidgetsBinding.instance.platformDispatcher.platformBrightness;
-        return brightness == Brightness.dark;
-    }
-  }
+  // Only the dark theme ships today.
+  bool get isDarkMode => true;
 
   Future<void> load() async {
     // Detect device RAM in the background (no await — the context-size ceiling
     // falls back to a safe default until it resolves).
     unawaited(_detectDeviceRam());
     lang = prefs.getString('lang') ?? 'ru';
-    final tm = prefs.getString('themeMode') ?? 'system';
+    // Any legacy value (system/light/gray) migrates to the single dark theme.
+    final tm = prefs.getString('themeMode') ?? 'dark';
     themeMode = AppThemeMode.values.firstWhere(
       (e) => e.name == tm,
-      orElse: () => AppThemeMode.system,
+      orElse: () => AppThemeMode.dark,
     );
     final as = prefs.getString('appStyle') ?? 'standard';
     appStyle = AppStyle.values.firstWhere(
@@ -4809,12 +4800,6 @@ class AppState extends ChangeNotifier {
 
   void setThemeMode(AppThemeMode v) {
     themeMode = v;
-    _save();
-    notifyListeners();
-  }
-
-  void setAppStyle(AppStyle v) {
-    appStyle = v;
     _save();
     notifyListeners();
   }
@@ -5656,11 +5641,9 @@ class MiraiApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       navigatorKey: rootNavKey,
       title: 'EVS',
-      theme: _buildTheme(false),
-      darkTheme: app.themeMode == AppThemeMode.gray
-          ? _buildGrayTheme()
-          : _buildTheme(true),
-      themeMode: _getThemeMode(app.themeMode),
+      theme: _buildTheme(),
+      darkTheme: _buildTheme(),
+      themeMode: ThemeMode.dark,
       builder: (context, child) {
         final mq = MediaQuery.of(context);
         // Combine the OS-level accessibility text scale with the app's own
@@ -5677,18 +5660,6 @@ class MiraiApp extends StatelessWidget {
     );
   }
 
-  ThemeMode _getThemeMode(AppThemeMode mode) {
-    switch (mode) {
-      case AppThemeMode.light:
-        return ThemeMode.light;
-      case AppThemeMode.dark:
-      case AppThemeMode.gray:
-        return ThemeMode.dark;
-      case AppThemeMode.system:
-        return ThemeMode.system;
-    }
-  }
-
   // On iOS, use the system font (San Francisco) — exactly the iOS typography —
   // by NOT forcing a bundled family (Flutter then falls back to the platform
   // default, which is SF on iOS). Apple's SF can't be bundled for other
@@ -5696,36 +5667,37 @@ class MiraiApp extends StatelessWidget {
   String? get _appFontFamily =>
       defaultTargetPlatform == TargetPlatform.iOS ? null : 'Nunito';
 
-  ThemeData _buildTheme(bool dark) {
-    final scheme = dark
-        ? const ColorScheme.dark(
-            primary: Color(0xFF7C8CF8),
-            surface: Color(0xFF15151E),
-          )
-        : const ColorScheme.light(
-            primary: Color(0xFF2F6BFF),
-            surface: Color(0xFFF2F3F7),
-          );
-    final bg = dark ? const Color(0xFF0E0E15) : const Color(0xFFFFFFFF);
+  ThemeData _buildTheme() {
+    const scheme = ColorScheme.dark(
+      primary: Color(0xFF7C8CF8),
+      surface: Color(0xFF15151E),
+    );
+    const card = Color(0xFF1C1C26);
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: bg,
+      scaffoldBackgroundColor: const Color(0xFF0E0E15),
       fontFamily: _appFontFamily,
-    );
-  }
-
-  // Neutral charcoal/gray dark palette (iOS-style grouped dark colors)
-  // instead of the default dark theme's blue-tinted background.
-  ThemeData _buildGrayTheme() {
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: const ColorScheme.dark(
-        primary: Color(0xFF7C8CF8),
-        surface: Color(0xFF1C1C1E),
+      // Cover the surfaces that otherwise fall back to Material defaults so the
+      // system dialogs / menus / snackbars / tooltips follow the app theme even
+      // when a call site doesn't set colours explicitly (TZ3.1 §1.2).
+      dialogTheme: const DialogThemeData(backgroundColor: card),
+      popupMenuTheme: const PopupMenuThemeData(
+        color: card,
+        textStyle: TextStyle(color: Colors.white),
       ),
-      scaffoldBackgroundColor: const Color(0xFF000000),
-      fontFamily: _appFontFamily,
+      snackBarTheme: const SnackBarThemeData(
+        backgroundColor: card,
+        contentTextStyle: TextStyle(color: Colors.white),
+        behavior: SnackBarBehavior.floating,
+      ),
+      tooltipTheme: const TooltipThemeData(
+        decoration: BoxDecoration(
+          color: card,
+          borderRadius: BorderRadius.all(Radius.circular(6)),
+        ),
+        textStyle: TextStyle(color: Colors.white),
+      ),
     );
   }
 }
@@ -5816,28 +5788,18 @@ class _ImmersiveSplashState extends State<ImmersiveSplash>
   }
 }
 
-bool _isGrayMode(BuildContext c) =>
-    c.read<AppState>().themeMode == AppThemeMode.gray;
+// The app ships a single dark theme, so these are the canonical surface tokens.
+// (A future theme would parameterise them by the active AppThemeMode.) The
+// BuildContext param is kept so the hundreds of call sites stay unchanged.
+Color _bg(BuildContext c) => const Color(0xFF0E0E15);
+Color _card(BuildContext c) => const Color(0xFF1C1C26);
+Color _txt(BuildContext c) => Colors.white;
+Color _sub(BuildContext c) => const Color(0xFF8A8A95);
 
-Color _bg(BuildContext c) {
-  if (Theme.of(c).brightness != Brightness.dark) return Colors.white;
-  return _isGrayMode(c) ? const Color(0xFF000000) : const Color(0xFF0E0E15);
-}
-
-Color _card(BuildContext c) {
-  if (Theme.of(c).brightness != Brightness.dark) {
-    return const Color(0xFFEDEEF3);
-  }
-  return _isGrayMode(c) ? const Color(0xFF1C1C1E) : const Color(0xFF1C1C26);
-}
-Color _txt(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark ? Colors.white : Colors.black;
-Color _sub(BuildContext c) => Theme.of(c).brightness == Brightness.dark
-    ? const Color(0xFF8A8A95)
-    : const Color(0xFF6B6B72);
-
-bool _isGlass(BuildContext c) =>
-    c.read<AppState>().appStyle == AppStyle.liquidGlass;
+// Liquid Glass was removed — only the standard style ships. Kept as a no-op so
+// the (now dead) glass branches at call sites still compile and render the
+// standard path. TODO: physically prune those branches in a later cleanup.
+bool _isGlass(BuildContext c) => false;
 
 // Outer panel for bottom sheets / the chats drawer: a translucent blurred
 // surface in glass style, a solid one otherwise. `rounded` controls the top
@@ -12214,26 +12176,10 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             label: app.t('themeMode'),
             control: evsSegmentedWide<AppThemeMode>(
               [
-                (AppThemeMode.system, app.t('themeSystem')),
-                (AppThemeMode.light, app.t('themeLight')),
                 (AppThemeMode.dark, app.t('themeDark')),
-                (AppThemeMode.gray, app.t('themeGray')),
               ],
               app.themeMode,
               (v) => app.setThemeMode(v),
-            ),
-          ),
-          evsRow(
-            stacked: true,
-            label: app.t('appStyle'),
-            desc: app.t('appStyleDesc'),
-            control: evsSegmentedWide<AppStyle>(
-              [
-                (AppStyle.liquidGlass, 'Liquid Glass'),
-                (AppStyle.standard, app.t('styleClassic')),
-              ],
-              app.appStyle,
-              (v) => app.setAppStyle(v),
             ),
           ),
           evsRow(
@@ -18071,28 +18017,10 @@ class SettingsSheet extends StatelessWidget {
                       Icons.palette_outlined,
                       app.t('themeMode'),
                       trailing: Text(
-                        switch (app.themeMode) {
-                          AppThemeMode.system => app.t('themeSystem'),
-                          AppThemeMode.light => app.t('themeLight'),
-                          AppThemeMode.dark => app.t('themeDark'),
-                          AppThemeMode.gray => app.t('themeGray'),
-                        },
+                        app.t('themeDark'),
                         style: TextStyle(color: _sub(context)),
                       ),
                       onTap: () => _openThemeDialog(context),
-                    ),
-                    _nav(
-                      context,
-                      Icons.tune,
-                      app.t('appStyle'),
-                      trailing: Text(
-                        switch (app.appStyle) {
-                          AppStyle.standard => app.t('appStyleStandard'),
-                          AppStyle.liquidGlass => app.t('appStyleGlass'),
-                        },
-                        style: TextStyle(color: _sub(context)),
-                      ),
-                      onTap: () => _openAppStyleDialog(context),
                     ),
                     _switch(
                       context,
@@ -18453,49 +18381,9 @@ class SettingsSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (final entry in [
-                (AppThemeMode.system, app.t('themeSystem')),
-                (AppThemeMode.light, app.t('themeLight')),
                 (AppThemeMode.dark, app.t('themeDark')),
-                (AppThemeMode.gray, app.t('themeGray')),
               ])
                 RadioListTile<AppThemeMode>(
-                  value: entry.$1,
-                  activeColor: const Color(0xFF2F8DFF),
-                  title: Text(entry.$2, style: TextStyle(color: _txt(context))),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _openAppStyleDialog(BuildContext context) {
-    final app = context.read<AppState>();
-    showDialog(
-      context: context,
-      builder: (_) => _AppDialog(
-        backgroundColor: _card(context),
-        title: Text(
-          app.t('appStyleDialogTitle'),
-          style: TextStyle(color: _txt(context)),
-        ),
-        content: RadioGroup<AppStyle>(
-          groupValue: app.appStyle,
-          onChanged: (v) {
-            if (v != null) {
-              app.setAppStyle(v);
-              Navigator.pop(context);
-            }
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final entry in [
-                (AppStyle.standard, app.t('appStyleStandard')),
-                (AppStyle.liquidGlass, app.t('appStyleGlass')),
-              ])
-                RadioListTile<AppStyle>(
                   value: entry.$1,
                   activeColor: const Color(0xFF2F8DFF),
                   title: Text(entry.$2, style: TextStyle(color: _txt(context))),
