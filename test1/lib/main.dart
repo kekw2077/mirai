@@ -363,6 +363,122 @@ void main(List<String> args) async {
   runApp(ChangeNotifierProvider.value(value: app, child: const MiraiApp()));
 }
 
+// The floating widget owns its own position, persisted to a DEDICATED file
+// (userdata/widget_pos.json) written ONLY by the widget process — never through
+// the shared prefs. Rationale (TZ3.3): main + widget share one prefs.json, each
+// with its own in-memory cache, so a full-file _persist() from one process
+// clobbers fresh values written by the other; and routing the position through
+// the main app lost the last drag before shutdown when the widget was killed. A
+// private file removes both problems (single writer, survives the main app
+// dying). Stores absolute coords plus a best-effort monitor anchor (stable
+// display id + work-area-relative offset + DPI) so a widget parked on a second
+// monitor returns there after a disconnect/reconnect.
+class WidgetPosStore {
+  static Future<io.File?> _file() async {
+    try {
+      final root = await appDataRoot();
+      return io.File('$root${io.Platform.pathSeparator}widget_pos.json');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> read() async {
+    try {
+      final f = await _file();
+      if (f == null || !await f.exists()) return null;
+      final m = jsonDecode(await f.readAsString());
+      return m is Map<String, dynamic> ? m : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> writeAbsolute(Offset pos) async {
+    try {
+      final f = await _file();
+      if (f == null) return;
+      final rec = <String, dynamic>{'absX': pos.dx, 'absY': pos.dy};
+      final anchor = await _anchorFor(pos);
+      if (anchor != null) rec.addAll(anchor);
+      await f.writeAsString(jsonEncode(rec));
+    } catch (_) {}
+  }
+
+  // One-time migration: seed the file from the legacy prefs overlayX/Y (owned by
+  // the main process) so an existing widget keeps its spot across this update.
+  static Future<void> migrateFromPrefs(SharedPreferences prefs) async {
+    try {
+      final f = await _file();
+      if (f == null || await f.exists()) return;
+      final x = prefs.getDouble('overlayX');
+      final y = prefs.getDouble('overlayY');
+      if (x == null || y == null) return;
+      await writeAbsolute(Offset(x, y));
+    } catch (_) {}
+  }
+
+  static Future<Map<String, dynamic>?> _anchorFor(Offset pos) async {
+    try {
+      final displays = await screenRetriever.getAllDisplays();
+      for (final d in displays) {
+        final dp = d.visiblePosition ?? Offset.zero;
+        final ds = d.visibleSize ?? d.size;
+        if ((dp & ds).contains(pos)) {
+          return {
+            'mon': d.id,
+            'monName': d.name,
+            'relX': pos.dx - dp.dx,
+            'relY': pos.dy - dp.dy,
+            'scale': d.scaleFactor ?? 1.0,
+          };
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // Resolve a saved record into an absolute position for the CURRENT monitor
+  // layout. Returns null when the saved monitor is gone AND the absolute
+  // fallback isn't on any current display — the caller then parks the widget on
+  // a safe default WITHOUT overwriting the record, so it returns to its place
+  // when the monitor comes back.
+  static Future<Offset?> resolve(Map<String, dynamic> rec) async {
+    try {
+      final displays = await screenRetriever.getAllDisplays();
+      if (displays.isEmpty) return null;
+      final mon = rec['mon'];
+      final monName = rec['monName'];
+      final relX = (rec['relX'] as num?)?.toDouble();
+      final relY = (rec['relY'] as num?)?.toDouble();
+      if (relX != null && relY != null) {
+        for (final d in displays) {
+          final match = (mon != null && d.id == mon) ||
+              (monName != null && d.name == monName);
+          if (match) {
+            final dp = d.visiblePosition ?? Offset.zero;
+            return Offset(dp.dx + relX, dp.dy + relY);
+          }
+        }
+      }
+      // Saved monitor absent — use the absolute fallback only if still on-screen.
+      final absX = (rec['absX'] as num?)?.toDouble();
+      final absY = (rec['absY'] as num?)?.toDouble();
+      if (absX != null && absY != null) {
+        final pos = Offset(absX, absY);
+        for (final d in displays) {
+          final dp = d.visiblePosition ?? Offset.zero;
+          final ds = d.visibleSize ?? d.size;
+          if ((dp & ds).contains(pos)) return pos;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
 /* ==================== ПРОЦЕСС ПЛАВАЮЩЕГО ВИДЖЕТА ==================== */
 
 // Entry point of the widget process (`evs.exe --viz-overlay --port=N`): a
@@ -401,8 +517,17 @@ Future<void> _vizOverlayMain(List<String> args) async {
     await windowManager.setResizable(false);
     await windowManager.setAlwaysOnTop(true);
     await windowManager.setSkipTaskbar(true);
-    // Default parking spot; the first cfg message restores the saved position.
-    await windowManager.setAlignment(Alignment.centerRight);
+    // Restore the widget's own saved position (its private file) before showing,
+    // resolved against the current monitor layout. If its monitor is gone, park
+    // at a safe default WITHOUT touching the saved record (see WidgetPosStore).
+    Offset? restored;
+    final rec = await WidgetPosStore.read();
+    if (rec != null) restored = await WidgetPosStore.resolve(rec);
+    if (restored != null) {
+      await windowManager.setPosition(restored);
+    } else {
+      await windowManager.setAlignment(Alignment.centerRight);
+    }
     await windowManager.show();
   }));
   runApp(VizOverlayApp(port: port));
@@ -423,13 +548,14 @@ class _VizOverlayAppState extends State<VizOverlayApp> with WindowListener {
   // this process never writes shared_preferences.
   AppState? _cfg;
   io.WebSocket? _ws;
-  bool _positioned = false;
-  // Position persistence: onWindowMoved is unreliable after a native
-  // startDragging() on Windows, so the widget's spot was often never saved.
-  // Poll the position on a timer and push any change to the main app — that
-  // guarantees the location is remembered regardless of window events.
+  // The widget persists its OWN position (WidgetPosStore) — onWindowMoved is
+  // unreliable after a native startDragging() on Windows, so poll the position
+  // on a timer and write the file on any real change. _userMoved gates the
+  // final flush so a widget parked on a default spot (its monitor gone) never
+  // overwrites the saved location.
   Timer? _posTimer;
   Offset? _lastPollPos;
+  bool _userMoved = false;
 
   @override
   void initState() {
@@ -450,7 +576,7 @@ class _VizOverlayAppState extends State<VizOverlayApp> with WindowListener {
 
   void _startPositionWatch() {
     _posTimer?.cancel();
-    _posTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+    _posTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
       try {
         final p = await windowManager.getPosition();
         final last = _lastPollPos;
@@ -459,9 +585,13 @@ class _VizOverlayAppState extends State<VizOverlayApp> with WindowListener {
             (p.dy - last.dy).abs() > 1;
         if (!moved) return;
         _lastPollPos = p;
-        // Skip the first reading (just the current/default spot); only persist
-        // once the user has actually dragged it somewhere new.
-        if (last != null) _send({'t': 'moved', 'x': p.dx, 'y': p.dy});
+        // Skip the first reading (the restored/parked spot); only persist once
+        // the user has actually dragged the widget somewhere new. The widget
+        // writes its OWN file — no round-trip through the main process.
+        if (last != null) {
+          _userMoved = true;
+          unawaited(WidgetPosStore.writeAbsolute(p));
+        }
       } catch (_) {}
     });
   }
@@ -480,8 +610,18 @@ class _VizOverlayAppState extends State<VizOverlayApp> with WindowListener {
     _die();
   }
 
-  // The main app is gone (socket closed / never appeared) — so are we.
-  void _die() => io.exit(0);
+  // The main app is gone (socket closed / never appeared) — so are we. Flush the
+  // final position first (the last <500 ms of dragging the poll may have missed)
+  // — but only if the user actually moved the widget, so a widget parked on a
+  // default spot because its monitor is gone never overwrites the saved record.
+  Future<void> _die() async {
+    if (_userMoved) {
+      try {
+        await WidgetPosStore.writeAbsolute(await windowManager.getPosition());
+      } catch (_) {}
+    }
+    io.exit(0);
+  }
 
   void _onMsg(dynamic data) {
     final app = _cfg;
@@ -497,22 +637,8 @@ class _VizOverlayAppState extends State<VizOverlayApp> with WindowListener {
         app.applyVizCfg(m);
         final size = (m['size'] as num?)?.toDouble();
         if (size != null) unawaited(windowManager.setSize(Size(size, size)));
-        if (!_positioned) {
-          _positioned = true;
-          final x = (m['x'] as num?)?.toDouble();
-          final y = (m['y'] as num?)?.toDouble();
-          // Guard against a saved spot on a monitor that's since been removed
-          // (absurd coords would park the widget off every screen).
-          if (x != null &&
-              y != null &&
-              x > -10000 &&
-              x < 30000 &&
-              y > -10000 &&
-              y < 30000) {
-            unawaited(windowManager.setPosition(Offset(x, y)));
-            _lastPollPos = Offset(x, y); // don't re-persist the restored spot
-          }
-        }
+        // Position is restored by the widget itself before show (WidgetPosStore)
+        // — the main process no longer sends x/y in cfg.
         break;
       case 'lvl':
         VoiceLevels.instance.tts.value =
@@ -553,16 +679,6 @@ class _VizOverlayAppState extends State<VizOverlayApp> with WindowListener {
     try {
       _ws?.add(jsonEncode(m));
     } catch (_) {}
-  }
-
-  @override
-  void onWindowMoved() {
-    () async {
-      try {
-        final pos = await windowManager.getPosition();
-        _send({'t': 'moved', 'x': pos.dx, 'y': pos.dy});
-      } catch (_) {}
-    }();
   }
 
   @override
@@ -7211,6 +7327,9 @@ class VizOverlayServer {
     VoiceAssistant.instance.state.addListener(_pushVa);
     VoiceAssistant.instance.wakeActive.addListener(_pushVa);
     VoiceAssistant.instance.wakePulse.addListener(_pushVa);
+    // One-time: hand the legacy prefs position over to the widget's own file so
+    // its saved spot survives this update; afterwards the widget owns it.
+    await WidgetPosStore.migrateFromPrefs(app.prefs);
     if (app.overlayMode) await _spawn();
   }
 
@@ -7316,8 +7435,6 @@ class VizOverlayServer {
       'barCount': app.barCount,
       'wakeWord': app.wakeWord,
       'size': app.overlaySize * kWidgetWindowScale,
-      'x': app.prefs.getDouble('overlayX'),
-      'y': app.prefs.getDouble('overlayY'),
     };
     final s = jsonEncode(m);
     if (s == _lastCfg) return;
@@ -7348,14 +7465,6 @@ class VizOverlayServer {
     switch (m['t']) {
       case 'open':
         unawaited(DesktopIntegration.instance.showMainWindow());
-        break;
-      case 'moved':
-        final x = (m['x'] as num?)?.toDouble();
-        final y = (m['y'] as num?)?.toDouble();
-        if (x != null && y != null) {
-          unawaited(app.prefs.setDouble('overlayX', x));
-          unawaited(app.prefs.setDouble('overlayY', y));
-        }
         break;
       case 'hidden':
         // The user hid the widget with its × — reflect that in settings
