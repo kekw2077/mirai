@@ -801,6 +801,18 @@ const Map<String, Map<String, String>> _i18n = {
     'engWhisperShort': 'Мультиязычная, средняя точность',
     'engGigaamName': 'GigaAM-v3',
     'engGigaamShort': 'Лучшая точность для русского. Рекомендуется',
+    'moreDetails': 'Подробнее',
+    'lessDetails': 'Свернуть',
+    'engWhisperDetail':
+        'Понимает много языков, но короткие русские команды распознаёт хуже GigaAM. Медленнее на длинных фразах — обрабатывает звук 30-секундными окнами. base и tiny легче и быстрее, но точность ещё ниже — вариант для слабого железа.',
+    'engGigaamDetail':
+        'Обучена специально на русской речи, уверенно распознаёт короткие команды. ~300 МБ на диске, ~0.6–1 ГБ ОЗУ, отклик ~0.1–0.3 с. Работает только с русским языком.',
+    'dnOffDetail':
+        'Микрофон передаётся как есть. Подходит для тихой комнаты и хорошего микрофона; ресурсы не тратятся.',
+    'dnLightDetail':
+        'GTCRN — лёгкая нейросеть: убирает постоянный шум (вентиляторы, гул) и часть резких звуков. Задержка ~10 мс, нагрузка на процессор незаметна.',
+    'dnStrongDetail':
+        'DeepFilterNet — модель посерьёзнее: давит клавиатуру, музыку, разговоры. Ощутимо больше нагрузки на процессор, требует скачивания модели (~8 МБ). Включай, если лёгкого шумоподавления не хватает.',
     'engActive': 'Активна',
     'engReady': 'Готова',
     'engLoading': 'Загружается…',
@@ -1551,6 +1563,18 @@ const Map<String, Map<String, String>> _i18n = {
     'engWhisperShort': 'Multilingual, average accuracy',
     'engGigaamName': 'GigaAM-v3',
     'engGigaamShort': 'Best accuracy for Russian. Recommended',
+    'moreDetails': 'More',
+    'lessDetails': 'Less',
+    'engWhisperDetail':
+        'Understands many languages, but recognizes short Russian commands worse than GigaAM. Slower on long phrases — it processes audio in 30-second windows. base and tiny are lighter and faster but less accurate — for weak hardware.',
+    'engGigaamDetail':
+        'Trained specifically on Russian speech; confidently recognizes short commands. ~300 MB on disk, ~0.6–1 GB RAM, ~0.1–0.3 s latency. Russian only.',
+    'dnOffDetail':
+        'The microphone is passed through untouched. Good for a quiet room and a decent mic; costs nothing.',
+    'dnLightDetail':
+        'GTCRN — a lightweight neural net: removes constant noise (fans, hum) and some sharp sounds. ~10 ms latency, negligible CPU.',
+    'dnStrongDetail':
+        'DeepFilterNet — a heavier model: suppresses keyboard, music, conversations. Noticeably more CPU and needs a model download (~8 MB). Use it when light suppression is not enough.',
     'engActive': 'Active',
     'engReady': 'Ready',
     'engLoading': 'Loading…',
@@ -12413,6 +12437,54 @@ class _SttReadinessBanner extends StatelessWidget {
 // GigaAM-v3) driven by SidecarClient's live status / capabilities / latency.
 // Selecting an engine hot-swaps it; the block locks until ready|error and rolls
 // the choice back with a snackbar on failure.
+// TZ2 block 4: a "Подробнее" toggle that reveals a longer explanation (2–4
+// sentences) under a short option description. Texts come from i18n, not inline.
+class _DetailDisclosure extends StatelessWidget {
+  final bool open;
+  final String detail;
+  final String moreLabel;
+  final String lessLabel;
+  final VoidCallback onToggle;
+  const _DetailDisclosure({
+    required this.open,
+    required this.detail,
+    required this.moreLabel,
+    required this.lessLabel,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(open ? lessLabel : moreLabel,
+                  style: const TextStyle(
+                      color: Color(0xFFB9A6FF),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+              Icon(open ? Icons.expand_less : Icons.expand_more,
+                  size: 16, color: const Color(0xFFB9A6FF)),
+            ]),
+          ),
+        ),
+        if (open)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(detail,
+                style: const TextStyle(
+                    color: Color(0xFF9AA0B0), fontSize: 12, height: 1.45)),
+          ),
+      ],
+    );
+  }
+}
+
 class _SttEngineCards extends StatefulWidget {
   final AppState app;
   const _SttEngineCards(this.app);
@@ -12422,6 +12494,7 @@ class _SttEngineCards extends StatefulWidget {
 
 class _SttEngineCardsState extends State<_SttEngineCards> {
   String? _pending; // engine being switched to (locks the block)
+  final Set<String> _expanded = {}; // engines with "Подробнее" open (TZ2 block 4)
 
   @override
   void initState() {
@@ -12567,6 +12640,16 @@ class _SttEngineCardsState extends State<_SttEngineCards> {
               Text(desc,
                   style: const TextStyle(
                       color: Color(0xFF9AA0B0), fontSize: 12)),
+              _DetailDisclosure(
+                open: _expanded.contains(engine),
+                detail: app.t(
+                    engine == 'gigaam' ? 'engGigaamDetail' : 'engWhisperDetail'),
+                moreLabel: app.t('moreDetails'),
+                lessLabel: app.t('lessDetails'),
+                onToggle: () => setState(() {
+                  if (!_expanded.remove(engine)) _expanded.add(engine);
+                }),
+              ),
               if (engine == 'gigaam' && !avail && !loading)
                 FutureBuilder<String>(
                   future: sc.gigaamModelDir(),
@@ -12993,11 +13076,18 @@ class _AssetModelsCardState extends State<_AssetModelsCard> {
 
 // TZ2 block 1: noise-suppression selector (off / light / strong). Applies live;
 // warns if the selected mode's model isn't downloaded (→ Models section).
-class _DenoiseSelector extends StatelessWidget {
+class _DenoiseSelector extends StatefulWidget {
   final AppState app;
   const _DenoiseSelector(this.app);
   @override
+  State<_DenoiseSelector> createState() => _DenoiseSelectorState();
+}
+
+class _DenoiseSelectorState extends State<_DenoiseSelector> {
+  bool _open = false; // "Подробнее" (TZ2 block 4)
+  @override
   Widget build(BuildContext context) {
+    final app = widget.app;
     final sc = SidecarClient.instance;
     return AnimatedBuilder(
       animation: sc.denoiseStatus,
@@ -13033,6 +13123,17 @@ class _DenoiseSelector extends StatelessWidget {
               Text(desc,
                   style:
                       const TextStyle(color: Color(0xFF9AA0B0), fontSize: 12)),
+              _DetailDisclosure(
+                open: _open,
+                detail: app.t(mode == 'off'
+                    ? 'dnOffDetail'
+                    : mode == 'light'
+                        ? 'dnLightDetail'
+                        : 'dnStrongDetail'),
+                moreLabel: app.t('moreDetails'),
+                lessLabel: app.t('lessDetails'),
+                onToggle: () => setState(() => _open = !_open),
+              ),
               if (!installed)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
