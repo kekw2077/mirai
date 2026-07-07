@@ -110,7 +110,8 @@ async def _handle(ws, stt: SttEngine, tts: TtsEngine,
             if t == "stt.start":
                 stt.start(data.get("language", "ru"), emit,
                           device=data.get("device"),
-                          prompt=data.get("prompt"))
+                          prompt=data.get("prompt"),
+                          devices=data.get("devices"))
             elif t == "stt.stop":
                 stt.stop()
             elif t == "stt.config":

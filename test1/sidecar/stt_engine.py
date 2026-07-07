@@ -443,6 +443,44 @@ class Denoiser:
             return [frame_bytes]
 
 
+class _SegmentArbiter:
+    """Dedups one phrase heard by several mics (TZ2 block 8.2). Segments whose
+    end times fall within OVERLAP_S are treated as the same utterance — the
+    loudest (best SNR = closest mic) wins and the rest are dropped BEFORE
+    recognition. A segment is only released once SETTLE_S has passed since it
+    ended, so a slightly-later competitor from another mic can still compete.
+    Pure/time-injectable so the logic can be unit-tested without audio."""
+
+    OVERLAP_S = 1.5
+    SETTLE_S = 0.6
+
+    def __init__(self) -> None:
+        self._pending: list[dict] = []
+
+    def submit(self, label: str, audio: bytes, energy: float,
+               t_end: float) -> None:
+        self._pending.append(
+            {"label": label, "audio": audio, "energy": energy, "t_end": t_end})
+
+    def flush(self, now: float) -> list:
+        """Return winner segments whose settle window has elapsed."""
+        if not any(now - s["t_end"] >= self.SETTLE_S for s in self._pending):
+            return []
+        winners = []
+        used: list[int] = []
+        # Oldest-ended first so groups form deterministically.
+        for s in sorted(self._pending, key=lambda x: x["t_end"]):
+            if id(s) in used or now - s["t_end"] < self.SETTLE_S:
+                continue
+            group = [o for o in self._pending
+                     if abs(o["t_end"] - s["t_end"]) <= self.OVERLAP_S]
+            winner = max(group, key=lambda o: o["energy"])
+            winners.append(winner)
+            used.extend(id(o) for o in group)
+        self._pending = [s for s in self._pending if id(s) not in used]
+        return winners
+
+
 class SttEngine:
     """Manager: mic capture + webrtcvad segmentation, delegating recognition to
     the active engine. Keeps the original constructor signature; adds
@@ -480,6 +518,12 @@ class SttEngine:
         self._capture = None
         self._worker: threading.Thread | None = None
         self._on_event = None
+
+        # Multi-mic capture + arbitration (TZ2 block 8.2). Empty/one mic keeps
+        # the single-stream path; these stay idle then.
+        self._channels: list[dict] = []
+        self._arbiter: _SegmentArbiter | None = None
+        self._recent: dict[str, float] = {}  # text -> last emit (2 s cooldown)
 
     # ---- capabilities / availability -----------------------------------
 
@@ -768,14 +812,47 @@ class SttEngine:
 
     _MAX_QUEUED_FRAMES = 30_000 // FRAME_MS
 
+    @staticmethod
+    def _normalize_mics(devices, device) -> list:
+        """[(label, denoise_mode), ...] from the `devices` list (block 8.2) or
+        the single `device`, deduped by label (one physical device seen twice
+        must not be captured twice)."""
+        mics = []
+        if devices:
+            for d in devices:
+                if isinstance(d, dict):
+                    mics.append((str(d.get("label", "")).strip(),
+                                 str(d.get("denoise", "off"))))
+                elif str(d).strip():
+                    mics.append((str(d).strip(), "off"))
+        if not mics and device:
+            mics.append((str(device), "off"))
+        seen: set = set()
+        out = []
+        for lbl, dn in mics:
+            key = lbl.lower()
+            if key in seen or not lbl:
+                continue
+            seen.add(key)
+            out.append((lbl, dn))
+        return out
+
     def start(self, language: str | None, on_event,
-              device: str | None = None, prompt: str | None = None) -> bool:
+              device: str | None = None, prompt: str | None = None,
+              devices=None) -> bool:
         if not self.available or self._running:
             return self._running
         self._on_event = on_event
         self._whisper.set_language(language)
         if prompt is not None:
             self.set_prompt(prompt)
+        # TZ2 block 8.2: >1 active mic -> multi-channel capture + arbitration;
+        # 0/1 mic keeps the original single-stream path unchanged.
+        mics = self._normalize_mics(devices, device)
+        if len(mics) > 1:
+            return self._start_multi(mics)
+        if mics:
+            device = mics[0][0]
         try:
             import sounddevice as sd
 
@@ -826,6 +903,151 @@ class SttEngine:
         except Exception:
             pass
         self._capture = None
+        for ch in self._channels:
+            try:
+                s = ch.get("stream")
+                if s is not None:
+                    s.stop()
+                    s.close()
+            except Exception:
+                pass
+        self._channels = []
+        self._arbiter = None
+
+    # ---- multi-mic capture + arbitration (TZ2 block 8.2) --------------
+
+    def _start_multi(self, mics: list) -> bool:
+        try:
+            import sounddevice as sd
+
+            self._running = True
+            self._arbiter = _SegmentArbiter()
+            self._channels = []
+            self._recent = {}
+            for label, dn_mode in mics:
+                q: "queue.Queue[bytes]" = queue.Queue()
+                den = Denoiser(self._denoiser._root)
+                den.set_mode(dn_mode)
+                ch = {"label": label, "frames": q, "denoiser": den,
+                      "stream": None}
+
+                def make_cb(qq):
+                    def cb(indata, frames, time_info, status):
+                        if self._running:
+                            if qq.qsize() > self._MAX_QUEUED_FRAMES:
+                                try:
+                                    qq.get_nowait()
+                                except Exception:
+                                    pass
+                            qq.put(bytes(indata))
+                    return cb
+
+                stream = sd.RawInputStream(
+                    samplerate=SAMPLE_RATE, blocksize=FRAME_SAMPLES,
+                    dtype="int16", channels=1,
+                    device=self._resolve_input_device(label),
+                    callback=make_cb(q))
+                stream.start()
+                ch["stream"] = stream
+                self._channels.append(ch)
+                threading.Thread(target=self._process_channel, args=(ch,),
+                                 daemon=True).start()
+            threading.Thread(target=self._arbiter_loop, daemon=True).start()
+            log_stage(f"multi-mic capture opened ({len(mics)} devices)")
+            self._emit_status(
+                self._engine_name,
+                "ready" if self._active.available else "error",
+                "" if self._active.available else self._active.unavailable_reason(),
+            )
+            return True
+        except Exception as e:  # pragma: no cover
+            self._running = False
+            self._emit({"type": "error",
+                        "message": f"multi-mic start failed: {e}"})
+            return False
+
+    def _process_channel(self, ch: dict) -> None:
+        """One mic's capture->denoise->VAD, emitting finalized segments (finals
+        only, with voice energy) to the arbiter — behaviour mirrors _process."""
+        import numpy as np
+        import webrtcvad
+
+        vad = webrtcvad.Vad(3)
+        speech: list[bytes] = []
+        speaking = False
+        silence = 0
+        e_sum = 0.0
+        e_n = 0
+        SILENCE_LIMIT = int(600 / FRAME_MS)
+        MAX_SPEECH_FRAMES = int(12_000 / FRAME_MS)
+        RMS_GATE = 0.010
+
+        def finalize():
+            nonlocal speech, speaking, silence, e_sum, e_n
+            speaking = False
+            audio = b"".join(speech)
+            energy = (e_sum / e_n) if e_n else 0.0
+            speech = []
+            silence = 0
+            e_sum = 0.0
+            e_n = 0
+            if audio and self._arbiter is not None:
+                self._arbiter.submit(ch["label"], audio, energy, time.monotonic())
+
+        while self._running:
+            try:
+                raw = ch["frames"].get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if len(raw) != FRAME_BYTES:
+                continue
+            for frame in ch["denoiser"].process(np, raw):
+                samples = np.frombuffer(frame, dtype=np.int16)
+                rms = float(np.sqrt(np.mean((samples / 32768.0) ** 2)))
+                try:
+                    is_speech = \
+                        rms >= RMS_GATE and vad.is_speech(frame, SAMPLE_RATE)
+                except Exception:
+                    is_speech = False
+                if is_speech:
+                    speaking = True
+                    speech.append(frame)
+                    silence = 0
+                    e_sum += rms
+                    e_n += 1
+                    if len(speech) >= MAX_SPEECH_FRAMES:
+                        finalize()
+                elif speaking:
+                    speech.append(frame)
+                    silence += 1
+                    if silence >= SILENCE_LIMIT:
+                        finalize()
+
+    def _arbiter_loop(self) -> None:
+        import numpy as np
+        while self._running:
+            time.sleep(0.15)
+            if self._arbiter is None or self._switching:
+                continue
+            for seg in self._arbiter.flush(time.monotonic()):
+                try:
+                    t0 = time.monotonic()
+                    text = self._active.transcribe(np, seg["audio"], True)
+                    latency = int((time.monotonic() - t0) * 1000)
+                except Exception as e:  # pragma: no cover
+                    self._emit({"type": "error",
+                                "message": f"transcribe failed: {e}"})
+                    continue
+                if not text:
+                    continue
+                # 2 s cooldown on identical text (same phrase via two mics that
+                # both won their overlap groups) — execute a command once.
+                now = time.monotonic()
+                if now - self._recent.get(text, 0.0) < 2.0:
+                    continue
+                self._recent[text] = now
+                self._emit({"type": "stt.final", "text": text,
+                            "latency_ms": latency, "device": seg["label"]})
 
     # ---- VAD segmentation loop (unchanged behaviour) -------------------
 

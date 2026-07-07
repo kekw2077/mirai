@@ -856,6 +856,9 @@ const Map<String, Map<String, String>> _i18n = {
     'gmNotifyFullscreen': 'Обнаружен полноэкранный режим — переключаюсь на процессор',
     'gmNotifyVram': 'Видеопамять почти заполнена — переключаюсь на процессор',
     'gmNotifyExit': 'Возвращаю настройки',
+    'extraMics': 'Дополнительные микрофоны',
+    'extraMicsDesc': 'Слушать сразу с нескольких микрофонов (например, в разных комнатах). Одна фраза, услышанная несколькими, выполнится один раз.',
+    'micSelfCleaningHint': 'У этого микрофона своё шумоподавление — встроенное отключено, чтобы не обрабатывать звук дважды.',
     'dnOff': 'Выкл',
     'dnLight': 'Лёгкое',
     'dnStrong': 'Сильное',
@@ -1643,6 +1646,9 @@ const Map<String, Map<String, String>> _i18n = {
     'gmNotifyFullscreen': 'Fullscreen mode detected — switching to the processor',
     'gmNotifyVram': 'Video memory is nearly full — switching to the processor',
     'gmNotifyExit': 'Restoring settings',
+    'extraMics': 'Additional microphones',
+    'extraMicsDesc': 'Listen on several microphones at once (e.g. in different rooms). One phrase heard by several runs only once.',
+    'micSelfCleaningHint': 'This microphone has its own noise suppression — the built-in one is off so audio isn\'t processed twice.',
     'dnOff': 'Off',
     'dnLight': 'Light',
     'dnStrong': 'Strong',
@@ -4468,6 +4474,15 @@ class AppState extends ChangeNotifier {
   bool closeToTray = true;
   // Voice input preferences.
   String inputDeviceId = ''; // '' = system default microphone
+  // Per-device denoise mode (TZ2 block 8.1): deviceId -> off|light|strong. A
+  // self-cleaning virtual mic (NVIDIA Broadcast/Krisp) defaults to off so the
+  // signal isn't denoised twice; everything else defaults to light.
+  final Map<String, String> deviceDenoise = {};
+  static const List<String> kSelfCleaningMics = ['nvidia broadcast', 'krisp'];
+  String _pendingMicHint = ''; // one-shot UI hint after auto-off on a clean mic
+  // Extra active microphones (TZ2 block 8.2). The primary mic is inputDeviceId;
+  // these are additional simultaneous inputs, each arbitrated by the sidecar.
+  List<String> extraMicIds = [];
   String listenMode = 'continuous'; // 'continuous' | 'ptt'
   String sttLanguage = 'auto'; // 'auto' | 'ru' | 'en'
   String whisperModel = 'small'; // tiny | base | small | medium (sidecar)
@@ -4674,6 +4689,15 @@ class AppState extends ChangeNotifier {
     minimizeToTray = prefs.getBool('minimizeToTray') ?? true;
     closeToTray = prefs.getBool('closeToTray') ?? true;
     inputDeviceId = prefs.getString('inputDeviceId') ?? '';
+    extraMicIds = prefs.getStringList('extraMicIds') ?? <String>[];
+    deviceDenoise.clear();
+    try {
+      final raw = prefs.getString('deviceDenoise');
+      if (raw != null && raw.isNotEmpty) {
+        (jsonDecode(raw) as Map).forEach(
+            (k, v) => deviceDenoise[k.toString()] = v.toString());
+      }
+    } catch (_) {}
     listenMode = prefs.getString('listenMode') ?? 'continuous';
     sttLanguage = prefs.getString('sttLanguage') ?? 'auto';
     whisperModel = prefs.getString('whisperModel') ?? 'small';
@@ -4799,6 +4823,8 @@ class AppState extends ChangeNotifier {
     await prefs.setBool('minimizeToTray', minimizeToTray);
     await prefs.setBool('closeToTray', closeToTray);
     await prefs.setString('inputDeviceId', inputDeviceId);
+    await prefs.setStringList('extraMicIds', extraMicIds);
+    await prefs.setString('deviceDenoise', jsonEncode(deviceDenoise));
     await prefs.setString('listenMode', listenMode);
     await prefs.setString('sttLanguage', sttLanguage);
     await prefs.setString('whisperModel', whisperModel);
@@ -4959,6 +4985,15 @@ class AppState extends ChangeNotifier {
     minimizeToTray = prefs.getBool('minimizeToTray') ?? true;
     closeToTray = prefs.getBool('closeToTray') ?? true;
     inputDeviceId = prefs.getString('inputDeviceId') ?? '';
+    extraMicIds = prefs.getStringList('extraMicIds') ?? <String>[];
+    deviceDenoise.clear();
+    try {
+      final raw = prefs.getString('deviceDenoise');
+      if (raw != null && raw.isNotEmpty) {
+        (jsonDecode(raw) as Map).forEach(
+            (k, v) => deviceDenoise[k.toString()] = v.toString());
+      }
+    } catch (_) {}
     listenMode = prefs.getString('listenMode') ?? 'continuous';
     sttLanguage = prefs.getString('sttLanguage') ?? 'auto';
     whisperModel = prefs.getString('whisperModel') ?? 'small';
@@ -5037,10 +5072,91 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setInputDeviceId(String v) {
+  String consumeMicHint() {
+    final h = _pendingMicHint;
+    _pendingMicHint = '';
+    return h;
+  }
+
+  // Resolve a device's denoise mode: a remembered per-device override, else a
+  // default from the self-cleaning marker list (TZ2 block 8.1).
+  String _denoiseForDevice(String id, String label) {
+    if (deviceDenoise.containsKey(id)) return deviceDenoise[id]!;
+    final lower = label.toLowerCase();
+    final selfClean = kSelfCleaningMics.any((m) => lower.contains(m));
+    final mode = selfClean ? 'off' : 'light';
+    deviceDenoise[id] = mode;
+    if (selfClean) _pendingMicHint = t('micSelfCleaningHint');
+    return mode;
+  }
+
+  void setInputDeviceId(String v, {String label = ''}) {
     inputDeviceId = v;
+    extraMicIds.remove(v); // the primary can't also be an "extra"
+    // Apply this device's saved/derived denoise mode (block 8.1).
+    final mode = _denoiseForDevice(v, label);
+    if (mode != denoiseMode) {
+      denoiseMode = mode;
+      unawaited(SidecarClient.instance.setDenoise(denoiseMode));
+    }
     _save();
     notifyListeners();
+    unawaited(syncActiveMics());
+  }
+
+  // Toggle an additional simultaneous microphone (TZ2 block 8.2). First use of
+  // a device derives its per-device denoise default (block 8.1).
+  void toggleExtraMic(String id, String label, bool on) {
+    if (id.isEmpty || id == inputDeviceId) return;
+    if (on) {
+      if (!extraMicIds.contains(id)) extraMicIds.add(id);
+      _denoiseForDevice(id, label); // seed its denoise default
+    } else {
+      extraMicIds.remove(id);
+    }
+    _save();
+    notifyListeners();
+    unawaited(syncActiveMics());
+    _restartCaptureForMicChange();
+  }
+
+  // Set an extra mic's denoise mode (each active input has its own — block 8.1).
+  void setExtraMicDenoise(String id, String mode) {
+    deviceDenoise[id] = (mode == 'light' || mode == 'strong') ? mode : 'off';
+    _save();
+    notifyListeners();
+    unawaited(syncActiveMics());
+    _restartCaptureForMicChange();
+  }
+
+  // Multi-mic capture is chosen at stt.start; bounce the listener so a mic
+  // add/remove takes effect without an app restart.
+  void _restartCaptureForMicChange() {
+    try {
+      if (SidecarClient.instance.status.value == SidecarStatus.connected) {
+        VoiceAssistant.instance.restartListening();
+      }
+    } catch (_) {}
+  }
+
+  // Resolve the active mics (primary + extras) to {label, denoise} and hand the
+  // list to the sidecar for multi-mic capture/arbitration (TZ2 block 8.2).
+  Future<void> syncActiveMics() async {
+    try {
+      final devices = await MicMeter.instance.listDevices();
+      final labelFor = {for (final d in devices) d.id: d.label};
+      final ids = <String>[inputDeviceId, ...extraMicIds];
+      final seen = <String>{};
+      final out = <Map<String, String>>[];
+      for (final id in ids) {
+        if (seen.contains(id)) continue;
+        seen.add(id);
+        final label = id.isEmpty ? '' : (labelFor[id] ?? '');
+        if (id.isNotEmpty && label.isEmpty) continue; // an unplugged extra
+        out.add({'label': label, 'denoise': deviceDenoise[id] ?? denoiseMode});
+      }
+      SidecarClient.instance.setActiveMics(out);
+    } catch (_) {}
   }
 
   void setListenMode(String v) {
@@ -5082,9 +5198,13 @@ class AppState extends ChangeNotifier {
   // persists on Save, resynced on Save/Cancel via _applySettingsSideEffects.
   void setDenoiseMode(String v) {
     denoiseMode = (v == 'light' || v == 'strong') ? v : 'off';
+    // Remember the choice for the current input device (TZ2 block 8.1) so it
+    // sticks per-mic (and is not re-defaulted on the next device switch).
+    deviceDenoise[inputDeviceId] = denoiseMode;
     _save();
     notifyListeners();
     unawaited(SidecarClient.instance.setDenoise(denoiseMode));
+    unawaited(syncActiveMics());
   }
 
   // STT compute device (TZ2 block 6). Live preview; persisted on Save.
@@ -8317,6 +8437,7 @@ class DesktopIntegration with WindowListener, TrayListener {
       // Push game-mode config (thresholds, exclusions, localized phrases) now
       // that the socket is up; the sidecar started the monitor with defaults.
       app.applyGameModeConfig();
+      unawaited(app.syncActiveMics()); // resolve multi-mic devices (block 8.2)
     } catch (_) {}
   }
 
@@ -9375,6 +9496,7 @@ class SidecarClient {
   final ValueNotifier<(String engine, String state, String? message)?>
       engineStatus = ValueNotifier(null);
   final ValueNotifier<int> sttLatencyMs = ValueNotifier(0);
+  String lastSttDevice = ''; // winning mic label from the last final (block 8.2)
   final ValueNotifier<Map<String, bool>> engines =
       ValueNotifier(const {'whisper': false, 'gigaam': false});
   String _denoise = 'off'; // off | light | strong
@@ -9586,6 +9708,9 @@ class SidecarClient {
           case 'stt.final':
             final lat = (m['latency_ms'] as num?)?.toInt();
             if (lat != null) sttLatencyMs.value = lat;
+            // Which mic won arbitration (multi-mic, block 8.2) — logged with the
+            // command so it's visible which device heard the winning phrase.
+            lastSttDevice = m['device'] as String? ?? '';
             _finalText.add(m['text'] as String? ?? '');
             break;
           case 'stt.engine_status':
@@ -9663,6 +9788,11 @@ class SidecarClient {
     } catch (_) {}
   }
 
+  // Active mics resolved by AppState (label + per-device denoise). 2+ entries
+  // trigger multi-mic capture + arbitration in the sidecar (TZ2 block 8.2).
+  List<Map<String, String>> _activeMics = [];
+  void setActiveMics(List<Map<String, String>> mics) => _activeMics = mics;
+
   void sttStart(String language, {String? prompt}) {
     // Selected mic by name — otherwise the sidecar records from the system
     // default device, which may differ from the one picked in Settings (the
@@ -9670,11 +9800,15 @@ class SidecarClient {
     // actually have one: a stale/empty label could point at a mic that's gone
     // and break capture — an empty field lets the sidecar fall back to the
     // system default.
+    final mics =
+        _activeMics.where((m) => (m['label'] ?? '').isNotEmpty).toList();
+    final useMulti = mics.length >= 2;
     final device = MicMeter.instance.currentLabel;
     _send({
       'type': 'stt.start',
       'language': language,
-      if (device.isNotEmpty) 'device': device,
+      if (useMulti) 'devices': mics,
+      if (!useMulti && device.isNotEmpty) 'device': device,
       // Whisper decoding primer (wake word + command vocabulary) to bias
       // recognition toward the phrases the assistant expects.
       if (prompt != null && prompt.isNotEmpty) 'prompt': prompt,
@@ -9973,6 +10107,15 @@ class VoiceAssistant {
     }
   }
 
+  // Re-issue stt.start without an app restart — e.g. the active mic set changed
+  // (TZ2 block 8) so the sidecar must reopen capture with the new devices.
+  void restartListening() {
+    if (!_listening) return;
+    SidecarClient.instance.sttStop();
+    _sttStartedForSession = false;
+    _sync();
+  }
+
   Future<void> _onFinal(String text) async {
     final app = _app;
     if (app == null || !_listening) return;
@@ -10181,8 +10324,11 @@ class VoiceAssistant {
           : (ok ? app.t('vaDone') : app.t('vaFailed'));
       _speak(app, say);
     }
-    unawaited(appendLog('commands',
-        '${cmd.phrase} -> [${cmd.type.name}] ${cmd.value} : ${ok ? 'OK' : 'FAIL'}'));
+    final micVia = SidecarClient.instance.lastSttDevice;
+    unawaited(appendLog(
+        'commands',
+        '${cmd.phrase} -> [${cmd.type.name}] ${cmd.value} : '
+        '${ok ? 'OK' : 'FAIL'}${micVia.isNotEmpty ? ' (mic: $micVia)' : ''}'));
   }
 
   // Best catalog match for a spoken phrase. Returns the matched command (null
@@ -13451,6 +13597,89 @@ class _DenoiseSelectorState extends State<_DenoiseSelector> {
   }
 }
 
+// TZ2 block 8.2: additional simultaneous microphones. Lists input devices other
+// than the primary; each can be toggled "in use" with its own denoise mode. The
+// sidecar arbitrates overlapping phrases (loudest wins, 2 s cooldown).
+class _MultiMicCard extends StatefulWidget {
+  final AppState app;
+  const _MultiMicCard(this.app);
+  @override
+  State<_MultiMicCard> createState() => _MultiMicCardState();
+}
+
+class _MultiMicCardState extends State<_MultiMicCard> {
+  List<InputDevice> _devices = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final d = await MicMeter.instance.listDevices();
+    if (mounted) setState(() => _devices = d);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = widget.app;
+    final extras =
+        _devices.where((d) => d.id != app.inputDeviceId).toList();
+    if (extras.isEmpty) return const SizedBox.shrink();
+    return AnimatedBuilder(
+      animation: app,
+      builder: (context, _) => Padding(
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [for (final d in extras) _row(d)],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(InputDevice d) {
+    final app = widget.app;
+    final active = app.extraMicIds.contains(d.id);
+    final mode = app.deviceDenoise[d.id] ?? 'light';
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF15151E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color:
+                active ? const Color(0x5534D399) : const Color(0x14FFFFFF)),
+      ),
+      child: Column(children: [
+        Row(children: [
+          Expanded(
+              child: Text(d.label,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600))),
+          evsToggle(active, (v) => app.toggleExtraMic(d.id, d.label, v)),
+        ]),
+        if (active) ...[
+          const SizedBox(height: 10),
+          evsSegmentedWide<String>(
+            [
+              ('off', app.t('dnOff')),
+              ('light', app.t('dnLight')),
+              ('strong', app.t('dnStrong')),
+            ],
+            mode,
+            (v) => app.setExtraMicDenoise(d.id, v),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
 // TZ2 block 7: game / heavy-GPU mode settings + live "GPU offload" badge.
 // Hidden entirely when no GPU is detected (there's nothing to offload).
 class _GameModeCard extends StatelessWidget {
@@ -13702,8 +13931,13 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       tooltip: '',
       color: const Color(0xFF1C1C26),
       onSelected: (id) {
-        app.setInputDeviceId(id);
+        final label = items
+            .firstWhere((e) => e.$1 == id, orElse: () => ('', ''))
+            .$2;
+        app.setInputDeviceId(id, label: label);
         MicMeter.instance.start(deviceId: id);
+        final hint = app.consumeMicHint();
+        if (hint.isNotEmpty) showAppSnackBar(context, hint);
       },
       itemBuilder: (_) => [
         for (final it in items)
@@ -15633,6 +15867,20 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
+            child: Text(app.t('extraMics'),
+                style: const TextStyle(
+                    color: Color(0xFFD0D4E2),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 2, 18, 0),
+            child: Text(app.t('extraMicsDesc'),
+                style: const TextStyle(color: Color(0xFF6E7280), fontSize: 12)),
+          ),
+          _MultiMicCard(app),
         ],
       )),
       _CardSpec(_GameModeCard(app)),
