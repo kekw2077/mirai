@@ -1,11 +1,11 @@
-{
-  "components": {
-    "sidecar": {
-      "file": "evs_sidecar.exe",
-      "version": "7",
-      "url": "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_sidecar.exe",
-      "sha256": "dc60d7c83a9bafe317312f4f0d4b6a22a2db162a8b1db437e00c04cf586f22ec",
-      "size": 101319834
-    }
-  }
+﻿{
+    "components":  {
+                       "sidecar":  {
+                                       "file":  "evs_sidecar.exe",
+                                       "version":  "8",
+                                       "url":  "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_sidecar.exe",
+                                       "sha256":  "5c8171af7adb3913077235cecf9508d3ae1a901392d72f831e0b94708f7b4510",
+                                       "size":  111583156
+                                   }
+                   }
 }

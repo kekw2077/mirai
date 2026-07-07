@@ -48,7 +48,10 @@ if ($uv) {
   --collect-all webrtcvad `
   --collect-all sounddevice `
   --collect-all pyttsx3 `
+  --collect-all sherpa_onnx `
+  --collect-all soundfile `
   --hidden-import comtypes `
+  --hidden-import pynvml `
   main.py
 
 $exe = Join-Path $here "dist\evs_sidecar.exe"
