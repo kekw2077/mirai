@@ -6,15 +6,6 @@
       "url": "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_sidecar.exe",
       "sha256": "dc60d7c83a9bafe317312f4f0d4b6a22a2db162a8b1db437e00c04cf586f22ec",
       "size": 101319834
-    },
-    "tts-clone": {
-      "file": "evs_tts.zip",
-      "exe": "evs_tts.exe",
-      "archive": true,
-      "version": "2",
-      "url": "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_tts.zip",
-      "sha256": "ee7c841ef3d8bf0f603ee3c9cb2ea0a352efe70be1ee27881a6fef6cc675f1ae",
-      "size": 443452341
     }
   }
 }

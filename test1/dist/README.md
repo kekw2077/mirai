@@ -95,8 +95,9 @@ and every update small). They live as GitHub release assets, described by
 [`components.json`](components.json), and the app downloads + sha256-verifies
 them into its data folder (`ComponentManager`).
 
-- **sidecar** (`evs_sidecar.exe`, ~95 MB) — Whisper STT / VAD / TTS / intent.
-- **tts-clone** (`evs_tts.exe`, large) — XTTS voice cloning (Phase 4).
+- **sidecar** (`evs_sidecar.exe`, ~95 MB) — STT (Whisper/GigaAM) / VAD / denoise
+  / TTS (Piper + system) / intent. Piper voices are downloaded separately via the
+  in-app model manager into `<userdata>/models/`.
 
 To (re)publish the sidecar component:
 

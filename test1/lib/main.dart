@@ -86,16 +86,16 @@ typedef _CreateMutexDart = int Function(Pointer<Void>, int, Pointer<Utf16>);
 // Best-effort cleanup of a backend orphaned by a previous crashed session.
 // main()'s first-instance path is only reached when no other EVS main is
 // running (single-instance guard) and before we spawn our own backend — so any
-// surviving evs_sidecar.exe/evs_tts.exe is a stray from a crash, holding the
-// mic/IPC port and blocking a clean cold start. The Job Object (ProcessJob) and
-// the sidecar's parent-watchdog normally prevent orphans; this is the
+// surviving evs_sidecar.exe is a stray from a crash, holding the mic/IPC port
+// and blocking a clean cold start. The Job Object (ProcessJob) and the
+// sidecar's parent-watchdog normally prevent orphans; this is the
 // belt-and-suspenders for when both failed (TZ: единое дерево процессов —
 // чистый повторный запуск после падения).
 Future<void> _sweepOrphanBackends() async {
   if (defaultTargetPlatform != TargetPlatform.windows) return;
   try {
     await io.Process.run(
-        'taskkill', ['/F', '/IM', 'evs_sidecar.exe', '/IM', 'evs_tts.exe'],
+        'taskkill', ['/F', '/IM', 'evs_sidecar.exe'],
         runInShell: false);
   } catch (_) {}
 }
@@ -914,26 +914,19 @@ const Map<String, Map<String, String>> _i18n = {
     'sttLoadingModels': 'Загружаю модели…',
     'sttReadyMsg': 'Готова слушать',
     'sttErrorState': 'Ошибка запуска распознавания',
-    'ttsVoice': 'Голос',
-    'ttsVoiceDesc': 'Системный голос Windows или ваш клонированный',
-    'ttsVoiceSystem': 'Системный',
-    'ttsVoiceCloned': 'Клон',
     'ttsRate': 'Скорость речи',
     'ttsRateDesc': 'Темп проговаривания',
     'ttsVolume': 'Громкость',
-    'cardClone': 'Клонирование голоса',
-    'cloneSample': 'Образец голоса',
-    'cloneSampleDesc': 'WAV с чистой речью 6–10 секунд',
-    'cloneNoSample': 'Не выбран',
-    'cloneEngine': 'Движок клонирования',
-    'cloneEngineDesc': 'XTTS v2 (офлайн), догружается отдельно (~1.8 ГБ)',
-    'cloneTest': 'Тест голоса',
-    'cloneTestDesc': 'Проговорить фразу клонированным голосом',
-    'cloneTestBtn': 'Прослушать',
-    'cloneNeedSample': 'Сначала выберите образец голоса (WAV)',
-    'cloneNeedEngine': 'Сначала скачайте движок клонирования',
-    'cloneTestPhrase': 'Привет! Это мой клонированный голос.',
-    'cloneLoading': 'Загрузка модели…',
+    'cardAssistantVoice': 'Голос ассистента',
+    'voiceSystemName': 'Системный голос (без скачивания)',
+    'voiceSystemDesc': 'Звучит машинно, зато работает сразу — без загрузок.',
+    'voiceListen': 'Прослушать',
+    'voiceSelect': 'Выбрать',
+    'voiceSamplePhrase': 'Привет! Я EVS, твой голосовой ассистент.',
+    'voiceIrina': 'Женский голос, среднее качество (Piper).',
+    'voiceDenis': 'Мужской голос, среднее качество (Piper).',
+    'voiceDmitri': 'Мужской голос, среднее качество (Piper).',
+    'voiceRuslan': 'Мужской голос, среднее качество (Piper).',
     'cardCmdExec': 'Выполнение команд',
     'cmdAllow': 'Разрешить выполнение команд',
     'cmdAllowDesc':
@@ -1670,26 +1663,19 @@ const Map<String, Map<String, String>> _i18n = {
     'sttLoadingModels': 'Loading models…',
     'sttReadyMsg': 'Ready to listen',
     'sttErrorState': 'Speech engine failed to start',
-    'ttsVoice': 'Voice',
-    'ttsVoiceDesc': 'System Windows voice or your cloned voice',
-    'ttsVoiceSystem': 'System',
-    'ttsVoiceCloned': 'Clone',
     'ttsRate': 'Speech rate',
     'ttsRateDesc': 'Speaking tempo',
     'ttsVolume': 'Volume',
-    'cardClone': 'Voice cloning',
-    'cloneSample': 'Voice sample',
-    'cloneSampleDesc': 'A clean 6–10 s speech WAV',
-    'cloneNoSample': 'Not selected',
-    'cloneEngine': 'Cloning engine',
-    'cloneEngineDesc': 'XTTS v2 (offline), downloaded separately (~1.8 GB)',
-    'cloneTest': 'Test voice',
-    'cloneTestDesc': 'Speak a phrase in the cloned voice',
-    'cloneTestBtn': 'Play',
-    'cloneNeedSample': 'Pick a voice sample (WAV) first',
-    'cloneNeedEngine': 'Download the cloning engine first',
-    'cloneTestPhrase': 'Hello! This is my cloned voice.',
-    'cloneLoading': 'Loading model…',
+    'cardAssistantVoice': 'Assistant voice',
+    'voiceSystemName': 'System voice (no download)',
+    'voiceSystemDesc': 'Sounds robotic, but works instantly — no downloads.',
+    'voiceListen': 'Listen',
+    'voiceSelect': 'Select',
+    'voiceSamplePhrase': 'Hello! I am EVS, your voice assistant.',
+    'voiceIrina': 'Female voice, medium quality (Piper).',
+    'voiceDenis': 'Male voice, medium quality (Piper).',
+    'voiceDmitri': 'Male voice, medium quality (Piper).',
+    'voiceRuslan': 'Male voice, medium quality (Piper).',
     'cardCmdExec': 'Command execution',
     'cmdAllow': 'Allow command execution',
     'cmdAllowDesc':
@@ -4117,6 +4103,7 @@ class AssetModelSpec {
   final String descKey; // i18n key, short description
   final int ramMb; // RAM estimate for display
   final List<AssetFile> files;
+  final String? voiceId; // Piper voice id (tts-voice family only)
   const AssetModelSpec({
     required this.id,
     required this.family,
@@ -4124,6 +4111,7 @@ class AssetModelSpec {
     required this.descKey,
     required this.ramMb,
     required this.files,
+    this.voiceId,
   });
   int get totalSize => files.fold(0, (a, f) => a + f.size);
 }
@@ -4132,8 +4120,11 @@ const String _hfGigaam =
     'https://huggingface.co/csukuangfj/sherpa-onnx-nemo-transducer-giga-am-v3-russian-2025-12-16/resolve/main';
 const String _sherpaEnh =
     'https://github.com/k2-fsa/sherpa-onnx/releases/download/speech-enhancement-models';
+// Self-contained Piper voice bundles (model.onnx + tokens.txt + espeak-ng-data),
+// downloaded as a .tar.bz2 the sidecar extracts on first load (TZ2 block 5).
+const String _sherpaTts =
+    'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models';
 
-// Starter registry (block 5 adds Piper voices).
 const List<AssetModelSpec> kAssetModels = [
   AssetModelSpec(
     id: 'gigaam-v3',
@@ -4165,6 +4156,55 @@ const List<AssetModelSpec> kAssetModels = [
     files: [
       AssetFile('dpdfnet_baseline.onnx',
           '$_sherpaEnh/dpdfnet_baseline.onnx', 8791035),
+    ],
+  ),
+  // Piper TTS voices (ru_RU). Each is a self-contained sherpa bundle.
+  AssetModelSpec(
+    id: 'tts-irina',
+    family: 'tts-voice',
+    name: 'Ирина',
+    descKey: 'voiceIrina',
+    ramMb: 120,
+    voiceId: 'ru_RU-irina-medium',
+    files: [
+      AssetFile('vits-piper-ru_RU-irina-medium.tar.bz2',
+          '$_sherpaTts/vits-piper-ru_RU-irina-medium.tar.bz2', 67153308),
+    ],
+  ),
+  AssetModelSpec(
+    id: 'tts-denis',
+    family: 'tts-voice',
+    name: 'Денис',
+    descKey: 'voiceDenis',
+    ramMb: 120,
+    voiceId: 'ru_RU-denis-medium',
+    files: [
+      AssetFile('vits-piper-ru_RU-denis-medium.tar.bz2',
+          '$_sherpaTts/vits-piper-ru_RU-denis-medium.tar.bz2', 67190991),
+    ],
+  ),
+  AssetModelSpec(
+    id: 'tts-dmitri',
+    family: 'tts-voice',
+    name: 'Дмитрий',
+    descKey: 'voiceDmitri',
+    ramMb: 120,
+    voiceId: 'ru_RU-dmitri-medium',
+    files: [
+      AssetFile('vits-piper-ru_RU-dmitri-medium.tar.bz2',
+          '$_sherpaTts/vits-piper-ru_RU-dmitri-medium.tar.bz2', 67188551),
+    ],
+  ),
+  AssetModelSpec(
+    id: 'tts-ruslan',
+    family: 'tts-voice',
+    name: 'Руслан',
+    descKey: 'voiceRuslan',
+    ramMb: 120,
+    voiceId: 'ru_RU-ruslan-medium',
+    files: [
+      AssetFile('vits-piper-ru_RU-ruslan-medium.tar.bz2',
+          '$_sherpaTts/vits-piper-ru_RU-ruslan-medium.tar.bz2', 67210684),
     ],
   ),
 ];
@@ -4428,10 +4468,11 @@ class AppState extends ChangeNotifier {
   // loading its STT models on launch (TZ3.4). On by default; the visual
   // ready-signal on the orb stays regardless of this toggle.
   bool announceReady = true;
-  String ttsVoice = 'system'; // 'system' | 'cloned'
+  // TTS voice (TZ2 block 5): '' = system voice (pyttsx3, no download); otherwise
+  // a Piper voice id (e.g. 'ru_RU-irina-medium'), synthesized by the sidecar.
+  String ttsPiperVoice = '';
   double ttsRate = 1.0;
   double ttsVolume = 1.0;
-  String cloneSamplePath = ''; // reference .wav for XTTS voice cloning
 
   // STT language resolved against the UI language when set to 'auto'.
   String get effectiveSttLanguage =>
@@ -4591,10 +4632,9 @@ class AppState extends ChangeNotifier {
     braveKey = prefs.getString('braveKey') ?? '';
     voiceResponses = prefs.getBool('voiceResponses') ?? false;
     announceReady = prefs.getBool('announceReady') ?? true;
-    ttsVoice = prefs.getString('ttsVoice') ?? 'system';
+    ttsPiperVoice = prefs.getString('ttsPiperVoice') ?? '';
     ttsRate = prefs.getDouble('ttsRate') ?? 1.0;
     ttsVolume = prefs.getDouble('ttsVolume') ?? 1.0;
-    cloneSamplePath = prefs.getString('cloneSamplePath') ?? '';
     final vcRaw = prefs.getString('voiceCommands');
     if (vcRaw != null) {
       try {
@@ -4696,10 +4736,9 @@ class AppState extends ChangeNotifier {
     await prefs.setString('braveKey', braveKey);
     await prefs.setBool('voiceResponses', voiceResponses);
     await prefs.setBool('announceReady', announceReady);
-    await prefs.setString('ttsVoice', ttsVoice);
+    await prefs.setString('ttsPiperVoice', ttsPiperVoice);
     await prefs.setDouble('ttsRate', ttsRate);
     await prefs.setDouble('ttsVolume', ttsVolume);
-    await prefs.setString('cloneSamplePath', cloneSamplePath);
     await prefs.setString(
       'voiceCommands',
       jsonEncode(voiceCommands.map((c) => c.toJson()).toList()),
@@ -4847,10 +4886,9 @@ class AppState extends ChangeNotifier {
     braveKey = prefs.getString('braveKey') ?? '';
     voiceResponses = prefs.getBool('voiceResponses') ?? false;
     announceReady = prefs.getBool('announceReady') ?? true;
-    ttsVoice = prefs.getString('ttsVoice') ?? 'system';
+    ttsPiperVoice = prefs.getString('ttsPiperVoice') ?? '';
     ttsRate = prefs.getDouble('ttsRate') ?? 1.0;
     ttsVolume = prefs.getDouble('ttsVolume') ?? 1.0;
-    cloneSamplePath = prefs.getString('cloneSamplePath') ?? '';
     final vcRaw = prefs.getString('voiceCommands');
     if (vcRaw != null) {
       try {
@@ -5119,10 +5157,31 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setTtsVoice(String v) {
-    ttsVoice = v;
+  // Select the active TTS voice (TZ2 block 5). '' = system voice (pyttsx3);
+  // otherwise a Piper voice id. Delivered to the sidecar (engine + voice dir).
+  void setTtsPiperVoice(String voiceId) {
+    ttsPiperVoice = voiceId;
     _save();
+    final modelId = _voiceModelId(voiceId);
+    unawaited(SidecarClient.instance.setTtsVoice(voiceId, modelId: modelId));
     notifyListeners();
+  }
+
+  // Map a Piper voice id back to its <userdata>/models/<id> registry entry.
+  String _voiceModelId(String voiceId) {
+    for (final s in kAssetModels) {
+      if (s.family == 'tts-voice' && s.voiceId == voiceId) return s.id;
+    }
+    return '';
+  }
+
+  // Play a fixed sample phrase in a downloaded Piper voice without changing the
+  // active voice (TZ2 block 5, "Прослушать образец").
+  void previewPiperVoice(AssetModelSpec spec) {
+    if (spec.voiceId == null) return;
+    SidecarClient.instance.previewTtsVoice(
+        spec.voiceId!, spec.id, t('voiceSamplePhrase'),
+        rate: ttsRate, volume: ttsVolume);
   }
 
   void setTtsRate(double v) {
@@ -5133,12 +5192,6 @@ class AppState extends ChangeNotifier {
 
   void setTtsVolume(double v) {
     ttsVolume = v;
-    _save();
-    notifyListeners();
-  }
-
-  void setCloneSamplePath(String v) {
-    cloneSamplePath = v;
     _save();
     notifyListeners();
   }
@@ -5411,8 +5464,12 @@ class AppState extends ChangeNotifier {
   bool assetDownloading(String id) => assetProgress.containsKey(id);
 
   // An asset model is "active" if it's the currently selected engine/voice.
-  bool assetActive(AssetModelSpec spec) =>
-      spec.id == 'gigaam-v3' && sttSidecarEngine == 'gigaam';
+  bool assetActive(AssetModelSpec spec) {
+    if (spec.family == 'tts-voice') {
+      return spec.voiceId != null && spec.voiceId == ttsPiperVoice;
+    }
+    return spec.id == 'gigaam-v3' && sttSidecarEngine == 'gigaam';
+  }
 
   Future<void> refreshAssetModels() async {
     for (final spec in kAssetModels) {
@@ -5425,6 +5482,24 @@ class AppState extends ChangeNotifier {
     try {
       final base = await modelsDirPath();
       final sep = io.Platform.pathSeparator;
+      // Piper voices download as a .tar.bz2 the sidecar extracts (then removes)
+      // on first load, so "installed" = the tarball is fully present OR an
+      // extracted .onnx exists under the voice dir.
+      if (spec.family == 'tts-voice') {
+        final dir = io.Directory('$base$sep${spec.id}');
+        if (!await dir.exists()) return false;
+        final want = spec.files.isNotEmpty ? spec.files.first.size : 0;
+        await for (final e in dir.list(recursive: true)) {
+          if (e is! io.File) continue;
+          final n = e.path.toLowerCase();
+          if (n.endsWith('.onnx')) return true;
+          if (n.endsWith('.tar.bz2') &&
+              (want <= 0 || await e.length() >= want * 0.95)) {
+            return true;
+          }
+        }
+        return false;
+      }
       for (final f in spec.files) {
         final file = io.File('$base$sep${spec.id}$sep${f.name}');
         if (!await file.exists()) return false;
@@ -5476,6 +5551,14 @@ class AppState extends ChangeNotifier {
         e['gigaam'] = true;
         SidecarClient.instance.engines.value = e;
         unawaited(SidecarClient.instance.setSttEngine(sttSidecarEngine));
+      }
+      // A just-downloaded voice that's already the active one: hand the sidecar
+      // its (now-populated) dir so it can switch to Piper without a re-entry.
+      if (spec.family == 'tts-voice' &&
+          spec.voiceId == ttsPiperVoice &&
+          (_assetInstalled[spec.id] ?? false)) {
+        unawaited(
+            SidecarClient.instance.setTtsVoice(spec.voiceId!, modelId: spec.id));
       }
     } catch (_) {
       _assetInstalled[spec.id] = false;
@@ -8033,6 +8116,8 @@ class DesktopIntegration with WindowListener, TrayListener {
       SidecarClient.instance.setSttModel(app.whisperModel);
       await SidecarClient.instance.setSttEngine(app.sttSidecarEngine);
       await SidecarClient.instance.setDenoise(app.denoiseMode);
+      await SidecarClient.instance.setTtsVoice(app.ttsPiperVoice,
+          modelId: app._voiceModelId(app.ttsPiperVoice));
       // One-shot readiness greeting (TZ3.4): the first time the backend reaches
       // `ready` this launch, speak via the always-available system TTS (pyttsx3),
       // not the clone voice (which may need a download). Visual orb signal is
@@ -8099,9 +8184,6 @@ class DesktopIntegration with WindowListener, TrayListener {
     } catch (_) {}
     try {
       await SidecarClient.instance.stop();
-    } catch (_) {}
-    try {
-      await TtsCloneClient.instance.shutdown();
     } catch (_) {}
     try {
       await windowManager.setPreventClose(false);
@@ -8714,9 +8796,9 @@ class AppUpdater {
           // Wait for our processes to exit on their own...
           "\$n=0; while ((Get-Process evs) -and \$n -lt 80) "
           "{ Start-Sleep -Milliseconds 250; \$n++ }; "
-          // ...then hard-kill anything still lingering (widget/sidecar/tts) so
+          // ...then hard-kill anything still lingering (widget/sidecar) so
           // no leftover process can keep the app files locked.
-          "Get-Process evs,evs_sidecar,evs_tts | Stop-Process -Force; "
+          "Get-Process evs,evs_sidecar | Stop-Process -Force; "
           "Start-Sleep -Milliseconds 700; "
           "\$p = Start-Process -FilePath '$esc' -ArgumentList "
           "'/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER',"
@@ -9098,6 +9180,15 @@ class SidecarClient {
       ValueNotifier(SidecarStatus.stopped);
   bool sttAvailable = false;
   bool ttsAvailable = false;
+  // TTS engine/voice (TZ2 block 5): '' voice = system pyttsx3; else a Piper
+  // voice synthesized in-sidecar. Applied at spawn (CLI) and hot-swapped live.
+  String _ttsEngine = 'pyttsx3';
+  String _ttsVoice = '';
+  String _ttsVoiceDir = '';
+  final ValueNotifier<Map<String, bool>> ttsEngines =
+      ValueNotifier(const {'pyttsx3': false, 'piper': false});
+  final ValueNotifier<(String engine, String voice, String state, String? msg)?>
+      ttsStatus = ValueNotifier(null);
   String _sttModel = 'small'; // Whisper model size sent on connect / on change
   String _sttEngine = 'whisper'; // active sidecar engine: whisper | gigaam
   String _gigaamDir = ''; // <userdata>/models/gigaam-v3, resolved lazily
@@ -9160,9 +9251,12 @@ class SidecarClient {
         ...launch.$2,
         '--engine', _sttEngine,
         '--denoise', _denoise,
+        '--tts-engine', _ttsEngine,
       ];
       if (_gigaamDir.isNotEmpty) args.addAll(['--gigaam-dir', _gigaamDir]);
       if (_denoiseDir.isNotEmpty) args.addAll(['--denoise-dir', _denoiseDir]);
+      if (_ttsVoice.isNotEmpty) args.addAll(['--tts-voice', _ttsVoice]);
+      if (_ttsVoiceDir.isNotEmpty) args.addAll(['--tts-voice-dir', _ttsVoiceDir]);
       _proc = await io.Process.start(launch.$1, args,
           runInShell: false, environment: env);
       ProcessJob.instance.add(_proc!.pid); // die with the app
@@ -9269,6 +9363,13 @@ class SidecarClient {
                 'gigaam': e['gigaam'] == true,
               };
             }
+            final te = c?['tts_engines'];
+            if (te is Map) {
+              ttsEngines.value = {
+                'pyttsx3': te['pyttsx3'] == true,
+                'piper': te['piper'] == true,
+              };
+            }
             break;
           case 'stt.partial':
             _partial.add(m['text'] as String? ?? '');
@@ -9319,6 +9420,14 @@ class SidecarClient {
             break;
           case 'tts.done':
             VoiceLevels.instance.tts.value = 0;
+            break;
+          case 'tts.status':
+            ttsStatus.value = (
+              m['engine'] as String? ?? '',
+              m['voice'] as String? ?? '',
+              m['state'] as String? ?? '',
+              m['message'] as String?,
+            );
             break;
         }
       } catch (_) {}
@@ -9401,6 +9510,53 @@ class SidecarClient {
       'denoise_dir': _denoiseDir,
     });
   }
+
+  // <userdata>/models/<modelId> — where a Piper voice bundle is downloaded.
+  Future<String> _voiceDirFor(String modelId) async {
+    if (modelId.isEmpty) return '';
+    try {
+      final sep = io.Platform.pathSeparator;
+      return '${await modelsDirPath()}$sep$modelId';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  // Switch the active TTS voice live (TZ2 block 5). '' voice = system pyttsx3;
+  // otherwise Piper with the given voice id + its downloaded dir. Applied at
+  // spawn via CLI too (fields are read by start()).
+  Future<void> setTtsVoice(String voiceId, {String modelId = ''}) async {
+    _ttsVoice = voiceId;
+    if (voiceId.isEmpty) {
+      _ttsEngine = 'pyttsx3';
+      _ttsVoiceDir = '';
+    } else {
+      _ttsEngine = 'piper';
+      _ttsVoiceDir = await _voiceDirFor(modelId);
+    }
+    _send({
+      'type': 'tts.config',
+      'engine': _ttsEngine,
+      'voice': _ttsVoice,
+      'voice_dir': _ttsVoiceDir,
+    });
+  }
+
+  // Speak a fixed sample in a specific Piper voice without changing the active
+  // one (TZ2 block 5, "Прослушать образец").
+  Future<void> previewTtsVoice(String voiceId, String modelId, String text,
+      {double rate = 1.0, double volume = 1.0}) async {
+    final dir = await _voiceDirFor(modelId);
+    _send({
+      'type': 'tts.preview',
+      'voice': voiceId,
+      'voice_dir': dir,
+      'text': text,
+      'rate': rate,
+      'volume': volume,
+    });
+  }
+
   void speak(String text, {double rate = 1.0, double volume = 1.0}) =>
       _send({'type': 'tts.speak', 'text': text, 'rate': rate, 'volume': volume});
   // Cut off any in-progress speech synthesis/playback immediately (voice stop
@@ -9423,184 +9579,6 @@ class SidecarClient {
       _proc?.kill();
     } catch (_) {}
     status.value = SidecarStatus.stopped;
-  }
-}
-
-// ===================== XTTS VOICE-CLONE CLIENT =====================
-// Talks to the on-demand `evs_tts.exe` component (Coqui XTTS v2). Spawns it,
-// loads the model, and synthesizes speech in the user's cloned voice from a
-// reference wav. Heavy + optional — only started when ttsVoice == 'cloned'.
-
-enum TtsCloneStatus { stopped, starting, loading, ready, error }
-
-class TtsCloneClient {
-  TtsCloneClient._();
-  static final TtsCloneClient instance = TtsCloneClient._();
-
-  final ValueNotifier<TtsCloneStatus> status =
-      ValueNotifier(TtsCloneStatus.stopped);
-  bool available = false;
-  String? lastError;
-
-  io.Process? _proc;
-  io.WebSocket? _ws;
-  bool _starting = false;
-
-  // Start the engine + load the model if not already running. Returns true once
-  // the process is up (model load continues asynchronously -> status `ready`).
-  Future<bool> ensureStarted() async {
-    if (defaultTargetPlatform != TargetPlatform.windows) return false;
-    if (status.value == TtsCloneStatus.ready ||
-        status.value == TtsCloneStatus.loading) {
-      return true;
-    }
-    if (_starting) return false;
-    _starting = true;
-    try {
-      final launch = await _resolveLaunch();
-      if (launch == null) {
-        status.value = TtsCloneStatus.stopped;
-        return false;
-      }
-      // COQUI_TOS_AGREED auto-accepts the XTTS model license so the first
-      // model download doesn't block on an interactive prompt. TTS_HOME/HF_HOME
-      // keep the ~1.8 GB model inside the app data folder.
-      final env = <String, String>{'COQUI_TOS_AGREED': '1'};
-      try {
-        final dir = await componentsDirPath();
-        final sep = io.Platform.pathSeparator;
-        env['TTS_HOME'] = '$dir${sep}tts-cache';
-        env['HF_HOME'] = '$dir${sep}hf-cache';
-      } catch (_) {}
-      status.value = TtsCloneStatus.starting;
-      _proc = await io.Process.start(launch.$1, launch.$2,
-          runInShell: false, environment: env);
-      ProcessJob.instance.add(_proc!.pid); // die with the app
-      _proc!.stderr.listen((_) {});
-      final ready = Completer<int>();
-      _proc!.stdout
-          .transform(const Utf8Decoder(allowMalformed: true))
-          .transform(const LineSplitter())
-          .listen((line) {
-        if (line.startsWith('EVS_TTS_READY')) {
-          final p = int.tryParse(line.split(' ').last.trim());
-          if (p != null && !ready.isCompleted) ready.complete(p);
-        }
-      });
-      _proc!.exitCode.then((_) {
-        if (status.value != TtsCloneStatus.ready) {
-          status.value = TtsCloneStatus.stopped;
-        }
-      });
-      // Generous: a frozen onefile torch build can take a while to unpack on
-      // the first launch before it prints EVS_TTS_READY.
-      final port = await ready.future.timeout(const Duration(seconds: 120));
-      await _connect(port);
-      return true;
-    } catch (e) {
-      lastError = e.toString();
-      status.value = TtsCloneStatus.error;
-      return false;
-    } finally {
-      _starting = false;
-    }
-  }
-
-  Future<(String, List<String>)?> _resolveLaunch() async {
-    try {
-      final comp = await ComponentManager.instance
-          .installedPath('tts-clone', fileName: 'evs_tts.exe');
-      if (comp != null) return (comp, ['--port', '0']);
-    } catch (_) {}
-    // Dev: run from source (sidecar/tts_xtts/main.py + its venv).
-    try {
-      final sep = io.Platform.pathSeparator;
-      final exeDir = io.File(io.Platform.resolvedExecutable).parent.path;
-      final roots = <String>[io.Directory.current.path];
-      var dir = io.Directory(exeDir);
-      for (int i = 0; i < 7; i++) {
-        roots.add(dir.path);
-        final parent = dir.parent;
-        if (parent.path == dir.path) break;
-        dir = parent;
-      }
-      for (final base in roots) {
-        final main =
-            io.File('$base${sep}sidecar${sep}tts_xtts${sep}main.py');
-        if (!main.existsSync()) continue;
-        final venvPy = io.File(
-            '$base${sep}sidecar${sep}tts_xtts$sep.venv${sep}Scripts${sep}python.exe');
-        final py = venvPy.existsSync() ? venvPy.path : 'python';
-        return (py, [main.path, '--port', '0']);
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<void> _connect(int port) async {
-    _ws = await io.WebSocket.connect('ws://127.0.0.1:$port');
-    status.value = TtsCloneStatus.loading;
-    _ws!.listen((data) {
-      try {
-        final m = jsonDecode(data as String) as Map<String, dynamic>;
-        switch (m['type']) {
-          case 'ready':
-            available = (m['capabilities'] as Map?)?['tts'] == true;
-            if (!available) {
-              lastError = 'engine unavailable';
-              status.value = TtsCloneStatus.error;
-            }
-            break;
-          case 'tts.loaded':
-            status.value = m['ok'] == true
-                ? TtsCloneStatus.ready
-                : TtsCloneStatus.error;
-            break;
-          case 'tts.level':
-            VoiceLevels.instance.tts.value =
-                ((m['level'] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0);
-            break;
-          case 'tts.done':
-            VoiceLevels.instance.tts.value = 0;
-            break;
-          case 'tts.error':
-            lastError = m['message'] as String?;
-            VoiceLevels.instance.tts.value = 0;
-            break;
-        }
-      } catch (_) {}
-    },
-        onDone: () => status.value = TtsCloneStatus.stopped,
-        onError: (_) => status.value = TtsCloneStatus.stopped);
-    _send({'type': 'tts.load'}); // kick off model load (downloads on first use)
-  }
-
-  void _send(Map<String, dynamic> m) {
-    try {
-      _ws?.add(jsonEncode(m));
-    } catch (_) {}
-  }
-
-  void speak(String text,
-          {required String speakerWav, String language = 'ru'}) =>
-      _send({
-        'type': 'tts.speak',
-        'text': text,
-        'language': language,
-        'speaker_wav': speakerWav,
-      });
-  void setSpeaker(String wav) =>
-      _send({'type': 'tts.clone', 'speaker_wav': wav});
-  void stopSpeaking() => _send({'type': 'tts.stop'});
-
-  Future<void> shutdown() async {
-    try {
-      await _ws?.close();
-    } catch (_) {}
-    try {
-      _proc?.kill();
-    } catch (_) {}
-    status.value = TtsCloneStatus.stopped;
   }
 }
 
@@ -9831,9 +9809,6 @@ class VoiceAssistant {
     try {
       SidecarClient.instance.stopSpeaking();
     } catch (_) {}
-    try {
-      TtsCloneClient.instance.stopSpeaking();
-    } catch (_) {}
     app.cancelGeneration();
     _disarm();
     _toast(app.t('vaStopped'));
@@ -9912,21 +9887,15 @@ class VoiceAssistant {
             'best=${score.toStringAsFixed(2)}/${app.cmdThreshold}'));
     // 2) Everything else is normal speech → a regular (visible) chat turn.
     _toast('${app.t('vaThinking')} $command');
-    final cloned = app.ttsVoice == 'cloned' && app.cloneSamplePath.isNotEmpty;
-    if (app.voiceResponses && !cloned) {
-      // Default TTS (queued sidecar): stream the reply and speak each sentence
-      // as soon as it arrives — first audio starts almost immediately instead
-      // of after the whole reply. A voice "stop" interrupts stream + TTS queue.
+    if (app.voiceResponses) {
+      // Queued sidecar TTS: stream the reply and speak each sentence as soon as
+      // it arrives — first audio starts almost immediately instead of after the
+      // whole reply. A voice "stop" interrupts stream + TTS queue.
       await app.streamReplyForVoice(command, (sentence) {
         if (!_stopFlag) _speak(app, sentence);
       });
     } else {
-      // Cloned voice (XTTS) speaks the whole reply once (per-sentence calls
-      // would cut each other off on that engine).
-      final reply = await app.sendMessage(command);
-      if (!_stopFlag && app.voiceResponses && reply.trim().isNotEmpty) {
-        _speak(app, reply);
-      }
+      await app.sendMessage(command);
     }
   }
 
@@ -10001,13 +9970,7 @@ class VoiceAssistant {
   }
 
   void _speak(AppState app, String text) {
-    if (app.ttsVoice == 'cloned' && app.cloneSamplePath.isNotEmpty) {
-      unawaited(TtsCloneClient.instance.ensureStarted());
-      TtsCloneClient.instance.speak(text,
-          speakerWav: app.cloneSamplePath,
-          language: app.effectiveSttLanguage == 'ru' ? 'ru' : 'en');
-      return;
-    }
+    // TTS (system pyttsx3 or Piper) is synthesized inside the main sidecar.
     SidecarClient.instance.speak(text, rate: app.ttsRate, volume: app.ttsVolume);
   }
 
@@ -12640,6 +12603,213 @@ class _SttEngineCardsState extends State<_SttEngineCards> {
 
 // TZ2 block 3: model manager — download / delete asset models (STT / denoise /
 // TTS voices) into <userdata>/models/<id>/, reusing downloadFileWithProgress.
+// TZ2 block 5: "Голос ассистента" — the always-available system voice plus
+// downloadable Piper voice cards, each with download/delete, a "listen sample"
+// button and active-voice selection. Preview/select go through the main sidecar.
+class _AssistantVoiceCard extends StatefulWidget {
+  final AppState app;
+  const _AssistantVoiceCard(this.app);
+  @override
+  State<_AssistantVoiceCard> createState() => _AssistantVoiceCardState();
+}
+
+class _AssistantVoiceCardState extends State<_AssistantVoiceCard> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => widget.app.refreshAssetModels());
+  }
+
+  List<AssetModelSpec> get _voices =>
+      kAssetModels.where((s) => s.family == 'tts-voice').toList();
+
+  Future<void> _confirmDelete(AssetModelSpec spec) async {
+    final app = widget.app;
+    if (app.assetActive(spec)) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(app.t('mdlActiveCantDelete'))));
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => _AppDialog(
+        backgroundColor: _card(context),
+        title: Text(spec.name, style: TextStyle(color: _txt(context))),
+        content: Text(app.t('mdlDeleteConfirm'),
+            style: TextStyle(color: _sub(context))),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(app.t('cancel'))),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(app.t('mdlDelete'))),
+        ],
+      ),
+    );
+    if (ok == true) await app.deleteAssetModel(spec);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = widget.app;
+    return AnimatedBuilder(
+      animation: Listenable.merge([app, SidecarClient.instance.ttsStatus]),
+      builder: (context, _) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _systemTile(),
+            const SizedBox(height: 10),
+            for (final spec in _voices) ...[
+              _voiceTile(spec),
+              const SizedBox(height: 10),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _shell(
+      {required bool active, VoidCallback? onSelect, required Widget child}) {
+    final tile = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF15151E),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: active ? const Color(0x5534D399) : const Color(0x14FFFFFF),
+            width: active ? 1.5 : 1),
+      ),
+      child: child,
+    );
+    if (onSelect == null) return tile;
+    return InkWell(
+        borderRadius: BorderRadius.circular(14), onTap: onSelect, child: tile);
+  }
+
+  Widget _titleRow(String name, String? status) {
+    return Row(children: [
+      Expanded(
+          child: Text(name,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700))),
+      if (status != null)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+              color: const Color(0x2234D399),
+              borderRadius: BorderRadius.circular(8)),
+          child: Text(status,
+              style: const TextStyle(
+                  color: Color(0xFF34D399),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600)),
+        ),
+    ]);
+  }
+
+  Widget _systemTile() {
+    final app = widget.app;
+    final active = app.ttsPiperVoice.isEmpty;
+    return _shell(
+      active: active,
+      onSelect: active ? null : () => app.setTtsPiperVoice(''),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _titleRow(
+              app.t('voiceSystemName'), active ? app.t('engActive') : null),
+          const SizedBox(height: 6),
+          Text(app.t('voiceSystemDesc'),
+              style: const TextStyle(color: Color(0xFF9AA0B0), fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _voiceTile(AssetModelSpec spec) {
+    final app = widget.app;
+    final installed = app.assetInstalled(spec.id);
+    final progress = app.assetProgress[spec.id];
+    final downloading = progress != null;
+    final active = app.assetActive(spec);
+    final sizeMb = (spec.totalSize / 1e6).round();
+    final status = active
+        ? app.t('engActive')
+        : installed
+            ? app.t('mdlInstalled')
+            : downloading
+                ? '${(progress.clamp(0.0, 1.0) * 100).round()}%'
+                : null;
+    return _shell(
+      active: active,
+      onSelect: (installed && !active)
+          ? () => app.setTtsPiperVoice(spec.voiceId!)
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _titleRow(spec.name, status),
+          const SizedBox(height: 6),
+          Text(app.t(spec.descKey),
+              style: const TextStyle(color: Color(0xFF9AA0B0), fontSize: 12)),
+          const SizedBox(height: 4),
+          Text('~$sizeMb ${app.t('mbShort')}',
+              style: const TextStyle(color: Color(0xFF6E7280), fontSize: 11)),
+          const SizedBox(height: 10),
+          if (downloading)
+            Row(children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 6,
+                      backgroundColor: const Color(0xFF2A2A38)),
+                ),
+              ),
+              IconButton(
+                  icon: const Icon(Icons.close,
+                      size: 18, color: Color(0xFF9AA0B0)),
+                  tooltip: app.t('cancelDownload'),
+                  onPressed: () => app.cancelAssetDownload(spec.id)),
+            ])
+          else if (installed)
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              OutlinedButton.icon(
+                  icon: const Icon(Icons.play_arrow, size: 16),
+                  label: Text(app.t('voiceListen')),
+                  onPressed: () => app.previewPiperVoice(spec)),
+              if (!active)
+                FilledButton.icon(
+                    icon: const Icon(Icons.check, size: 16),
+                    label: Text(app.t('voiceSelect')),
+                    onPressed: () => app.setTtsPiperVoice(spec.voiceId!)),
+              OutlinedButton.icon(
+                  icon: const Icon(Icons.delete_outline, size: 16),
+                  label: Text(app.t('mdlDelete')),
+                  onPressed: () => _confirmDelete(spec)),
+            ])
+          else
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                  icon: const Icon(Icons.download, size: 16),
+                  label: Text(app.t('mdlDownload')),
+                  onPressed: () => app.downloadAssetModel(spec)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AssetModelsCard extends StatefulWidget {
   final AppState app;
   const _AssetModelsCard(this.app);
@@ -12655,7 +12825,9 @@ class _AssetModelsCardState extends State<_AssetModelsCard> {
         .addPostFrameCallback((_) => widget.app.refreshAssetModels());
   }
 
-  List<AssetModelSpec> get _models => kAssetModels;
+  // Piper voices live in the "Голос ассистента" card, not the general manager.
+  List<AssetModelSpec> get _models =>
+      kAssetModels.where((s) => s.family != 'tts-voice').toList();
 
   Future<void> _confirmDelete(AssetModelSpec spec) async {
     final app = widget.app;
@@ -13676,103 +13848,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                 onTap: () => AppUpdater.instance.checkAndDownload());
         }
       },
-    );
-  }
-
-  Future<void> _pickCloneSample(AppState app) async {
-    try {
-      final res = await FilePicker.pickFiles(
-          type: FileType.custom, allowedExtensions: ['wav']);
-      final path = res?.files.single.path;
-      if (path != null && path.isNotEmpty) {
-        app.setCloneSamplePath(path);
-        TtsCloneClient.instance.setSpeaker(path);
-        if (mounted) setState(() {});
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _downloadTts(AppState app) async {
-    await ComponentManager.instance.ensure('tts-clone');
-  }
-
-  Future<void> _testClone(AppState app) async {
-    if (app.cloneSamplePath.isEmpty) {
-      showAppSnackBar(context, app.t('cloneNeedSample'));
-      return;
-    }
-    // ensureStarted resolves the downloaded component OR the dev source; only
-    // fails if neither is available (then the user needs to download it).
-    final ok = await TtsCloneClient.instance.ensureStarted();
-    if (!mounted) return;
-    if (!ok) {
-      showAppSnackBar(context, app.t('cloneNeedEngine'));
-      return;
-    }
-    TtsCloneClient.instance.speak(app.t('cloneTestPhrase'),
-        speakerWav: app.cloneSamplePath,
-        language: app.lang == 'ru' ? 'ru' : 'en');
-  }
-
-  // Download/engine status for the XTTS voice-clone component (~big). Engine
-  // states (loading/ready/error) take priority over the download state.
-  Widget _ttsComponentControl(AppState app) {
-    return ValueListenableBuilder<TtsCloneStatus>(
-      valueListenable: TtsCloneClient.instance.status,
-      builder: (_, es, __) => ValueListenableBuilder<ComponentStatus>(
-        valueListenable: ComponentManager.instance.statusOf('tts-clone'),
-        builder: (_, cs, __) {
-          if (es == TtsCloneStatus.ready) {
-            return _compBadge(app.t('componentReady'), const Color(0xFF54E08A));
-          }
-          if (es == TtsCloneStatus.loading || es == TtsCloneStatus.starting) {
-            return _compBadge(app.t('cloneLoading'), const Color(0xFFE0C07A));
-          }
-          if (es == TtsCloneStatus.error) {
-            return evsGhostButton(app.t('retry'), Icons.refresh,
-                onTap: () => _downloadTts(app));
-          }
-          switch (cs.state) {
-            case ComponentState.downloading:
-              return SizedBox(
-                width: 160,
-                child: Row(children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.all(Radius.circular(3)),
-                      child: LinearProgressIndicator(
-                        value: cs.progress > 0 ? cs.progress : null,
-                        minHeight: 6,
-                        backgroundColor: const Color(0x14FFFFFF),
-                        valueColor: const AlwaysStoppedAnimation(_evsGMid),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text('${(cs.progress * 100).round()}%',
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF6E7280))),
-                ]),
-              );
-            case ComponentState.verifying:
-              return _compBadge(
-                  app.t('componentVerifying'), const Color(0xFFE0C07A));
-            case ComponentState.ready:
-              return _compBadge(
-                  app.t('componentReady'), const Color(0xFF54E08A));
-            case ComponentState.error:
-              return evsGhostButton(app.t('retry'), Icons.refresh,
-                  onTap: () => _downloadTts(app));
-            case ComponentState.absent:
-              final info = ComponentManager.instance.infoOf('tts-clone');
-              final gb = info != null && info.size > 0
-                  ? ' (${(info.size / 1e9).toStringAsFixed(1)} GB)'
-                  : '';
-              return evsGhostButton('${app.t('download')}$gb', Icons.download,
-                  onTap: () => _downloadTts(app));
-          }
-        },
-      ),
     );
   }
 
@@ -15065,15 +15140,6 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             control: evsToggle(app.announceReady, app.setAnnounceReady),
           ),
           evsRow(
-            stacked: true,
-            label: app.t('ttsVoice'),
-            desc: app.t('ttsVoiceDesc'),
-            control: evsSegmentedWide<String>([
-              ('system', app.t('ttsVoiceSystem')),
-              ('cloned', app.t('ttsVoiceCloned')),
-            ], app.ttsVoice, app.setTtsVoice),
-          ),
-          evsRow(
             label: app.t('ttsRate'),
             desc: app.t('ttsRateDesc'),
             control: evsSlider(
@@ -15100,32 +15166,9 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       )),
       _CardSpec(evsCard(
         context,
-        icon: Icons.spatial_audio_off_outlined,
-        title: app.t('cardClone'),
-        rows: [
-          evsRow(
-            label: app.t('cloneSample'),
-            desc: app.t('cloneSampleDesc'),
-            control: evsSelectButton(
-              app.cloneSamplePath.isEmpty
-                  ? app.t('cloneNoSample')
-                  : app.cloneSamplePath.split(RegExp(r'[\\/]')).last,
-              minWidth: 120,
-              onTap: () => _pickCloneSample(app),
-            ),
-          ),
-          evsRow(
-            label: app.t('cloneEngine'),
-            desc: app.t('cloneEngineDesc'),
-            control: _ttsComponentControl(app),
-          ),
-          evsRow(
-            label: app.t('cloneTest'),
-            desc: app.t('cloneTestDesc'),
-            control: evsGhostButton(app.t('cloneTestBtn'), Icons.play_arrow,
-                onTap: () => _testClone(app)),
-          ),
-        ],
+        icon: Icons.record_voice_over_outlined,
+        title: app.t('cardAssistantVoice'),
+        rows: [_AssistantVoiceCard(app)],
       )),
     ];
   }

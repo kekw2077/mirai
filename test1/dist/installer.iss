@@ -70,10 +70,10 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; The Flutter release output (evs.exe + flutter DLLs + data\ + plugin DLLs).
-; The Python sidecar (evs_sidecar.exe, ~95 MB) and the XTTS voice-clone engine
-; are NOT bundled — they're downloaded on demand into the app data folder (see
-; ComponentManager / dist/components.json), keeping the installer small.
-Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Excludes: "evs_sidecar.exe,evs_tts.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
+; The Python sidecar (evs_sidecar.exe, ~95 MB) is NOT bundled — it's downloaded
+; on demand into the app data folder (see ComponentManager / dist/components.json),
+; keeping the installer small.
+Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Excludes: "evs_sidecar.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

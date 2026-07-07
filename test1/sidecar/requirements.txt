@@ -1,6 +1,9 @@
 # EVS sidecar — voice/ML brain (STT, VAD, TTS, intent).
 # Python 3.10–3.12 recommended on Windows.
 faster-whisper>=1.0.0
+# GigaAM-v3 STT (offline transducer), streaming denoise (GTCRN/DeepFilterNet)
+# and Piper TTS (OfflineTts on VITS voices) all run on sherpa-onnx.
+sherpa-onnx>=1.13.3
 sounddevice>=0.4.6
 webrtcvad>=2.0.10
 pyttsx3>=2.90

@@ -16,6 +16,7 @@ Protocol (JSON text frames)
     {"type": "tts.stop"}
     {"type": "tts.config", "engine": "piper"|"pyttsx3",
                            "voice": "ru_RU-irina-medium", "voice_dir": "..."}
+    {"type": "tts.preview", "voice": "...", "voice_dir": "...", "text": "..."}
     {"type": "intent.parse", "text": "...", "commands": [{"phrase": "..."}], "threshold": 0.5}
     {"type": "ping"}
   server -> client:
@@ -124,6 +125,12 @@ async def _handle(ws, stt: SttEngine, tts: TtsEngine) -> None:
                 eng = data.get("engine")
                 if eng:
                     tts.set_engine(str(eng))
+            elif t == "tts.preview":
+                tts.preview(str(data.get("voice_dir", "")),
+                            str(data.get("voice", "")),
+                            str(data.get("text", "")),
+                            rate=float(data.get("rate", 1.0)),
+                            volume=float(data.get("volume", 1.0)))
             elif t == "intent.parse":
                 res = match(
                     str(data.get("text", "")),

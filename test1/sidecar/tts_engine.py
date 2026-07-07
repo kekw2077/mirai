@@ -370,6 +370,35 @@ class TtsEngine:
         self._active = self._pyttsx3
         self._active_name = "pyttsx3"
 
+    def preview(self, voice_dir: str, voice_id: str, text: str,
+                rate: float = 1.0, volume: float = 1.0) -> None:
+        """Speak a fixed sample in a specific Piper voice WITHOUT touching the
+        persistent active engine/voice (TZ2 block 5). Interrupts any current
+        speech, then plays the sample on a bg thread."""
+        def _run() -> None:
+            try:
+                eng = PiperEngine(voice_dir, voice_id)
+                if not eng.available:
+                    self._emit_status("piper", voice_id, "error",
+                                      eng.unavailable_reason())
+                    return
+                eng.load()
+                res = eng.synthesize(text, rate, volume)
+                if res is None:
+                    self._emit_status("piper", voice_id, "error",
+                                      "preview synthesis failed")
+                    return
+                # Interrupt anything speaking, then play the one-off sample.
+                self.stop()
+                self._stop.clear()
+                self._play_samples(
+                    res[0], res[1],
+                    lambda v: self._emit({"type": "tts.level", "level": v}))
+                self._emit({"type": "tts.done"})
+            except Exception as e:
+                self._emit_status("piper", voice_id, "error", str(e))
+        threading.Thread(target=_run, daemon=True).start()
+
     # ---- queued playback ----------------------------------------------
 
     def speak(self, text: str, rate: float = 1.0, volume: float = 1.0,
