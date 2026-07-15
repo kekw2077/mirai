@@ -19,6 +19,7 @@ class WaveField3D extends StatefulWidget {
     this.numCols = 110,
     this.numRows = 75,
     this.background = const Color(0xFF020208),
+    this.accent,
   });
 
   final double level;
@@ -27,6 +28,11 @@ class WaveField3D extends StatefulWidget {
   final int numCols;
   final int numRows;
   final Color background;
+
+  /// Опционально: акцентный цвет по состоянию ассистента. Если задан — вся
+  /// цветовая рампа впадина→гребень строится от него; при null остаётся
+  /// исходная сине-циановая (идентична HTML).
+  final Color? accent;
 
   @override
   State<WaveField3D> createState() => _WaveField3DState();
@@ -75,6 +81,7 @@ class _WaveField3DState extends State<WaveField3D>
           levels: widget.levels,
           numCols: widget.numCols,
           numRows: widget.numRows,
+          accent: widget.accent,
         ),
         child: const SizedBox.expand(),
       ),
@@ -90,6 +97,7 @@ class _Wave3DPainter extends CustomPainter {
     required this.levels,
     required this.numCols,
     required this.numRows,
+    this.accent,
   }) : super(repaint: repaint);
 
   final double Function() time;
@@ -97,6 +105,7 @@ class _Wave3DPainter extends CustomPainter {
   final List<double>? levels;
   final int numCols;
   final int numRows;
+  final Color? accent;
 
   // Константы из wawe2.html
   static const double fov = 450;
@@ -131,6 +140,16 @@ class _Wave3DPainter extends CustomPainter {
     final vpX = vw / 2;
     const vpY = vh * 0.3; // точка схода
     final paint = Paint()..isAntiAlias = true;
+
+    // Опорные цвета рампы. По умолчанию — дословный сине-циановый градиент из
+    // wawe2.html; с акцентом — тёмный акцент (впадина) → почти-белый (гребень).
+    final Color? acc = accent;
+    final Color troughC = acc == null
+        ? const Color.fromARGB(255, 5, 60, 180)
+        : Color.lerp(Colors.black, acc, 0.55)!;
+    final Color crestC = acc == null
+        ? const Color.fromARGB(255, 160, 235, 255)
+        : Color.lerp(acc, Colors.white, 0.72)!;
 
     // Заполнение из глубины вперёд — дальние точки рисуются первыми.
     for (var r = numRows - 1; r >= 0; r--) {
@@ -171,19 +190,17 @@ class _Wave3DPainter extends CustomPainter {
         // громкость подсвечивает гребни
         crest = (crest + lv * 0.4).clamp(0.0, 1.0);
 
-        final rr = (5 * (1 - crest) + 160 * crest).round();
-        final gg = (60 * (1 - crest) + 235 * crest).round();
-        final bb = (180 * (1 - crest) + 255 * crest).round();
+        final col = Color.lerp(troughC, crestC, crest)!;
 
         var alpha = (0.2 + crest * 0.8) / (1 + blur * 1.1);
         alpha = alpha.clamp(0.01, 1.0);
 
-        paint.color = Color.fromRGBO(rr, gg, bb, alpha);
+        paint.color = col.withValues(alpha: alpha);
         canvas.drawCircle(Offset(screenX, screenY), radius, paint);
 
         // неоновое свечение для ярких точек В ФОКУСЕ
         if (blur < 0.2 && crest > 0.75) {
-          paint.color = Color.fromRGBO(rr, gg, bb, alpha * 0.25);
+          paint.color = col.withValues(alpha: alpha * 0.25);
           canvas.drawCircle(Offset(screenX, screenY), radius * 3.5, paint);
         }
       }

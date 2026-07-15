@@ -10928,6 +10928,11 @@ class EvsWaveViz extends StatelessWidget {
   // Feather the edges to transparent so the field blends into the backdrop
   // instead of showing a hard rectangle (used for the home/background wave).
   final bool fadeEdges;
+  // Recolour the field with the assistant state (green wake / violet thinking /
+  // amber running / red error …), easing back to the user's accent when idle —
+  // the same hook every other visualization already uses. Off for the static
+  // picker thumbnails, which keep the original blue ramp.
+  final bool reactive;
   const EvsWaveViz({
     super.key,
     required this.kind,
@@ -10937,28 +10942,54 @@ class EvsWaveViz extends StatelessWidget {
     this.numCols,
     this.numRows,
     this.fadeEdges = false,
+    this.reactive = false,
   });
+
+  Widget _field(Color? accent) => ValueListenableBuilder<double>(
+        valueListenable: VoiceLevels.instance.tts,
+        builder: (_, lv, __) {
+          if (kind == 'wave3d') {
+            return WaveField3D(
+              level: lv,
+              background: background,
+              numCols: numCols ?? 110,
+              numRows: numRows ?? 75,
+              accent: accent,
+            );
+          }
+          return WaveFieldFlat(
+            level: lv,
+            background: background,
+            particleCount: particleCount ?? 5000,
+            accent: accent,
+          );
+        },
+      );
 
   @override
   Widget build(BuildContext context) {
-    Widget field = ValueListenableBuilder<double>(
-      valueListenable: VoiceLevels.instance.tts,
-      builder: (_, lv, __) {
-        if (kind == 'wave3d') {
-          return WaveField3D(
-            level: lv,
-            background: background,
-            numCols: numCols ?? 110,
-            numRows: numRows ?? 75,
+    Widget field;
+    if (!reactive) {
+      field = _field(null);
+    } else {
+      final app = context.watch<AppState>();
+      field = AnimatedBuilder(
+        animation: Listenable.merge([
+          VoiceAssistant.instance.state,
+          VoiceAssistant.instance.wakeActive,
+          VoiceAssistant.instance.wakePulse,
+          vizNotice,
+        ]),
+        builder: (_, __) {
+          final target = vizStateAccent(app);
+          return TweenAnimationBuilder<Color?>(
+            tween: ColorTween(end: target),
+            duration: const Duration(milliseconds: 320),
+            builder: (_, tweened, ___) => _field(tweened ?? target),
           );
-        }
-        return WaveFieldFlat(
-          level: lv,
-          background: background,
-          particleCount: particleCount ?? 5000,
-        );
-      },
-    );
+        },
+      );
+    }
     if (fadeEdges) {
       // Soft vignette: opaque in the middle, fading out toward every edge (so
       // the left/bottom no longer read as a hard square boundary).
@@ -11443,9 +11474,15 @@ class _OverlayWidgetViewState extends State<OverlayWidgetView> {
                       else if (viz == 'lkbars')
                         EvsLiveViz(kind: 'lkbars', maxSize: content * 0.8)
                       else if (viz == 'wave3d')
-                        EvsWaveViz(kind: 'wave3d', size: content * 0.92)
+                        EvsWaveViz(
+                            kind: 'wave3d',
+                            size: content * 0.92,
+                            reactive: true)
                       else if (viz == 'waveflat')
-                        EvsWaveViz(kind: 'waveflat', size: content * 0.92)
+                        EvsWaveViz(
+                            kind: 'waveflat',
+                            size: content * 0.92,
+                            reactive: true)
                       else
                         ParticleSphere(
                           size: content * 0.62,
@@ -12673,9 +12710,11 @@ class _VizPreviewCardState extends State<_VizPreviewCard>
                       maxHeight: 150,
                     );
                   case 'wave3d':
-                    return const EvsWaveViz(kind: 'wave3d', size: 220);
+                    return const EvsWaveViz(
+                        kind: 'wave3d', size: 220, reactive: true);
                   case 'waveflat':
-                    return const EvsWaveViz(kind: 'waveflat', size: 220);
+                    return const EvsWaveViz(
+                        kind: 'waveflat', size: 220, reactive: true);
                   case 'none':
                     return Text(app.t('vizNone'),
                         style: const TextStyle(
@@ -17650,9 +17689,11 @@ class _ChatScreenState extends State<ChatScreen> {
               else if (app.vizType == 'lkbars')
                 const EvsLiveViz(kind: 'lkbars', maxSize: 340)
               else if (app.vizType == 'wave3d')
-                const EvsWaveViz(kind: 'wave3d', size: 320, fadeEdges: true)
+                const EvsWaveViz(
+                    kind: 'wave3d', size: 320, fadeEdges: true, reactive: true)
               else if (app.vizType == 'waveflat')
-                const EvsWaveViz(kind: 'waveflat', size: 320, fadeEdges: true)
+                const EvsWaveViz(
+                    kind: 'waveflat', size: 320, fadeEdges: true, reactive: true)
               else
                 ParticleSphere(
                   size: 200,

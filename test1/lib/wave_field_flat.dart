@@ -16,6 +16,7 @@ class WaveFieldFlat extends StatefulWidget {
     this.particleCount = 5000,
     this.background = Colors.black,
     this.glow = true,
+    this.accent,
   });
 
   final double level;
@@ -23,6 +24,10 @@ class WaveFieldFlat extends StatefulWidget {
   final int particleCount;
   final Color background;
   final bool glow;
+
+  /// Опционально: акцентный цвет по состоянию ассистента. null — исходная
+  /// сине-белая палитра (идентична HTML).
+  final Color? accent;
 
   @override
   State<WaveFieldFlat> createState() => _WaveFieldFlatState();
@@ -78,6 +83,7 @@ class _WaveFieldFlatState extends State<WaveFieldFlat>
           time: () => _time,
           level: () => widget.level.clamp(0.0, 1.0),
           glow: widget.glow,
+          accent: widget.accent,
         ),
         child: const SizedBox.expand(),
       ),
@@ -97,12 +103,14 @@ class _FlatPainter extends CustomPainter {
     required this.time,
     required this.level,
     required this.glow,
+    this.accent,
   }) : super(repaint: repaint);
 
   final List<_Particle> particles;
   final double Function() time;
   final double Function() level;
   final bool glow;
+  final Color? accent;
 
   // Константы из wave.html
   static const baseR = 0, baseG = 150, baseB = 255;
@@ -125,6 +133,14 @@ class _FlatPainter extends CustomPainter {
       ..isAntiAlias = true
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
 
+    // Опорные цвета рампы. Дефолт — как в wave.html; с акцентом — сам акцент
+    // (базовая яркость) → почти-белый (максимум).
+    final Color? acc = accent;
+    final Color baseC = acc ?? const Color.fromARGB(255, baseR, baseG, baseB);
+    final Color brightC = acc == null
+        ? const Color.fromARGB(255, brightR, brightG, brightB)
+        : Color.lerp(acc, Colors.white, 0.72)!;
+
     for (final p in particles) {
       final x = p.nx * vw;
       final baseY = p.ny * vh;
@@ -138,9 +154,7 @@ class _FlatPainter extends CustomPainter {
       var bf = (math.sin(angleX * 1.1) + math.cos(angleY * 0.8) + 2) / 4;
       bf = (bf + lv * 0.3).clamp(0.0, 1.0);
 
-      final r = (baseR + (brightR - baseR) * bf).round();
-      final g = (baseG + (brightG - baseG) * bf).round();
-      final b = (baseB + (brightB - baseB) * bf).round();
+      final col = Color.lerp(baseC, brightC, bf)!;
       final a = (0.3 + bf * 0.7).clamp(0.0, 1.0);
       final radius = 0.8 + bf * 0.5;
 
@@ -148,10 +162,10 @@ class _FlatPainter extends CustomPainter {
       final cy = baseY + dy;
 
       if (glow && radius > 1.2) {
-        glowPaint.color = Color.fromRGBO(baseR, baseG, baseB, a * 0.4);
+        glowPaint.color = baseC.withValues(alpha: a * 0.4);
         canvas.drawCircle(Offset(cx, cy), radius * 3.0, glowPaint);
       }
-      paint.color = Color.fromRGBO(r, g, b, a);
+      paint.color = col.withValues(alpha: a);
       canvas.drawCircle(Offset(cx, cy), radius, paint);
     }
 
