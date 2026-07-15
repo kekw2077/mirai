@@ -28,6 +28,37 @@
 
     <!-- Newest release first. Duplicate this block for each new version. -->
     <item>
+      <title>EVS 2.0.1</title>
+      <description><![CDATA[
+        <style>
+          html,body{background:#0E0E15;color:#E6E8F0;margin:0;padding:14px 18px;
+            font-family:'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;}
+          h1,h2,h3,b,strong{color:#FFFFFF;}
+          a{color:#8A7BE0;}
+          ul{margin:6px 0;padding-left:20px;}
+          li{margin:5px 0;}
+        </style>
+        <ul>
+          <li><b>Исправлено:</b> GigaAM, шумоподавление и голоса Piper не включались (ошибка «ORT Version» / «модель не найдена») — движок пересобран, конфликт библиотек устранён.</li>
+          <li><b>Исправлено:</b> Whisper иногда не открывался («Unable to open file model.bin») при переключении движков — теперь дожидается докачки модели.</li>
+          <li><b>Исправлено:</b> разъезжалась сетка настроек — большие пустоты и «уехавшие» карточки. Колонки набиваются независимо и подстраиваются под ширину окна.</li>
+          <li><b>Исправлено:</b> бейдж голосового движка всегда показывал «Whisper» — теперь показывает активную модель (GigaAM или Whisper).</li>
+          <li><b>Улучшено:</b> понятнее выбор распознавания — «Windows STT» или «Локальный (EVS)»; модели Whisper/GigaAM относятся только к локальному движку.</li>
+          <li><b>Улучшено:</b> визуализация «волна» больше не резкий квадрат (мягкие края) и меняет цвет по состоянию ассистента, как остальные визуализации.</li>
+        </ul>
+      ]]></description>
+      <pubDate>Thu, 16 Jul 2026 12:00:00 +0000</pubDate>
+      <enclosure
+        url="https://github.com/kekw2077/mirai/releases/download/desktop-v2.0.1/EVS-Setup-2.0.1.exe"
+        sparkle:version="2.0.1"
+        sparkle:os="windows"
+        sparkle:dsaSignature="MD4CHQCCfpR/6dSBSw770bI9gxC9OLP2hyQkfq4K2pQsAh0AqE8OXZdHY2AN5j01KdO3lttcrlNaCQ9sk9wp2w=="
+        evs:sha256="295ad4b9e001afbe17047e604888dfa154d96ad09b18cac30b0437601f36fd18"
+        length="15898077"
+        type="application/octet-stream" />
+    </item>
+
+    <item>
       <title>EVS 2.0.0</title>
       <description><![CDATA[
         <style>
