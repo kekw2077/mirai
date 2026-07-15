@@ -14362,17 +14362,17 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               builder: (ctx, cons) {
                 const gap = 14.0;
                 final inner = cons.maxWidth - 56; // minus horizontal padding
-                // Collapse to a single column on narrow windows.
-                final oneCol = inner < 720;
-                final colW = oneCol ? inner : (inner - gap) / 2;
+                // Column count follows the window width: 1 / 2 / 3.
+                final w = cons.maxWidth;
+                final cols = w < 640 ? 1 : (w < 1024 ? 2 : 3);
                 final cards = _cardsFor(app);
                 return SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(28, 22, 28, 28),
-                  // True two-column masonry: cards stack tightly per column
-                  // instead of the old paired-row Wrap, which left a big gap
-                  // whenever two side-by-side cards had very different heights
-                  // (or one collapsed to nothing, e.g. the GPU-only cards).
-                  child: _cardMasonry(cards, colW, gap, inner, oneCol),
+                  // True masonry: cards stack tightly per column instead of the
+                  // old paired-row Wrap, which left a big gap whenever two
+                  // side-by-side cards had very different heights (or one
+                  // collapsed to nothing, e.g. the GPU-only cards).
+                  child: _cardMasonry(cards, cols, gap, inner),
                 );
               },
             ),
@@ -14382,12 +14382,13 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     );
   }
 
-  // Two-column masonry for the settings cards. Columns stack independently (no
-  // paired-row gaps that a tall card or a collapsed GPU-only card used to open);
-  // `full` cards break the columns and span the whole row.
-  Widget _cardMasonry(List<_CardSpec> cards, double colW, double gap,
-      double inner, bool oneCol) {
-    if (oneCol) {
+  // Masonry for the settings cards. Columns stack independently (no paired-row
+  // gaps that a tall card or a collapsed GPU-only card used to open); `full`
+  // cards break the columns and span the whole row. [cols] comes from the
+  // window width, so the same builder serves the 1/2/3-column layouts.
+  Widget _cardMasonry(
+      List<_CardSpec> cards, int cols, double gap, double inner) {
+    if (cols <= 1) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -14398,30 +14399,27 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         ],
       );
     }
+    final colW = (inner - gap * (cols - 1)) / cols;
     final blocks = <Widget>[];
-    var left = <Widget>[];
-    var right = <Widget>[];
-    var toLeft = true;
+    var columns = List.generate(cols, (_) => <Widget>[]);
+    var next = 0;
     void flush() {
-      if (left.isEmpty && right.isEmpty) return;
+      if (columns.every((c) => c.isEmpty)) return;
       blocks.add(Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-              width: colW,
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: left)),
-          SizedBox(width: gap),
-          SizedBox(
-              width: colW,
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: right)),
+          for (int i = 0; i < cols; i++) ...[
+            if (i > 0) SizedBox(width: gap),
+            SizedBox(
+                width: colW,
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: columns[i])),
+          ],
         ],
       ));
-      left = <Widget>[];
-      right = <Widget>[];
+      columns = List.generate(cols, (_) => <Widget>[]);
+      next = 0;
     }
 
     for (final c in cards) {
@@ -14430,10 +14428,10 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         blocks.add(SizedBox(width: inner, child: c.child));
         continue;
       }
-      final col = toLeft ? left : right;
+      final col = columns[next];
       if (col.isNotEmpty) col.add(SizedBox(height: gap));
       col.add(c.child);
-      toLeft = !toLeft;
+      next = (next + 1) % cols;
     }
     flush();
     return Column(
