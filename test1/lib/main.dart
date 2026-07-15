@@ -794,9 +794,10 @@ const Map<String, Map<String, String>> _i18n = {
     'componentVerifying': 'Проверка…',
     'cardStt': 'Движок STT',
     'sttEngine': 'Движок распознавания',
-    'sttEngineDesc': 'Whisper работает офлайн на вашем железе',
+    'sttEngineDesc': 'Локальный движок (Whisper/GigaAM) работает офлайн на вашем железе',
+    'localEngineName': 'Локальный (EVS)',
     'msShort': 'мс',
-    'cardSttModel': 'Модель распознавания',
+    'cardSttModel': 'Локальный движок',
     'engWhisperName': 'Whisper',
     'engWhisperShort': 'Мультиязычная, средняя точность',
     'engGigaamName': 'GigaAM-v3',
@@ -1584,9 +1585,10 @@ const Map<String, Map<String, String>> _i18n = {
     'componentVerifying': 'Verifying…',
     'cardStt': 'STT engine',
     'sttEngine': 'Recognition engine',
-    'sttEngineDesc': 'Whisper runs offline on your hardware',
+    'sttEngineDesc': 'The local engine (Whisper/GigaAM) runs offline on your hardware',
+    'localEngineName': 'Local (EVS)',
     'msShort': 'ms',
-    'cardSttModel': 'Recognition model',
+    'cardSttModel': 'Local engine',
     'engWhisperName': 'Whisper',
     'engWhisperShort': 'Multilingual, average accuracy',
     'engGigaamName': 'GigaAM-v3',
@@ -10923,6 +10925,9 @@ class EvsWaveViz extends StatelessWidget {
   final int? particleCount; // wave_field_flat only
   final int? numCols; // wave_field_3d only
   final int? numRows; // wave_field_3d only
+  // Feather the edges to transparent so the field blends into the backdrop
+  // instead of showing a hard rectangle (used for the home/background wave).
+  final bool fadeEdges;
   const EvsWaveViz({
     super.key,
     required this.kind,
@@ -10931,33 +10936,47 @@ class EvsWaveViz extends StatelessWidget {
     this.particleCount,
     this.numCols,
     this.numRows,
+    this.fadeEdges = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    Widget field = ValueListenableBuilder<double>(
+      valueListenable: VoiceLevels.instance.tts,
+      builder: (_, lv, __) {
+        if (kind == 'wave3d') {
+          return WaveField3D(
+            level: lv,
+            background: background,
+            numCols: numCols ?? 110,
+            numRows: numRows ?? 75,
+          );
+        }
+        return WaveFieldFlat(
+          level: lv,
+          background: background,
+          particleCount: particleCount ?? 5000,
+        );
+      },
+    );
+    if (fadeEdges) {
+      // Soft vignette: opaque in the middle, fading out toward every edge (so
+      // the left/bottom no longer read as a hard square boundary).
+      field = ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) => const RadialGradient(
+          center: Alignment.center,
+          radius: 0.72,
+          colors: [Colors.white, Colors.white, Colors.transparent],
+          stops: [0.0, 0.55, 1.0],
+        ).createShader(rect),
+        child: field,
+      );
+    }
     return SizedBox(
       width: size,
       height: size,
-      child: ClipRect(
-        child: ValueListenableBuilder<double>(
-          valueListenable: VoiceLevels.instance.tts,
-          builder: (_, lv, __) {
-            if (kind == 'wave3d') {
-              return WaveField3D(
-                level: lv,
-                background: background,
-                numCols: numCols ?? 110,
-                numRows: numRows ?? 75,
-              );
-            }
-            return WaveFieldFlat(
-              level: lv,
-              background: background,
-              particleCount: particleCount ?? 5000,
-            );
-          },
-        ),
-      ),
+      child: ClipRect(child: field),
     );
   }
 }
@@ -14310,23 +14329,82 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                 final cards = _cardsFor(app);
                 return SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(28, 22, 28, 28),
-                  child: Wrap(
-                    spacing: gap,
-                    runSpacing: gap,
-                    children: [
-                      for (final c in cards)
-                        SizedBox(
-                          width: (c.full || oneCol) ? inner : colW,
-                          child: c.child,
-                        ),
-                    ],
-                  ),
+                  // True two-column masonry: cards stack tightly per column
+                  // instead of the old paired-row Wrap, which left a big gap
+                  // whenever two side-by-side cards had very different heights
+                  // (or one collapsed to nothing, e.g. the GPU-only cards).
+                  child: _cardMasonry(cards, colW, gap, inner, oneCol),
                 );
               },
             ),
           ),
         ],
       ),
+    );
+  }
+
+  // Two-column masonry for the settings cards. Columns stack independently (no
+  // paired-row gaps that a tall card or a collapsed GPU-only card used to open);
+  // `full` cards break the columns and span the whole row.
+  Widget _cardMasonry(List<_CardSpec> cards, double colW, double gap,
+      double inner, bool oneCol) {
+    if (oneCol) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (int i = 0; i < cards.length; i++) ...[
+            if (i > 0) SizedBox(height: gap),
+            cards[i].child,
+          ],
+        ],
+      );
+    }
+    final blocks = <Widget>[];
+    var left = <Widget>[];
+    var right = <Widget>[];
+    var toLeft = true;
+    void flush() {
+      if (left.isEmpty && right.isEmpty) return;
+      blocks.add(Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+              width: colW,
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: left)),
+          SizedBox(width: gap),
+          SizedBox(
+              width: colW,
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: right)),
+        ],
+      ));
+      left = <Widget>[];
+      right = <Widget>[];
+    }
+
+    for (final c in cards) {
+      if (c.full) {
+        flush();
+        blocks.add(SizedBox(width: inner, child: c.child));
+        continue;
+      }
+      final col = toLeft ? left : right;
+      if (col.isNotEmpty) col.add(SizedBox(height: gap));
+      col.add(c.child);
+      toLeft = !toLeft;
+    }
+    flush();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (int i = 0; i < blocks.length; i++) ...[
+          if (i > 0) SizedBox(height: gap),
+          blocks[i],
+        ],
+      ],
     );
   }
 
@@ -14488,7 +14566,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     final (label, color) = switch (s) {
       SidecarStatus.connected => (
           '${app.t('sidecarConnected')}'
-              '${SidecarClient.instance.sttAvailable ? ' · Whisper' : ''}',
+              '${SidecarClient.instance.sttAvailable ? ' · ${app.sttSidecarEngine == 'gigaam' ? app.t('engGigaamName') : app.t('engWhisperName')}' : ''}',
           const Color(0xFF54E08A)
         ),
       SidecarStatus.starting => (app.t('sidecarStarting'), const Color(0xFFE0C07A)),
@@ -15811,20 +15889,25 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             label: app.t('sttEngine'),
             desc: app.t('sttEngineDesc'),
             control: evsSegmentedWide<String>(
-              [('windows', 'Windows STT'), ('whisper', app.t('whisperOffline'))],
+              [('windows', 'Windows STT'), ('whisper', app.t('localEngineName'))],
               app.sttEngine,
               (v) => app.setSttEngine(v),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-            child: Text(app.t('cardSttModel'),
-                style: const TextStyle(
-                    color: Color(0xFFD0D4E2),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700)),
-          ),
-          _SttEngineCards(app),
+          // The local engine (whisper|gigaam) picker only applies to the local
+          // backend — hidden when Windows STT is chosen so GigaAM/Whisper aren't
+          // shown as "models" under an unrelated engine.
+          if (app.sttEngine == 'whisper') ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+              child: Text(app.t('cardSttModel'),
+                  style: const TextStyle(
+                      color: Color(0xFFD0D4E2),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700)),
+            ),
+            _SttEngineCards(app),
+          ],
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
             child: Text(app.t('cardDenoise'),
@@ -17567,9 +17650,9 @@ class _ChatScreenState extends State<ChatScreen> {
               else if (app.vizType == 'lkbars')
                 const EvsLiveViz(kind: 'lkbars', maxSize: 340)
               else if (app.vizType == 'wave3d')
-                const EvsWaveViz(kind: 'wave3d', size: 320)
+                const EvsWaveViz(kind: 'wave3d', size: 320, fadeEdges: true)
               else if (app.vizType == 'waveflat')
-                const EvsWaveViz(kind: 'waveflat', size: 320)
+                const EvsWaveViz(kind: 'waveflat', size: 320, fadeEdges: true)
               else
                 ParticleSphere(
                   size: 200,

@@ -172,26 +172,39 @@ class WhisperEngine(BaseSttEngine):
         self._loaded = False
 
     def _ensure_model(self):
-        if self._model is None:
-            from faster_whisper import WhisperModel
-            self._fell_back = False
-            if self.device == "cuda":
-                # Try CUDA; on any init failure (no driver / VRAM / cuDNN) fall
-                # back to CPU so the pipeline never dies (TZ2 block 6 fallback).
-                try:
-                    self._model = WhisperModel(
-                        self.model_size, device="cuda",
-                        compute_type=self.compute_type)
-                    self._device_active = "cuda"
-                    self._loaded = True
-                    return self._model
-                except Exception:
-                    self._fell_back = True
-            self._model = WhisperModel(
-                self.model_size, device="cpu", compute_type=self.compute_type)
-            self._device_active = "cpu"
-            self._loaded = True
-        return self._model
+        if self._model is not None:
+            return self._model
+        from faster_whisper import WhisperModel
+        self._fell_back = False
+        # The greedy warmup can fire the instant the model finishes downloading,
+        # when the just-written model.bin isn't yet openable ("Unable to open
+        # file 'model.bin'"). Retry a few times so a cold first-run download race
+        # doesn't wedge STT until an app restart.
+        last_err = None
+        for attempt in range(4):
+            try:
+                if self.device == "cuda":
+                    # Try CUDA; on any init failure (no driver / VRAM / cuDNN)
+                    # fall back to CPU so the pipeline never dies (TZ2 block 6).
+                    try:
+                        self._model = WhisperModel(
+                            self.model_size, device="cuda",
+                            compute_type=self.compute_type)
+                        self._device_active = "cuda"
+                        self._loaded = True
+                        return self._model
+                    except Exception:
+                        self._fell_back = True
+                self._model = WhisperModel(
+                    self.model_size, device="cpu",
+                    compute_type=self.compute_type)
+                self._device_active = "cpu"
+                self._loaded = True
+                return self._model
+            except Exception as e:
+                last_err = e
+                time.sleep(2.0)  # let the download/file settle, then retry
+        raise last_err
 
     # Whisper's signature hallucinations on noise/near-silence (it was
     # trained on subtitles): anything matching these is dropped outright.

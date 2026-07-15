@@ -12,8 +12,13 @@
 
 param(
   [string]$ComponentVersion = "1",
-  # Where the built exe will be hosted (a GitHub release asset).
-  [string]$Url = "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_sidecar.exe"
+  # Where the built zip will be hosted (a GitHub release asset). The sidecar is
+  # a --onedir build zipped up (NOT --onefile): sherpa-onnx and the standalone
+  # onnxruntime each ship their own onnxruntime.dll, and a onefile build flattens
+  # both into one dir -> the wrong one loads and sherpa fails with "requested API
+  # version [24] is not available ... Current ORT Version is 1.17.1". onedir keeps
+  # each package's DLLs in its own folder, so they don't collide.
+  [string]$Url = "https://github.com/kekw2077/mirai/releases/download/desktop-components/evs_sidecar.zip"
 )
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $here
@@ -40,7 +45,9 @@ if ($uv) {
 # submodules (PyAV/ctranslate2 DLLs, sounddevice's portaudio, pyttsx3's sapi5
 # driver). The Whisper model itself is NOT bundled — faster-whisper downloads it
 # on first use into the HF cache (HF_HOME, set by the app to its data folder).
-& $py -m PyInstaller --onefile --noconfirm --name evs_sidecar `
+# --onedir (NOT --onefile): keep every package's DLLs in its own folder so
+# sherpa-onnx's onnxruntime.dll and faster-whisper's don't collide.
+& $py -m PyInstaller --onedir --noconfirm --clean --name evs_sidecar `
   --collect-all faster_whisper `
   --collect-all ctranslate2 `
   --collect-all onnxruntime `
@@ -54,13 +61,19 @@ if ($uv) {
   --hidden-import pynvml `
   main.py
 
-$exe = Join-Path $here "dist\evs_sidecar.exe"
-if (-not (Test-Path $exe)) { Write-Error "PyInstaller did not produce $exe"; exit 1 }
+$appdir = Join-Path $here "dist\evs_sidecar"
+$innerExe = Join-Path $appdir "evs_sidecar.exe"
+if (-not (Test-Path $innerExe)) { Write-Error "PyInstaller did not produce $innerExe"; exit 1 }
 
-# Update the sidecar entry in ../dist/components.json (merge, don't clobber
-# other components like tts-clone).
-$sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-$size = (Get-Item $exe).Length
+# Zip the onedir CONTENTS (so the zip root holds evs_sidecar.exe + _internal\)
+# — the app extracts it into components\sidecar\ and launches sidecar\evs_sidecar.exe.
+$zip = Join-Path $here "dist\evs_sidecar.zip"
+if (Test-Path $zip) { Remove-Item $zip -Force }
+Compress-Archive -Path (Join-Path $appdir "*") -DestinationPath $zip -Force
+
+# Update the sidecar entry in ../dist/components.json (archive component).
+$sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+$size = (Get-Item $zip).Length
 $manifestPath = Join-Path $here "..\dist\components.json"
 if (Test-Path $manifestPath) {
   $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
@@ -71,7 +84,9 @@ if (-not $manifest.components) {
   $manifest | Add-Member -NotePropertyName components -NotePropertyValue ([pscustomobject]@{}) -Force
 }
 $entry = [pscustomobject]@{
-  file    = "evs_sidecar.exe"
+  file    = "evs_sidecar.zip"
+  exe     = "evs_sidecar.exe"
+  archive = $true
   version = $ComponentVersion
   url     = $Url
   sha256  = $sha
@@ -80,6 +95,6 @@ $entry = [pscustomobject]@{
 $manifest.components | Add-Member -NotePropertyName sidecar -NotePropertyValue $entry -Force
 $manifest | ConvertTo-Json -Depth 6 | Set-Content $manifestPath -Encoding utf8
 
-Write-Host "evs_sidecar.exe  sha256=$sha  size=$size"
-Write-Host "Updated $manifestPath (sidecar v$ComponentVersion)."
-Write-Host "Next: upload dist\evs_sidecar.exe to the 'desktop-components' release, then commit components.json."
+Write-Host "evs_sidecar.zip  sha256=$sha  size=$size"
+Write-Host "Updated $manifestPath (sidecar v$ComponentVersion, archive)."
+Write-Host "Next: upload dist\evs_sidecar.zip to the 'desktop-components' release, then commit components.json."
