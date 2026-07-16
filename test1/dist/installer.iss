@@ -27,6 +27,12 @@ AppName={#MyAppName}
 AppVersion={#AppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
+; Silent in-app updates pass /DIR="<running folder>" so the installer overwrites
+; the copy the user actually runs (portable E:\EVS, a manual folder, or the
+; default AppData location). Without this, Inno reuses the directory recorded in
+; the registry for this AppId from a prior install and ignores /DIR — which left
+; the running copy un-updated and the update looping. Let /DIR win every time.
+UsePreviousAppDir=no
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=out

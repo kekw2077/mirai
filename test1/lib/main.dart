@@ -1003,6 +1003,26 @@ const Map<String, Map<String, String>> _i18n = {
     'ttsCosyOnline': 'На связи',
     'ttsCosyOffline': 'Не отвечает',
     'ttsCosyChecking': 'Проверка…',
+    'ttsCosyWiringHint':
+        'Настройки сохраняются. Синтез через CosyVoice подключится, когда сервер будет развёрнут.',
+    'ttsCosyVoice': 'Голос / пресет',
+    'ttsCosyVoiceHint': 'ID пресета (spk_id) — для моделей SFT. Необязательно.',
+    'ttsCosyClone': 'Клонировать по образцу',
+    'ttsCosyClonePick': 'Выбрать WAV…',
+    'ttsCosyCloneNone': 'Образец не выбран',
+    'ttsCosyClonePrompt': 'Текст в образце',
+    'ttsCosyClonePromptHint': 'Что произнесено в WAV-образце (нужно для клонирования).',
+    'ttsCosySpeed': 'Скорость',
+    'ttsCosyEmotion': 'Эмоция',
+    'ttsCosyEmotionNeutral': 'Нейтрально',
+    'ttsCosyEmotionHappy': 'Радостно',
+    'ttsCosyEmotionSad': 'Грустно',
+    'ttsCosyEmotionSerious': 'Строго',
+    'ttsCosyEmotionCalm': 'Спокойно',
+    'ttsCosyEmotionExcited': 'Воодушевлённо',
+    'ttsCosyInstruct': 'Инструкция (свободный текст)',
+    'ttsCosyInstructHint': 'Своя инструкция стиля/эмоции — переопределяет пресет.',
+    'ttsCosyDevice': 'Устройство синтеза',
     'ttsInterp': 'Интерпретатор озвучки',
     'ttsInterpDesc':
         'Приводит текст к произносимому виду перед синтезом: числа и даты словами, '
@@ -1066,6 +1086,9 @@ const Map<String, Map<String, String>> _i18n = {
     'updDialogHint': 'Обновление уже скачано. Перезапустите EVS, чтобы применить.',
     'updLater': 'Позже',
     'updFailedApply': 'Обновление не установилось. Закройте EVS полностью и попробуйте снова.',
+    'updApplied': 'EVS обновлён до {v}',
+    'updFailedManual': 'Автообновление до {v} не установилось. Скачайте установщик вручную.',
+    'updDownloadManual': 'Скачать',
     'webSearch': 'Веб-поиск',
     'webSearchEnable': 'Искать в интернете',
     'webSearchDesc': 'Ассистент найдёт свежие данные (курс, погода, новости), когда вопрос этого требует.',
@@ -1914,6 +1937,26 @@ const Map<String, Map<String, String>> _i18n = {
     'ttsCosyOnline': 'Online',
     'ttsCosyOffline': 'Not responding',
     'ttsCosyChecking': 'Checking…',
+    'ttsCosyWiringHint':
+        'Settings are saved. CosyVoice synthesis connects once the server is deployed.',
+    'ttsCosyVoice': 'Voice / preset',
+    'ttsCosyVoiceHint': 'Preset id (spk_id) — for SFT models. Optional.',
+    'ttsCosyClone': 'Clone from sample',
+    'ttsCosyClonePick': 'Choose WAV…',
+    'ttsCosyCloneNone': 'No sample chosen',
+    'ttsCosyClonePrompt': 'Text in the sample',
+    'ttsCosyClonePromptHint': 'What is spoken in the WAV sample (needed for cloning).',
+    'ttsCosySpeed': 'Speed',
+    'ttsCosyEmotion': 'Emotion',
+    'ttsCosyEmotionNeutral': 'Neutral',
+    'ttsCosyEmotionHappy': 'Happy',
+    'ttsCosyEmotionSad': 'Sad',
+    'ttsCosyEmotionSerious': 'Serious',
+    'ttsCosyEmotionCalm': 'Calm',
+    'ttsCosyEmotionExcited': 'Excited',
+    'ttsCosyInstruct': 'Instruction (free text)',
+    'ttsCosyInstructHint': 'Your own style/emotion instruction — overrides the preset.',
+    'ttsCosyDevice': 'Synthesis device',
     'ttsInterp': 'Speech interpreter',
     'ttsInterpDesc':
         'Rewrites text into a speakable form before synthesis: numbers and dates '
@@ -1977,6 +2020,9 @@ const Map<String, Map<String, String>> _i18n = {
     'updDialogHint': 'The update is already downloaded. Restart EVS to apply.',
     'updLater': 'Later',
     'updFailedApply': 'The update did not install. Fully close EVS and try again.',
+    'updApplied': 'EVS updated to {v}',
+    'updFailedManual': 'Auto-update to {v} did not install. Download the installer manually.',
+    'updDownloadManual': 'Download',
     'webSearch': 'Web search',
     'webSearchEnable': 'Search the web',
     'webSearchDesc': 'The assistant fetches fresh info (rates, weather, news) when a question needs it.',
@@ -4976,6 +5022,22 @@ class AppState extends ChangeNotifier {
   String cosyvoiceEndpoint = '';
   // Transient (not persisted): null = unknown, true/false = last check result.
   bool? cosyvoiceOnline;
+  // CosyVoice deep controls (settings TZ §3.2). UI + persisted state only for
+  // now — synthesis routing to the server is wired once it's deployed and its
+  // API confirmed (the app currently synthesizes only through Piper/pyttsx3).
+  // `cosyvoiceVoice` — optional preset / spk_id for SFT-style models.
+  // `cosyvoiceClonePath` + `cosyvoiceClonePromptText` — a WAV sample and the
+  // text spoken in it, for zero-shot voice cloning. `cosyvoiceSpeed` — 0.5..2.0.
+  // `cosyvoiceEmotion` — a preset that maps to an instruct phrase later;
+  // `cosyvoiceInstruct` — optional free-text instruct override.
+  // `cosyvoiceDevice` — 'cpu' | 'cuda' (RTX 3060).
+  String cosyvoiceVoice = '';
+  String cosyvoiceClonePath = '';
+  String cosyvoiceClonePromptText = '';
+  double cosyvoiceSpeed = 1.0;
+  String cosyvoiceEmotion = 'neutral';
+  String cosyvoiceInstruct = '';
+  String cosyvoiceDevice = 'cuda'; // 'cpu' | 'cuda'
 
   // STT language resolved against the UI language when set to 'auto'.
   String get effectiveSttLanguage =>
@@ -5166,6 +5228,14 @@ class AppState extends ChangeNotifier {
     ttsInterpModel = prefs.getString('ttsInterpModel') ?? 'qwen3-interp';
     ttsEngineChoice = prefs.getString('ttsEngineChoice') ?? 'piper';
     cosyvoiceEndpoint = prefs.getString('cosyvoiceEndpoint') ?? '';
+    cosyvoiceVoice = prefs.getString('cosyvoiceVoice') ?? '';
+    cosyvoiceClonePath = prefs.getString('cosyvoiceClonePath') ?? '';
+    cosyvoiceClonePromptText =
+        prefs.getString('cosyvoiceClonePromptText') ?? '';
+    cosyvoiceSpeed = prefs.getDouble('cosyvoiceSpeed') ?? 1.0;
+    cosyvoiceEmotion = prefs.getString('cosyvoiceEmotion') ?? 'neutral';
+    cosyvoiceInstruct = prefs.getString('cosyvoiceInstruct') ?? '';
+    cosyvoiceDevice = prefs.getString('cosyvoiceDevice') ?? 'cuda';
     final vcRaw = prefs.getString('voiceCommands');
     if (vcRaw != null) {
       try {
@@ -5319,6 +5389,13 @@ class AppState extends ChangeNotifier {
     await prefs.setString('ttsInterpModel', ttsInterpModel);
     await prefs.setString('ttsEngineChoice', ttsEngineChoice);
     await prefs.setString('cosyvoiceEndpoint', cosyvoiceEndpoint);
+    await prefs.setString('cosyvoiceVoice', cosyvoiceVoice);
+    await prefs.setString('cosyvoiceClonePath', cosyvoiceClonePath);
+    await prefs.setString('cosyvoiceClonePromptText', cosyvoiceClonePromptText);
+    await prefs.setDouble('cosyvoiceSpeed', cosyvoiceSpeed);
+    await prefs.setString('cosyvoiceEmotion', cosyvoiceEmotion);
+    await prefs.setString('cosyvoiceInstruct', cosyvoiceInstruct);
+    await prefs.setString('cosyvoiceDevice', cosyvoiceDevice);
     await prefs.setString(
       'voiceCommands',
       jsonEncode(voiceCommands.map((c) => c.toJson()).toList()),
@@ -5508,6 +5585,14 @@ class AppState extends ChangeNotifier {
     ttsInterpModel = prefs.getString('ttsInterpModel') ?? 'qwen3-interp';
     ttsEngineChoice = prefs.getString('ttsEngineChoice') ?? 'piper';
     cosyvoiceEndpoint = prefs.getString('cosyvoiceEndpoint') ?? '';
+    cosyvoiceVoice = prefs.getString('cosyvoiceVoice') ?? '';
+    cosyvoiceClonePath = prefs.getString('cosyvoiceClonePath') ?? '';
+    cosyvoiceClonePromptText =
+        prefs.getString('cosyvoiceClonePromptText') ?? '';
+    cosyvoiceSpeed = prefs.getDouble('cosyvoiceSpeed') ?? 1.0;
+    cosyvoiceEmotion = prefs.getString('cosyvoiceEmotion') ?? 'neutral';
+    cosyvoiceInstruct = prefs.getString('cosyvoiceInstruct') ?? '';
+    cosyvoiceDevice = prefs.getString('cosyvoiceDevice') ?? 'cuda';
     final vcRaw = prefs.getString('voiceCommands');
     if (vcRaw != null) {
       try {
@@ -5635,6 +5720,51 @@ class AppState extends ChangeNotifier {
   void setCosyvoiceEndpoint(String v) {
     cosyvoiceEndpoint = v.trim();
     cosyvoiceOnline = null; // must re-check after an address change
+    _save();
+    notifyListeners();
+  }
+
+  // CosyVoice deep-control setters (§3.2). State only for now — values are
+  // persisted and will be sent to the CosyVoice server once synthesis routing
+  // is wired (see PATCH-2.0.1-STATUS.md follow-up).
+  void setCosyvoiceVoice(String v) {
+    cosyvoiceVoice = v.trim();
+    _save();
+    notifyListeners();
+  }
+
+  void setCosyvoiceClonePath(String v) {
+    cosyvoiceClonePath = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCosyvoiceClonePromptText(String v) {
+    cosyvoiceClonePromptText = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCosyvoiceSpeed(double v) {
+    cosyvoiceSpeed = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCosyvoiceEmotion(String v) {
+    cosyvoiceEmotion = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCosyvoiceInstruct(String v) {
+    cosyvoiceInstruct = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setCosyvoiceDevice(String v) {
+    cosyvoiceDevice = v == 'cuda' ? 'cuda' : 'cpu';
     _save();
     notifyListeners();
   }
@@ -9690,6 +9820,11 @@ class AppUpdater {
   // top-bar pill still offers the update). Cleared implicitly when a newer
   // version appears (availableVersion changes).
   String _declinedVersion = '';
+  // Version whose silent install was detected as FAILED on the next launch
+  // (files never advanced). Persisted so the auto-check offers manual recovery
+  // instead of re-showing the modal restart prompt in a loop. Cleared on a
+  // successful apply or when a newer version appears.
+  String _lastFailedVersion = '';
   Timer? _timer;
   bool _busy = false;
   AppState? _app;
@@ -9698,6 +9833,7 @@ class AppUpdater {
     _app = app;
     if (defaultTargetPlatform != TargetPlatform.windows) return;
     _declinedVersion = app.prefs.getString('updDeclinedVersion') ?? '';
+    _lastFailedVersion = app.prefs.getString('updLastFailedVersion') ?? '';
     unawaited(_checkPreviousUpdateOutcome(app));
     unawaited(_cleanupOldInstallers());
     // Don't auto-poll during development unless a staging feed is forced.
@@ -9742,6 +9878,7 @@ class AppUpdater {
       if (expected.isEmpty) return;
       final info = await PackageInfo.fromPlatform();
       if (_isNewer(expected, info.version)) {
+        // FAILED: the running files never advanced to the new version.
         unawaited(appendLog('errors',
             'update did not apply: still ${info.version}, expected $expected'));
         // Attach the tail of the installer's own log (if any) so the failure
@@ -9757,11 +9894,36 @@ class AppUpdater {
                 'errors', 'install.log tail:\n${tail.join('\n')}'));
           }
         } catch (_) {}
+        // Remember the failed version so the auto-check offers manual recovery
+        // instead of re-showing the modal restart prompt every launch.
+        _lastFailedVersion = expected;
+        unawaited(app.prefs.setString('updLastFailedVersion', expected));
         // Let them know once, after the window is actually visible.
         Future.delayed(const Duration(seconds: 3), () {
           final ctx = rootNavKey.currentContext;
           // ignore: use_build_context_synchronously
           if (ctx != null) showAppSnackBar(ctx, app.t('updFailedApply'));
+        });
+      } else if (expected == info.version) {
+        // SUCCESS: we're running the freshly-installed version. Clear any
+        // failure memory, surface the window (overlay mode otherwise re-hides
+        // it, so a successful relaunch looks like "it didn't reopen"), and
+        // confirm once.
+        if (_lastFailedVersion.isNotEmpty) {
+          _lastFailedVersion = '';
+          unawaited(app.prefs.remove('updLastFailedVersion'));
+        }
+        Future.delayed(const Duration(seconds: 2), () async {
+          try {
+            await windowManager.show();
+            await windowManager.focus();
+          } catch (_) {}
+          final ctx = rootNavKey.currentContext;
+          // ignore: use_build_context_synchronously
+          if (ctx != null) {
+            showAppSnackBar(
+                ctx, app.t('updApplied').replaceAll('{v}', expected));
+          }
         });
       }
     } catch (_) {}
@@ -9849,12 +10011,51 @@ class AppUpdater {
     }();
   }
 
+  // Open the GitHub release page for a version in the default browser (manual
+  // recovery when a silent install keeps failing). explorer.exe launches URLs
+  // via the default handler — no url_launcher dependency needed.
+  Future<void> _openReleasePage(String version) async {
+    final url =
+        'https://github.com/kekw2077/mirai/releases/tag/desktop-v$version';
+    try {
+      await io.Process.start('explorer.exe', [url],
+          mode: io.ProcessStartMode.detached);
+    } catch (_) {}
+  }
+
   void _showPrompt() {
     if (_promptedVersion == availableVersion) return;
     final app = _app;
     _promptedVersion = availableVersion;
     final ctx = rootNavKey.currentContext;
     if (ctx == null || app == null) return;
+    // A prior silent install of THIS exact version was detected as failed —
+    // don't re-show the restart prompt (that's the loop the user hit). Offer
+    // manual download instead; the passive top-bar pill stays available too.
+    if (availableVersion.isNotEmpty && availableVersion == _lastFailedVersion) {
+      showDialog(
+        context: ctx,
+        builder: (dctx) => _AppDialog(
+          title: Text('${app.t('updAvailableTitle')} — $availableVersion'),
+          content: Text(
+              app.t('updFailedManual').replaceAll('{v}', availableVersion)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dctx),
+              child: Text(app.t('updLater')),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dctx);
+                unawaited(_openReleasePage(availableVersion));
+              },
+              child: Text(app.t('updDownloadManual')),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     showDialog(
       context: ctx,
       builder: (dctx) => Dialog(
@@ -9986,12 +10187,19 @@ class AppUpdater {
       await io.File(await updateDownloadPath('pending_update.txt'))
           .writeAsString(availableVersion);
     } catch (_) {}
-    const fallbackArgs = [
+    // Install OVER the currently-running copy, wherever it lives (portable
+    // E:\EVS, a manually-placed folder, or the default %LocalAppData%\Programs\
+    // EVS). Without /DIR the installer's fixed DefaultDirName installs a SECOND
+    // copy in AppData, the running exe is never replaced, its version never
+    // advances, and the update re-offers on every launch — the reported loop.
+    final runDir = io.File(io.Platform.resolvedExecutable).parent.path;
+    final fallbackArgs = [
       '/VERYSILENT',
       '/SUPPRESSMSGBOXES',
       '/NORESTART',
       '/CURRENTUSER',
-      '/RELAUNCH=1'
+      '/RELAUNCH=1',
+      '/DIR=$runDir',
     ];
     try {
       // Run the installer through a detached PowerShell that:
@@ -10000,11 +10208,13 @@ class AppUpdater {
       //     the widget locking evs.exe, so the silent install couldn't replace
       //     it and the version never advanced),
       //  2) runs the installer silently WITH a log (so a failed apply is
-      //     diagnosable — update-install.log next to the app),
-      //  3) waits for the installer to finish, then relaunches EVS itself
-      //     (more reliable than the installer's own /RELAUNCH).
+      //     diagnosable — update-install.log next to the app), targeting the
+      //     running directory (/DIR) so the live copy is the one replaced,
+      //  3) lets the installer's own /RELAUNCH=1 [Run] entry relaunch the
+      //     freshly-installed {app}\evs.exe (the correct new version) — we no
+      //     longer relaunch the old resolvedExecutable ourselves.
       final esc = path.replaceAll("'", "''");
-      final exe = io.Platform.resolvedExecutable.replaceAll("'", "''");
+      final dir = runDir.replaceAll("'", "''");
       final log =
           (await updateDownloadPath('update-install.log')).replaceAll("'", "''");
       final ps = "\$ErrorActionPreference='SilentlyContinue'; "
@@ -10015,12 +10225,13 @@ class AppUpdater {
           // no leftover process can keep the app files locked.
           "Get-Process evs,evs_sidecar | Stop-Process -Force; "
           "Start-Sleep -Milliseconds 700; "
-          "\$p = Start-Process -FilePath '$esc' -ArgumentList "
-          "'/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER',"
-          "'/LOG=$log' -PassThru; "
-          "\$p.WaitForExit(); "
-          "Start-Sleep -Milliseconds 500; "
-          "Start-Process -FilePath '$exe'";
+          // ArgumentList as ONE verbatim string (not an array): the array form
+          // re-quotes elements containing spaces, which would mangle
+          // /DIR="C:\path with spaces". A single string is passed to the
+          // installer's command line as-is, with the paths double-quoted.
+          "Start-Process -FilePath '$esc' -ArgumentList "
+          "'/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /RELAUNCH=1 "
+          "/DIR=\"$dir\" /LOG=\"$log\"'";
       await io.Process.start(
         'powershell',
         ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps],
@@ -10028,7 +10239,8 @@ class AppUpdater {
       );
     } catch (_) {
       // PowerShell unavailable — fall back to launching the installer directly
-      // (Restart Manager / CloseApplications=force still closes us).
+      // (Restart Manager / CloseApplications=force still closes us; the
+      // installer's /RELAUNCH=1 brings the new version back up).
       try {
         await io.Process.start(path, fallbackArgs,
             mode: io.ProcessStartMode.detached);
@@ -18636,13 +18848,39 @@ class _TtsEngineCard extends StatefulWidget {
 class _TtsEngineCardState extends State<_TtsEngineCard> {
   late final TextEditingController _ep =
       TextEditingController(text: widget.app.cosyvoiceEndpoint);
+  // CosyVoice deep-control text fields (§3.2).
+  late final TextEditingController _voice =
+      TextEditingController(text: widget.app.cosyvoiceVoice);
+  late final TextEditingController _clonePrompt =
+      TextEditingController(text: widget.app.cosyvoiceClonePromptText);
+  late final TextEditingController _instruct =
+      TextEditingController(text: widget.app.cosyvoiceInstruct);
   bool _checking = false;
 
+  // Emotion presets → i18n label keys (map to instruct phrases once wired).
+  static const List<(String, String)> _emotions = [
+    ('neutral', 'ttsCosyEmotionNeutral'),
+    ('happy', 'ttsCosyEmotionHappy'),
+    ('sad', 'ttsCosyEmotionSad'),
+    ('serious', 'ttsCosyEmotionSerious'),
+    ('calm', 'ttsCosyEmotionCalm'),
+    ('excited', 'ttsCosyEmotionExcited'),
+  ];
+
   AppState get app => widget.app;
+
+  Future<void> _pickCloneSample() async {
+    final res = await FilePicker.pickFiles();
+    final p = res?.files.single.path;
+    if (p != null && p.isNotEmpty) app.setCosyvoiceClonePath(p);
+  }
 
   @override
   void dispose() {
     _ep.dispose();
+    _voice.dispose();
+    _clonePrompt.dispose();
+    _instruct.dispose();
     super.dispose();
   }
 
@@ -18682,6 +18920,149 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
         ),
       ),
     );
+  }
+
+  // Emotion preset dropdown (§3.2 wireframe shows a "[ нейтральная ▾ ]" select).
+  Widget _cosyEmotionDropdown() {
+    final value =
+        _emotions.any((e) => e.$1 == app.cosyvoiceEmotion) ? app.cosyvoiceEmotion : 'neutral';
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 11),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.white.withValues(alpha: 0.04),
+        border: Border.all(color: _evsStroke),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          isDense: true,
+          dropdownColor: const Color(0xFF1A1B25),
+          style: const TextStyle(fontSize: 12.5, color: Color(0xFFC0C4D4)),
+          icon: const Icon(Icons.expand_more, size: 18, color: Color(0xFF9AA0B4)),
+          items: [
+            for (final e in _emotions)
+              DropdownMenuItem(value: e.$1, child: Text(app.t(e.$2))),
+          ],
+          onChanged: (v) {
+            if (v != null) app.setCosyvoiceEmotion(v);
+          },
+        ),
+      ),
+    );
+  }
+
+  // Deep CosyVoice controls (§3.2). UI + persisted state only — no synthesis
+  // routing yet. Shown once an endpoint is entered so it can be configured
+  // before the server is actually reachable.
+  List<Widget> _cosyDeepControls() {
+    final sc = SidecarClient.instance;
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(18, 4, 18, 6),
+        child: Text(app.t('ttsCosyWiringHint'),
+            style: const TextStyle(fontSize: 11, color: Color(0xFF6E7280))),
+      ),
+      evsRow(
+        stacked: true,
+        label: app.t('ttsCosyVoice'),
+        desc: app.t('ttsCosyVoiceHint'),
+        control:
+            _RemoteField(controller: _voice, onChanged: app.setCosyvoiceVoice),
+      ),
+      evsRow(
+        stacked: true,
+        label: app.t('ttsCosyClone'),
+        control: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: _pickCloneSample,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _evsStroke),
+                    color: Colors.white.withValues(alpha: 0.04),
+                  ),
+                  child: Text(app.t('ttsCosyClonePick'),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFC0C4D4))),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  app.cosyvoiceClonePath.isEmpty
+                      ? app.t('ttsCosyCloneNone')
+                      : app.cosyvoiceClonePath
+                          .split(io.Platform.pathSeparator)
+                          .last,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11.5, color: Color(0xFF9AA0B4)),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            _RemoteField(
+                controller: _clonePrompt,
+                onChanged: app.setCosyvoiceClonePromptText),
+            const SizedBox(height: 4),
+            Text(app.t('ttsCosyClonePromptHint'),
+                style: const TextStyle(fontSize: 11, color: Color(0xFF6E7280))),
+          ],
+        ),
+      ),
+      evsRow(
+        label: app.t('ttsCosySpeed'),
+        control: evsSlider(
+          value: app.cosyvoiceSpeed.clamp(0.5, 2.0),
+          min: 0.5,
+          max: 2.0,
+          divisions: 15,
+          label: '${app.cosyvoiceSpeed.toStringAsFixed(1)}x',
+          onChanged: app.setCosyvoiceSpeed,
+        ),
+      ),
+      evsRow(
+        stacked: true,
+        label: app.t('ttsCosyEmotion'),
+        control: _cosyEmotionDropdown(),
+      ),
+      evsRow(
+        stacked: true,
+        label: app.t('ttsCosyInstruct'),
+        desc: app.t('ttsCosyInstructHint'),
+        control: _RemoteField(
+            controller: _instruct, onChanged: app.setCosyvoiceInstruct),
+      ),
+      evsRow(
+        stacked: true,
+        label: app.t('ttsCosyDevice'),
+        control: AnimatedBuilder(
+          animation: sc.gpuInfo,
+          builder: (context, _) {
+            final name = sc.gpuInfo.value.$2;
+            return evsSegmentedWide<String>(
+              [
+                ('cpu', app.t('deviceCpu')),
+                ('cuda', name.isNotEmpty ? 'GPU · $name' : app.t('deviceGpu')),
+              ],
+              app.cosyvoiceDevice,
+              app.setCosyvoiceDevice,
+            );
+          },
+        ),
+      ),
+    ];
   }
 
   @override
@@ -18778,6 +19159,9 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
             ],
           ),
         ),
+        // Deep CosyVoice controls (§3.2) — visible once an endpoint is entered,
+        // so they can be configured before the server is reachable.
+        if (app.cosyvoiceEndpoint.trim().isNotEmpty) ..._cosyDeepControls(),
       ],
     );
   }
