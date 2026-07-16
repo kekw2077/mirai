@@ -1,66 +1,90 @@
-"""Generate the EVS app/tray icon — the conic-gradient orb from evs_ui.html.
+"""Regenerate the EVS app/tray/installer/web icons from the master art.
 
-Reproduces the `.logo-mark` CSS exactly:
-  background: conic-gradient(from 160deg, #5068d8, #8855cc, #c060d8, #5068d8);
-  ::after (dark center) diameter = 14/30 of the outer circle, color #09090f.
+Source of truth: `icon.svg` (a transparent 1024x1024 design with gradient rings
+and gaussian-blur glow). The shipped `icon.png` master was rendered from that SVG
+with **headless Chromium** (full fidelity for the glow/blur filters, which most
+pure-Python SVG rasterizers drop). This script regenerates every derived raster
+from that master so the repo stays consistent without running
+`flutter_launcher_icons`.
 
-Outputs assets/icon/icon.png (1024, source for flutter_launcher_icons) and
-assets/icon/app_icon.ico (multi-size, used by the system tray).
+Outputs:
+  * icon.png                                       1024, flutter_launcher_icons source
+  * app_icon.ico                                   multi-size, system tray
+  * ../../windows/runner/resources/app_icon.ico    exe + Inno Setup installer icon
+  * ../../web/favicon.png, ../../web/icons/Icon-{192,512}[-maskable].png
+
+Usage:
+  python gen_evs_icon.py            # regenerate derived rasters from icon.png
+  python gen_evs_icon.py --from-svg # re-rasterize icon.png from icon.svg first
+                                    #   (needs `pip install cairosvg`; note its
+                                    #   glow-filter fidelity is lower than the
+                                    #   Chromium render that produced the shipped
+                                    #   master -- prefer re-exporting a browser
+                                    #   render if you change the SVG)
+
+Deps: `pip install pillow` (always); `pip install cairosvg` (only for --from-svg).
+After running, `dart run flutter_launcher_icons` regenerates the mobile/macOS
+icons from the new icon.png as well.
 """
 import os
-import numpy as np
+import sys
+
 from PIL import Image
 
-OUT = os.path.dirname(os.path.abspath(__file__))
-SS = 2048  # supersampled render, downscaled for anti-aliasing
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+MASTER = os.path.join(HERE, "icon.png")
+SVG = os.path.join(HERE, "icon.svg")
+
+# Multi-resolution frames baked into each .ico (Explorer/taskbar/tray pick one).
+ICO_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
 
 
-def hex2rgb(h):
-    h = h.lstrip("#")
-    return np.array([int(h[i:i + 2], 16) for i in (0, 2, 4)], dtype=np.float64)
+def rasterize_from_svg() -> None:
+    """Re-render icon.png from icon.svg via cairosvg (fallback path).
+
+    The committed master was produced with Chromium for maximum filter fidelity;
+    cairosvg is offered here only as a portable, dependency-light convenience.
+    """
+    import cairosvg  # optional dep, only for --from-svg
+
+    cairosvg.svg2png(
+        url=SVG, write_to=MASTER,
+        output_width=1024, output_height=1024, background_color="transparent",
+    )
+    print("rasterized icon.png from icon.svg (cairosvg)")
 
 
-BLUE = hex2rgb("5068d8")
-MID = hex2rgb("8855cc")
-PINK = hex2rgb("c060d8")
-DARK = hex2rgb("09090f")
-STOPS = [(0.0, BLUE), (1 / 3, MID), (2 / 3, PINK), (1.0, BLUE)]
+def main() -> None:
+    if "--from-svg" in sys.argv:
+        rasterize_from_svg()
+
+    master = Image.open(MASTER).convert("RGBA")
+    if master.size != (1024, 1024):
+        master = master.resize((1024, 1024), Image.LANCZOS)
+
+    def rz(size: int) -> Image.Image:
+        return master.resize((size, size), Image.LANCZOS)
+
+    # System tray icon.
+    rz(256).save(os.path.join(HERE, "app_icon.ico"), format="ICO", sizes=ICO_SIZES)
+
+    # Windows exe icon + Inno Setup installer icon (SetupIconFile).
+    rz(256).save(
+        os.path.join(ROOT, "windows", "runner", "resources", "app_icon.ico"),
+        format="ICO", sizes=ICO_SIZES,
+    )
+
+    # Web (matches flutter_launcher_icons web:generate output).
+    web_icons = os.path.join(ROOT, "web", "icons")
+    rz(512).save(os.path.join(web_icons, "Icon-512.png"))
+    rz(192).save(os.path.join(web_icons, "Icon-192.png"))
+    rz(512).save(os.path.join(web_icons, "Icon-maskable-512.png"))
+    rz(192).save(os.path.join(web_icons, "Icon-maskable-192.png"))
+    rz(16).save(os.path.join(ROOT, "web", "favicon.png"))
+
+    print("wrote app_icon.ico, windows app_icon.ico, web icons (master: icon.png)")
 
 
-def render(n):
-    y, x = np.mgrid[0:n, 0:n].astype(np.float64)
-    c = (n - 1) / 2.0
-    dx, dy = x - c, y - c
-    dist = np.sqrt(dx * dx + dy * dy)
-    R = n / 2.0 - n * 0.02            # small margin from edge
-    inner = R * (14.0 / 30.0)         # CSS center-hole ratio
-
-    # CSS conic: 0deg at top, clockwise; gradient starts `from 160deg`.
-    ang = np.mod(np.degrees(np.arctan2(dx, -dy)), 360.0)
-    t = np.mod(ang - 160.0, 360.0) / 360.0
-
-    col = np.zeros((n, n, 3))
-    for (t0, c0), (t1, c1) in zip(STOPS[:-1], STOPS[1:]):
-        m = (t >= t0) & (t <= t1)
-        f = ((t[m] - t0) / (t1 - t0))[:, None]
-        col[m] = c0[None, :] * (1 - f) + c1[None, :] * f
-
-    aa = max(1.0, n * 0.0015)
-    outer_a = np.clip((R - dist) / aa + 0.5, 0, 1)
-    center_a = np.clip((inner - dist) / aa + 0.5, 0, 1)
-
-    img = np.zeros((n, n, 4))
-    for k in range(3):
-        img[..., k] = col[..., k] * (1 - center_a) + DARK[k] * center_a
-    img[..., 3] = outer_a * 255.0
-    return Image.fromarray(np.clip(img, 0, 255).astype(np.uint8), "RGBA")
-
-
-big = render(SS)
-big.resize((1024, 1024), Image.LANCZOS).save(os.path.join(OUT, "icon.png"))
-big.resize((256, 256), Image.LANCZOS).save(
-    os.path.join(OUT, "app_icon.ico"),
-    format="ICO",
-    sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
-)
-print("wrote icon.png + app_icon.ico")
+if __name__ == "__main__":
+    main()
