@@ -525,6 +525,12 @@ class SttEngine:
         self._state = STATE_STARTING
         self._warmed = False
         self._warm_lock = threading.Lock()
+        # Serializes actual recognition across threads: the mic capture worker
+        # and one-shot network transcription (transcribe_pcm) share the same
+        # engine instance, and faster-whisper / CTranslate2 is not safe for
+        # concurrent decode calls on one model. Also enforces §14.6 "process
+        # sequentially" for overlapping phone commands.
+        self._recog_lock = threading.Lock()
 
         self._running = False
         self._frames: "queue.Queue[bytes]" = queue.Queue()
@@ -675,7 +681,8 @@ class SttEngine:
         try:
             import numpy as np
             t0 = time.monotonic()
-            engine.transcribe(np, b"\x00" * (SAMPLE_RATE * 2), final=True)
+            with self._recog_lock:
+                engine.transcribe(np, b"\x00" * (SAMPLE_RATE * 2), final=True)
             log_stage(f"warmup inference {int((time.monotonic() - t0) * 1000)} ms")
         except Exception as e:
             log_stage(f"warmup inference skipped: {e}")
@@ -940,7 +947,8 @@ class SttEngine:
         (possibly empty when the audio held no speech)."""
         if not pcm_i16:
             return ""
-        return self._active.transcribe(np, pcm_i16, final=True)
+        with self._recog_lock:
+            return self._active.transcribe(np, pcm_i16, final=True)
 
     # ---- multi-mic capture + arbitration (TZ2 block 8.2) --------------
 
@@ -1060,7 +1068,8 @@ class SttEngine:
             for seg in self._arbiter.flush(time.monotonic()):
                 try:
                     t0 = time.monotonic()
-                    text = self._active.transcribe(np, seg["audio"], True)
+                    with self._recog_lock:
+                        text = self._active.transcribe(np, seg["audio"], True)
                     latency = int((time.monotonic() - t0) * 1000)
                 except Exception as e:  # pragma: no cover
                     self._emit({"type": "error",
@@ -1166,7 +1175,8 @@ class SttEngine:
             return
         try:
             t0 = time.monotonic()
-            text = engine.transcribe(np, audio_bytes, final)
+            with self._recog_lock:
+                text = engine.transcribe(np, audio_bytes, final)
             latency_ms = int((time.monotonic() - t0) * 1000)
             if text:
                 msg = {
