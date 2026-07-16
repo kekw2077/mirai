@@ -1074,6 +1074,17 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdWizSite': 'Сайт',
     'cmdWizSystem': 'Система',
     'cmdWizMedia': 'Медиа',
+    'cmdWizVolume': 'Громкость приложения',
+    'volPickApp': 'Приложение (из воспроизводящих сейчас)',
+    'volNoSessions':
+        'Нет приложений, воспроизводящих звук. Запустите нужное (например, музыку) и обновите список.',
+    'volAction': 'Действие',
+    'volActSet': 'Установить',
+    'volActInc': 'Прибавить',
+    'volActDec': 'Убавить',
+    'volActMute': 'Заглушить',
+    'volActUnmute': 'Вернуть звук',
+    'volDefault': 'Значение по умолчанию',
     'cmdWizPickProgram': 'Выберите программу',
     'cmdWizPickExe': 'Выбрать файл вручную…',
     'cmdWizNoPrograms': 'Программы не найдены',
@@ -1907,6 +1918,17 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdWizSite': 'Website',
     'cmdWizSystem': 'System',
     'cmdWizMedia': 'Media',
+    'cmdWizVolume': 'App volume',
+    'volPickApp': 'App (from those playing now)',
+    'volNoSessions':
+        'No apps are playing sound. Start one (e.g. music) and refresh the list.',
+    'volAction': 'Action',
+    'volActSet': 'Set',
+    'volActInc': 'Increase',
+    'volActDec': 'Decrease',
+    'volActMute': 'Mute',
+    'volActUnmute': 'Unmute',
+    'volDefault': 'Default value',
     'cmdWizPickProgram': 'Pick a program',
     'cmdWizPickExe': 'Choose a file manually…',
     'cmdWizNoPrograms': 'No programs found',
@@ -12463,6 +12485,11 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
   List<ProgramEntry>? _programs; // null = loading
   String _progFilter = '';
   final Map<String, String> _iconPaths = {}; // iconSource -> cached PNG path
+  // App-volume (appVolume) wizard state.
+  List<Map<String, dynamic>>? _sessions; // null = loading active audio sessions
+  String _avProcess = '';
+  String _avAction = 'set';
+  final _avDefaultCtrl = TextEditingController();
 
   bool get _isEdit => widget.initial != null;
   AppState get app => widget.app;
@@ -12477,6 +12504,9 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
       _valueLabel = it.value;
       _phraseCtrl.text = it.phrase;
       _speakCtrl.text = it.speakPhrase;
+      _avProcess = it.process;
+      _avAction = it.action;
+      _avDefaultCtrl.text = it.defaultValue?.toString() ?? '';
       _step = 2; // straight to the phrase step; user can go Back to re-pick
     }
   }
@@ -12486,6 +12516,7 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
     _phraseCtrl.dispose();
     _speakCtrl.dispose();
     _urlCtrl.dispose();
+    _avDefaultCtrl.dispose();
     super.dispose();
   }
 
@@ -12495,6 +12526,7 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
     (VoiceCommandType.url, 'cmdWizSite', Icons.language),
     (VoiceCommandType.system, 'cmdWizSystem', Icons.settings_suggest_outlined),
     (VoiceCommandType.media, 'cmdWizMedia', Icons.music_note_outlined),
+    (VoiceCommandType.appVolume, 'cmdWizVolume', Icons.volume_up_outlined),
   ];
 
   Future<void> _pickCategory(VoiceCommandType t) async {
@@ -12516,9 +12548,22 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
       if (mounted && map.isNotEmpty) setState(() => _iconPaths.addAll(map));
     } else if (t == VoiceCommandType.file) {
       await _pickFileValue();
+    } else if (t == VoiceCommandType.appVolume) {
+      // Default the phrase template so the {N} slot is discoverable.
+      if (_phraseCtrl.text.trim().isEmpty) _phraseCtrl.text = 'громкость на {N}';
+      setState(() {
+        _sessions = null;
+        _step = 1;
+      });
+      await _loadSessions();
     } else {
       setState(() => _step = 1);
     }
+  }
+
+  Future<void> _loadSessions() async {
+    final s = await SidecarClient.instance.listAudioSessions();
+    if (mounted) setState(() => _sessions = s);
   }
 
   Future<void> _pickFileValue() async {
@@ -12546,6 +12591,22 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
   void _finish() {
     final phrase = _phraseCtrl.text.trim();
     if (phrase.isEmpty || _type == null || _value.trim().isEmpty) return;
+    if (_type == VoiceCommandType.appVolume) {
+      if (_avProcess.trim().isEmpty) return;
+      final def = int.tryParse(_avDefaultCtrl.text.trim());
+      Navigator.pop(
+          context,
+          VoiceCommand(
+            phrase: phrase,
+            type: VoiceCommandType.appVolume,
+            value: _value.trim(), // display name
+            speakPhrase: _speakCtrl.text.trim(),
+            process: _avProcess.trim(),
+            action: _avAction,
+            defaultValue: def,
+          ));
+      return;
+    }
     Navigator.pop(
         context,
         VoiceCommand(
@@ -12582,12 +12643,186 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
           onPressed: () => Navigator.pop(context),
           child: Text(app.t('cancel')),
         ),
+        if (_step == 1 && _type == VoiceCommandType.appVolume)
+          TextButton(
+            onPressed: _avProcess.trim().isEmpty
+                ? null
+                : () => setState(() => _step = 2),
+            child: Text(app.t('next')),
+          ),
         if (_step == 2)
           TextButton(
             onPressed: _finish,
             child: Text(_isEdit ? app.t('save') : app.t('add')),
           ),
       ],
+    );
+  }
+
+  // Step 1 for app-volume: pick a currently-playing app (from the sidecar's live
+  // audio sessions — §2.4), the action, and a fallback value.
+  Widget _volumeStep() {
+    final sessions = _sessions;
+    const actions = <(String, String)>[
+      ('set', 'volActSet'),
+      ('increase', 'volActInc'),
+      ('decrease', 'volActDec'),
+      ('mute', 'volActMute'),
+      ('unmute', 'volActUnmute'),
+    ];
+    return SizedBox(
+      height: 380,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            Expanded(
+              child: Text(app.t('volPickApp'),
+                  style: const TextStyle(
+                      fontSize: 13, color: Color(0xFFD0D4E2))),
+            ),
+            IconButton(
+              tooltip: app.t('refreshModelsBtn'),
+              icon: const Icon(Icons.refresh, size: 18, color: Color(0xFF9AA0B4)),
+              onPressed: () {
+                setState(() => _sessions = null);
+                _loadSessions();
+              },
+            ),
+          ]),
+          const SizedBox(height: 4),
+          Expanded(
+            child: sessions == null
+                ? const Center(
+                    child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2)))
+                : sessions.isEmpty
+                    ? Center(
+                        child: Text(app.t('volNoSessions'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                fontSize: 12.5, color: Color(0xFF6E7280))))
+                    : ListView(
+                        children: [
+                          for (final s in sessions)
+                            _sessionTile(
+                              (s['process'] ?? '').toString(),
+                              (s['display_name'] ?? '').toString(),
+                              (s['volume'] as num?)?.toDouble(),
+                            ),
+                        ],
+                      ),
+          ),
+          const SizedBox(height: 8),
+          Text(app.t('volAction'),
+              style: const TextStyle(fontSize: 12.5, color: Color(0xFF9AA0B4))),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final a in actions)
+                ChoiceChip(
+                  label: Text(app.t(a.$2), style: const TextStyle(fontSize: 12)),
+                  selected: _avAction == a.$1,
+                  onSelected: (_) => setState(() => _avAction = a.$1),
+                  backgroundColor: const Color(0xFF20202B),
+                  selectedColor: const Color(0xFF3A3550),
+                  labelStyle: const TextStyle(color: Color(0xFFD0D4E2)),
+                ),
+            ],
+          ),
+          // A fallback value only makes sense for the numeric actions.
+          if (_avAction == 'set' ||
+              _avAction == 'increase' ||
+              _avAction == 'decrease') ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: Text(app.t('volDefault'),
+                    style: const TextStyle(
+                        fontSize: 12.5, color: Color(0xFFD0D4E2))),
+              ),
+              SizedBox(
+                width: 80,
+                child: TextField(
+                  controller: _avDefaultCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(fontSize: 12.5, color: Color(0xFFC0C4D4)),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: app.t('llmDefaultHint'),
+                    hintStyle:
+                        const TextStyle(fontSize: 12, color: Color(0xFF5A6070)),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.04),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _evsStroke),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _evsStroke),
+                    ),
+                  ),
+                ),
+              ),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _sessionTile(String process, String display, double? vol) {
+    final selected = _avProcess.toLowerCase() == process.toLowerCase();
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => setState(() {
+        _avProcess = process;
+        _value = display.isNotEmpty ? display : process;
+        _valueLabel = _value;
+      }),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: selected
+              ? const Color(0x263A7BE0)
+              : Colors.white.withValues(alpha: 0.03),
+          border: Border.all(
+              color: selected ? const Color(0xFF3A7BE0) : _evsStroke),
+        ),
+        child: Row(children: [
+          Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              size: 16,
+              color: selected ? const Color(0xFF7BA0E0) : const Color(0xFF6E7280)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(display.isNotEmpty ? display : process,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13, color: Color(0xFFD0D4E2))),
+                Text(process,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11, color: Color(0xFF6E7280))),
+              ],
+            ),
+          ),
+          if (vol != null)
+            Text('${(vol * 100).round()}%',
+                style: const TextStyle(fontSize: 11.5, color: Color(0xFF9AA0B4))),
+        ]),
+      ),
     );
   }
 
@@ -12603,6 +12838,8 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
         return app.t('cmdWizSystem');
       case VoiceCommandType.media:
         return app.t('cmdWizMedia');
+      case VoiceCommandType.appVolume:
+        return app.t('cmdWizVolume');
       default:
         return app.t('cmdAdd');
     }
@@ -12612,6 +12849,8 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
     if (_step == 0) return _categoryStep();
     if (_step == 2) return _phraseStep();
     switch (_type) {
+      case VoiceCommandType.appVolume:
+        return _volumeStep();
       case VoiceCommandType.app:
         return _programStep();
       case VoiceCommandType.url:
