@@ -22,6 +22,10 @@ Protocol (JSON text frames)
                            "voice": "ru_RU-irina-medium", "voice_dir": "..."}
     {"type": "tts.preview", "voice": "...", "voice_dir": "...", "text": "..."}
     {"type": "intent.parse", "text": "...", "commands": [{"phrase": "..."}], "threshold": 0.5}
+    {"type": "audio.sessions"}                       # list active per-app audio sessions
+    {"type": "app.volume", "process": "Yandex Music.exe",
+                           "action": "set"|"increase"|"decrease"|"mute"|"unmute",
+                           "value": 0.30}             # 0..1 for set/increase/decrease
     {"type": "ping"}
   server -> client:
     {"type": "ready", "capabilities": {"stt": bool, "tts": bool,
@@ -37,6 +41,10 @@ Protocol (JSON text frames)
     {"type": "tts.done"}
     {"type": "tts.status", "engine": str, "voice": str, "state": "loading"|"ready"|"error", "message"?: str}
     {"type": "intent.result", "match": {...}|null}
+    {"type": "audio.sessions.result",
+        "sessions": [{"process": str, "display_name": str, "volume": float|null}]}
+    {"type": "app.volume.result",
+        "ok": bool, "found": int, "volume": float|null, "process": str, "action": str}
     {"type": "pong"}
     {"type": "error", "message": "..."}
 """
@@ -179,6 +187,23 @@ async def _handle(ws, stt: SttEngine, tts: TtsEngine,
                     float(data.get("threshold", 0.5)),
                 )
                 emit({"type": "intent.result", "match": res})
+            elif t == "audio.sessions":
+                # COM/pycaw is blocking — run it off the event loop.
+                import app_audio
+                sess = await asyncio.get_event_loop().run_in_executor(
+                    None, app_audio.list_sessions)
+                emit({"type": "audio.sessions.result", "sessions": sess})
+            elif t == "app.volume":
+                import app_audio
+                _v = data.get("value")
+                _proc = str(data.get("process", ""))
+                _act = str(data.get("action", "set"))
+                r = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: app_audio.apply(
+                        _proc, _act,
+                        float(_v) if _v is not None else None))
+                emit({"type": "app.volume.result", **r})
             elif t == "ping":
                 emit({"type": "pong"})
     except websockets.ConnectionClosed:
