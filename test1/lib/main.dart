@@ -1074,6 +1074,16 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdWizSite': 'Сайт',
     'cmdWizSystem': 'Система',
     'cmdWizMedia': 'Медиа',
+    'cmdSuggest': 'Предложить команды',
+    'cmdSuggestTitle': 'Предложенные команды',
+    'cmdSuggestScanning': 'Сканирую приложения и подбираю фразы…',
+    'cmdSuggestEmpty': 'Не нашлось новых приложений для команд.',
+    'cmdSuggestSaveSel': 'Сохранить выбранные',
+    'cmdSuggestCollision': 'Фраза уже используется',
+    'cmdSuggestFreq': 'часто',
+    'cmdSuggestPrivacy':
+        'Имена приложений уходят только в вашу локальную модель. Пути берутся из системы, ИИ их не трогает.',
+    'cmdSuggestSaved': 'Добавлено команд: {n}',
     'cmdWizVolume': 'Громкость приложения',
     'volPickApp': 'Приложение (из воспроизводящих сейчас)',
     'volNoSessions':
@@ -1918,6 +1928,16 @@ const Map<String, Map<String, String>> _i18n = {
     'cmdWizSite': 'Website',
     'cmdWizSystem': 'System',
     'cmdWizMedia': 'Media',
+    'cmdSuggest': 'Suggest commands',
+    'cmdSuggestTitle': 'Suggested commands',
+    'cmdSuggestScanning': 'Scanning apps and drafting phrases…',
+    'cmdSuggestEmpty': 'No new apps to make commands for.',
+    'cmdSuggestSaveSel': 'Save selected',
+    'cmdSuggestCollision': 'Phrase already in use',
+    'cmdSuggestFreq': 'frequent',
+    'cmdSuggestPrivacy':
+        'Only app names go to your local model. Paths come from the system; the AI never touches them.',
+    'cmdSuggestSaved': 'Commands added: {n}',
     'cmdWizVolume': 'App volume',
     'volPickApp': 'App (from those playing now)',
     'volNoSessions':
@@ -12709,6 +12729,232 @@ class SuggestionEngine {
   }
 }
 
+// AI voice-command suggestion review (Ф1 §1.7). Loads suggestions, lets the user
+// tick apps, edit each phrase (with live collision checking), and saves the
+// selected ones. Paths shown are read-only — they come from the scan, not the
+// model. Pops the number saved, or null on cancel.
+class _SuggestCommandsDialog extends StatefulWidget {
+  const _SuggestCommandsDialog(this.app);
+  final AppState app;
+  @override
+  State<_SuggestCommandsDialog> createState() => _SuggestCommandsDialogState();
+}
+
+class _SuggestCommandsDialogState extends State<_SuggestCommandsDialog> {
+  List<CmdSuggestion>? _sugg; // null = loading
+  final Map<CmdSuggestion, TextEditingController> _ctrls = {};
+  AppState get app => widget.app;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final s = await app.buildCommandSuggestions();
+    if (!mounted) return;
+    for (final x in s) {
+      _ctrls[x] = TextEditingController(text: x.phrase);
+    }
+    _deselectColliding(s);
+    setState(() => _sugg = s);
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctrls.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  // A colliding phrase can't be saved (§1.8: don't silently save a clash), so it
+  // is unchecked and its box disabled until the phrase is edited to be unique.
+  void _deselectColliding(List<CmdSuggestion> s) {
+    for (final x in s) {
+      if (x.collides) x.selected = false;
+    }
+  }
+
+  void _onEdit(CmdSuggestion s, String v) {
+    s.phrase = v;
+    SuggestionEngine.resolveCollisions(_sugg!, app.voiceCommands);
+    _deselectColliding(_sugg!);
+    setState(() {});
+  }
+
+  void _save() {
+    final chosen = _sugg!.where((s) => s.selected && !s.collides).toList();
+    for (final s in chosen) {
+      app.addVoiceCommand(VoiceCommand(
+        phrase: s.phrase.trim(),
+        type: VoiceCommandType.app,
+        value: s.program.value, // authoritative path from the scan
+      ));
+    }
+    Navigator.pop(context, chosen.length);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sugg = _sugg;
+    return AlertDialog(
+      backgroundColor: const Color(0xFF15151E),
+      title: Text(app.t('cmdSuggestTitle'),
+          style: const TextStyle(color: Colors.white, fontSize: 17)),
+      content: SizedBox(
+        width: 470,
+        height: 470,
+        child: sugg == null
+            ? Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SizedBox(height: 14),
+                  Text(app.t('cmdSuggestScanning'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          color: Color(0xFF9AA0B4), fontSize: 13)),
+                ]),
+              )
+            : sugg.isEmpty
+                ? Center(
+                    child: Text(app.t('cmdSuggestEmpty'),
+                        style: const TextStyle(color: Color(0xFF6E7280))))
+                : Column(children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(children: [
+                        const Icon(Icons.lock_outline,
+                            size: 14, color: Color(0xFF6E7280)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(app.t('cmdSuggestPrivacy'),
+                              style: const TextStyle(
+                                  fontSize: 11.5, color: Color(0xFF6E7280))),
+                        ),
+                      ]),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: sugg.length,
+                        itemBuilder: (_, i) => _row(sugg[i]),
+                      ),
+                    ),
+                  ]),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(app.t('cancel')),
+        ),
+        if (sugg != null && sugg.isNotEmpty)
+          TextButton(
+            onPressed: sugg.any((s) => s.selected && !s.collides) ? _save : null,
+            child: Text(app.t('cmdSuggestSaveSel')),
+          ),
+      ],
+    );
+  }
+
+  Widget _badge(String text, Color color) => Container(
+        margin: const EdgeInsets.only(left: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          color: color.withValues(alpha: 0.14),
+        ),
+        child: Text(text,
+            style: TextStyle(
+                fontSize: 10.5, fontWeight: FontWeight.w600, color: color)),
+      );
+
+  Widget _row(CmdSuggestion s) {
+    final isStore = s.program.value.toLowerCase().startsWith('shell:appsfolder');
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.fromLTRB(6, 8, 10, 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: Colors.white.withValues(alpha: 0.03),
+        border: Border.all(
+            color: s.collides ? const Color(0xFFE0685E) : _evsStroke),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            SizedBox(
+              width: 26,
+              height: 26,
+              child: Checkbox(
+                value: s.selected,
+                onChanged:
+                    s.collides ? null : (v) => setState(() => s.selected = v ?? false),
+                visualDensity: VisualDensity.compact,
+                side: const BorderSide(color: Color(0xFF6E7280)),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(s.program.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFD0D4E2))),
+            ),
+            if (s.usage > 0) _badge(app.t('cmdSuggestFreq'), const Color(0xFF54E08A)),
+            if (isStore) _badge('Store', const Color(0xFF7BA0E0)),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(left: 32, top: 2, right: 2),
+            child: TextField(
+              controller: _ctrls[s],
+              onChanged: (v) => _onEdit(s, v),
+              style: const TextStyle(fontSize: 12.5, color: Color(0xFFC0C4D4)),
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.04),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: _evsStroke),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: _evsStroke),
+                ),
+              ),
+            ),
+          ),
+          if (s.collides)
+            Padding(
+              padding: const EdgeInsets.only(left: 32, top: 3),
+              child: Text(app.t('cmdSuggestCollision'),
+                  style: const TextStyle(fontSize: 11, color: Color(0xFFE0685E))),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(left: 32, top: 3),
+            child: Text(
+              isStore ? 'Microsoft Store' : s.program.value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF5A6070)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // Step-by-step "add command" wizard: pick a category (program / file / site /
 // system / media) → choose the value (installed-program list, file picker, URL,
 // or a system/media action) → enter the trigger phrase. Pops the built
@@ -16000,9 +16246,35 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           for (final c in cmds) _cmdRow(app, c),
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: evsAddButton(app.t('cmdAdd'), () => _openAddCommandWizard(app)),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                evsAddButton(app.t('cmdAdd'), () => _openAddCommandWizard(app)),
+                InkWell(
+                  borderRadius: BorderRadius.circular(9),
+                  onTap: () => _openSuggestCommands(app),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: const Color(0x338A7BE0)),
+                      color: const Color(0x1A8A7BE0),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.auto_awesome,
+                          size: 14, color: _evsViolet2),
+                      const SizedBox(width: 6),
+                      Text(app.t('cmdSuggest'),
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _evsViolet2)),
+                    ]),
+                  ),
+                ),
+              ],
             ),
           ),
         ]),
@@ -16160,6 +16432,17 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       builder: (_) => _AddCommandWizard(app: app),
     );
     if (cmd != null) app.addVoiceCommand(cmd);
+  }
+
+  Future<void> _openSuggestCommands(AppState app) async {
+    final n = await showDialog<int>(
+      context: context,
+      builder: (_) => _SuggestCommandsDialog(app),
+    );
+    if (n != null && n > 0 && mounted) {
+      showAppSnackBar(
+          context, app.t('cmdSuggestSaved').replaceAll('{n}', '$n'));
+    }
   }
 
   Future<void> _openEditCommandWizard(AppState app, VoiceCommand existing) async {
