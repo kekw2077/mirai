@@ -810,6 +810,14 @@ const Map<String, Map<String, String>> _i18n = {
     'connModelsCount': 'моделей',
     'connBadUrl': 'Укажите адрес сервера выше',
     'refreshModelsBtn': 'Обновить список',
+    'modelPerMode': 'Модель по режиму',
+    'modelPerModeDesc':
+        'Разные модели для поиска и обычного чата. Поисковая используется, когда '
+            'для ответа подтянуты веб-результаты.',
+    'modelForSearch': 'Для поиска',
+    'modelForChat': 'Для чата',
+    'modelDefaultGlobal': 'Как выбрана глобально',
+    'modelNotOnServer': 'не найдена на сервере',
     'cardLlmAdv': 'Дополнительно',
     'llmAdvDesc':
         'Параметры запроса к модели. Пустое поле — параметр не отправляется, '
@@ -1622,6 +1630,14 @@ const Map<String, Map<String, String>> _i18n = {
     'connModelsCount': 'models',
     'connBadUrl': 'Enter the server address above',
     'refreshModelsBtn': 'Refresh list',
+    'modelPerMode': 'Model per mode',
+    'modelPerModeDesc':
+        'Separate models for search and ordinary chat. The search model is used '
+            'when live web results are pulled into the answer.',
+    'modelForSearch': 'For search',
+    'modelForChat': 'For chat',
+    'modelDefaultGlobal': 'As selected globally',
+    'modelNotOnServer': 'not on server',
     'cardLlmAdv': 'Advanced',
     'llmAdvDesc': 'Request parameters for the model. A blank field is not sent '
         'at all — the model\'s own default applies.',
@@ -4023,7 +4039,11 @@ class RemoteLLMService implements ILLMService {
     bool stream,
   ) {
     final body = <String, dynamic>{
-      'model': _effectiveModelFor(app, conv),
+      // Per-mode override: a turn with live web results uses the search model,
+      // everything else the chat model (both fall back to the global model when
+      // unset). RP-locked chats keep their pinned model — handled inside.
+      'model': app.modelForTurn(conv,
+          isSearch: app.pendingWebContext.trim().isNotEmpty),
       'stream': stream,
       'messages': _buildMessages(conv, history),
     };
@@ -4544,6 +4564,12 @@ class AppState extends ChangeNotifier {
   int? llmNumPredict;
   double? llmTemperature;
   String llmKeepAlive = '';
+  // Optional per-mode model overrides. Empty means "use whatever is selected
+  // globally", which keeps the existing single-model behaviour intact — the
+  // point is to let a RAG-tuned model answer search turns without changing what
+  // ordinary chat uses.
+  String searchModel = '';
+  String chatModel = '';
   // User-defined voice commands (catalog). Execution lands in the native
   // phase; for now they are stored and editable.
   List<VoiceCommand> voiceCommands = [];
@@ -4724,6 +4750,8 @@ class AppState extends ChangeNotifier {
     llmNumPredict = prefs.getInt('llmNumPredict');
     llmTemperature = prefs.getDouble('llmTemperature');
     llmKeepAlive = prefs.getString('llmKeepAlive') ?? '';
+    searchModel = prefs.getString('searchModel') ?? '';
+    chatModel = prefs.getString('chatModel') ?? '';
     // Migrate away placeholder values that earlier versions persisted as if
     // they were real user data.
     if (serverUrl == '192.168.1.100:11434') serverUrl = '';
@@ -4910,6 +4938,8 @@ class AppState extends ChangeNotifier {
       await prefs.setDouble('llmTemperature', llmTemperature!);
     }
     await prefs.setString('llmKeepAlive', llmKeepAlive);
+    await prefs.setString('searchModel', searchModel);
+    await prefs.setString('chatModel', chatModel);
     await prefs.setString('apiKey', apiKey);
     await prefs.setStringList('models', models);
     await prefs.setString('selectedModel', selectedModel);
@@ -5081,6 +5111,12 @@ class AppState extends ChangeNotifier {
     serverUrl = prefs.getString('serverUrl') ?? '';
     savedServers = prefs.getStringList('savedServers') ?? [];
     apiKey = prefs.getString('apiKey') ?? '';
+    llmNumCtx = prefs.getInt('llmNumCtx');
+    llmNumPredict = prefs.getInt('llmNumPredict');
+    llmTemperature = prefs.getDouble('llmTemperature');
+    llmKeepAlive = prefs.getString('llmKeepAlive') ?? '';
+    searchModel = prefs.getString('searchModel') ?? '';
+    chatModel = prefs.getString('chatModel') ?? '';
     inferenceMode = prefs.getString('inferenceMode') ?? 'localServer';
     if (inferenceMode == 'local') inferenceMode = 'localServer';
     autostart = prefs.getBool('autostart') ?? false;
@@ -5189,6 +5225,34 @@ class AppState extends ChangeNotifier {
     llmKeepAlive = v;
     _save();
     notifyListeners();
+  }
+
+  void setSearchModel(String v) {
+    searchModel = v;
+    _save();
+    notifyListeners();
+  }
+
+  void setChatModel(String v) {
+    chatModel = v;
+    _save();
+    notifyListeners();
+  }
+
+  /// Model name for the outgoing remote request, applying the optional per-mode
+  /// override. A turn counts as "search" when live web results were pulled for
+  /// it (pendingWebContext) — the only search-vs-chat distinction this app has.
+  /// The override is honoured only when the server actually advertises it, so a
+  /// stale choice falls back to the globally selected model instead of 404-ing;
+  /// an RP-locked chat always keeps its pinned model.
+  String modelForTurn(Conversation conv, {required bool isSearch}) {
+    if (conv.rpModeEnabled) {
+      final locked = conv.rpConfig?.lockedModel;
+      if (locked != null && locked.isNotEmpty) return locked;
+    }
+    final override = isSearch ? searchModel : chatModel;
+    if (override.isNotEmpty && models.contains(override)) return override;
+    return _effectiveModelFor(this, conv);
   }
 
   void setAutostart(bool v) {
@@ -15536,6 +15600,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         for (final m in app.models)
           _modelRow(app, m, app.modelDisplayName(m, withSuffix: false), ''),
         _ConnCheckRow(app, showRefresh: true),
+        if (app.models.isNotEmpty) _ModelModeCard(app),
         _LlmAdvancedCard(app),
       ])),
       _CardSpec(evsCard(context,
@@ -16314,6 +16379,86 @@ class _ConnCheckRow extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+// Optional per-mode model override (search vs chat). Empty = follow the global
+// selection, so leaving both alone reproduces the previous single-model
+// behaviour. A stored value that is no longer advertised by the server is kept
+// and flagged rather than silently swapped (settings TZ §12).
+class _ModelModeCard extends StatelessWidget {
+  const _ModelModeCard(this.app);
+  final AppState app;
+
+  Widget _picker(BuildContext context, String current,
+      ValueChanged<String> onPick) {
+    final missing = current.isNotEmpty && !app.models.contains(current);
+    final label = current.isEmpty
+        ? app.t('modelDefaultGlobal')
+        : missing
+            ? '$current  ⚠ ${app.t('modelNotOnServer')}'
+            : app.modelDisplayName(current, withSuffix: false);
+    return PopupMenuButton<String>(
+      tooltip: '',
+      color: const Color(0xFF1C1C26),
+      onSelected: onPick,
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: '',
+          child: Text(app.t('modelDefaultGlobal'),
+              style: const TextStyle(color: Color(0xFFD0D4E2), fontSize: 13)),
+        ),
+        // Keep a missing-but-selected value in the menu so it can be seen and
+        // cleared instead of vanishing.
+        if (missing)
+          PopupMenuItem<String>(
+            value: current,
+            child: Text('$current  ⚠',
+                style: const TextStyle(color: Color(0xFFE0C07A), fontSize: 13)),
+          ),
+        for (final m in app.models)
+          PopupMenuItem<String>(
+            value: m,
+            child: Text(app.modelDisplayName(m, withSuffix: false),
+                style: const TextStyle(color: Color(0xFFD0D4E2), fontSize: 13)),
+          ),
+      ],
+      child: evsSelectButton(label, minWidth: 150),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(app.t('modelPerMode'),
+                  style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFD0D4E2))),
+              const SizedBox(height: 3),
+              Text(app.t('modelPerModeDesc'),
+                  style:
+                      const TextStyle(fontSize: 12, color: Color(0xFF6E7280))),
+            ],
+          ),
+        ),
+        evsRow(
+          label: app.t('modelForSearch'),
+          control: _picker(context, app.searchModel, app.setSearchModel),
+        ),
+        evsRow(
+          label: app.t('modelForChat'),
+          control: _picker(context, app.chatModel, app.setChatModel),
+        ),
+      ],
     );
   }
 }
