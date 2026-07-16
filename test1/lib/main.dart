@@ -810,6 +810,18 @@ const Map<String, Map<String, String>> _i18n = {
     'connModelsCount': 'моделей',
     'connBadUrl': 'Укажите адрес сервера выше',
     'refreshModelsBtn': 'Обновить список',
+    'cardPresets': 'Быстрые профили',
+    'presetsDesc':
+        'Один тап настраивает несколько параметров сразу. Тонкую настройку можно сделать ниже.',
+    'presetFast': 'Быстро',
+    'presetFastDesc': 'CPU · лёгкое шумоподавление · без веб-поиска',
+    'presetQuality': 'Качество',
+    'presetQualityDesc': 'GPU · сильное шумоподавление',
+    'presetSearch': 'Поиск',
+    'presetSearchDesc': 'Веб-поиск включён',
+    'presetChat': 'Чат',
+    'presetChatDesc': 'Веб-поиск выключен',
+    'presetApplied': 'Профиль применён: {name}',
     'modelPerMode': 'Модель по режиму',
     'modelPerModeDesc':
         'Разные модели для поиска и обычного чата. Поисковая используется, когда '
@@ -1666,6 +1678,18 @@ const Map<String, Map<String, String>> _i18n = {
     'connModelsCount': 'models',
     'connBadUrl': 'Enter the server address above',
     'refreshModelsBtn': 'Refresh list',
+    'cardPresets': 'Quick profiles',
+    'presetsDesc':
+        'One tap sets several options at once. Fine-tune below afterwards.',
+    'presetFast': 'Fast',
+    'presetFastDesc': 'CPU · light denoise · no web search',
+    'presetQuality': 'Quality',
+    'presetQualityDesc': 'GPU · strong denoise',
+    'presetSearch': 'Search',
+    'presetSearchDesc': 'Web search on',
+    'presetChat': 'Chat',
+    'presetChatDesc': 'Web search off',
+    'presetApplied': 'Profile applied: {name}',
     'modelPerMode': 'Model per mode',
     'modelPerModeDesc':
         'Separate models for search and ordinary chat. The search model is used '
@@ -5394,6 +5418,30 @@ class AppState extends ChangeNotifier {
     searchModel = v;
     _save();
     notifyListeners();
+  }
+
+  // One-tap profiles (settings TZ §6). Each sets a small bundle of existing
+  // settings through their normal setters (so persistence + sidecar updates
+  // happen), and only touches toggle/segment-backed fields so the UI reflects
+  // the change on the next rebuild without fighting any text controller.
+  void applyVoicePreset(String id) {
+    switch (id) {
+      case 'fast': // Быстро: CPU, light denoise, no web search
+        setSttDevice('cpu');
+        setDenoiseMode('light');
+        setWebSearchEnabled(false);
+        break;
+      case 'quality': // Качество: GPU, strong denoise
+        setSttDevice('cuda');
+        setDenoiseMode('strong');
+        break;
+      case 'search': // Поиск: web results on
+        setWebSearchEnabled(true);
+        break;
+      case 'chat': // Чат: web results off
+        setWebSearchEnabled(false);
+        break;
+    }
   }
 
   void setChatModel(String v) {
@@ -16434,6 +16482,47 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     if (cmd != null) app.addVoiceCommand(cmd);
   }
 
+  Widget _presetChip(AppState app, String id, String nameKey, String descKey,
+      IconData icon) {
+    return Tooltip(
+      message: app.t(descKey),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          app.applyVoicePreset(id);
+          showAppSnackBar(context,
+              app.t('presetApplied').replaceAll('{name}', app.t(nameKey)));
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: Colors.white.withValues(alpha: 0.05),
+            border: Border.all(color: _evsStroke),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 15, color: _evsViolet2),
+            const SizedBox(width: 7),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(app.t(nameKey),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFD0D4E2))),
+                Text(app.t(descKey),
+                    style: const TextStyle(
+                        fontSize: 10.5, color: Color(0xFF6E7280))),
+              ],
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Future<void> _openSuggestCommands(AppState app) async {
     final n = await showDialog<int>(
       context: context,
@@ -16657,6 +16746,34 @@ class _DesktopSettingsState extends State<DesktopSettings> {
   // from the UI (the fllama engine code stays dormant in the codebase).
   List<_CardSpec> _modelCards(AppState app) {
     return [
+      _CardSpec(
+        evsCard(context,
+            icon: Icons.tune, title: app.t('cardPresets'), rows: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+            child: Text(app.t('presetsDesc'),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF6E7280))),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _presetChip(app, 'fast', 'presetFast', 'presetFastDesc',
+                    Icons.bolt_outlined),
+                _presetChip(app, 'quality', 'presetQuality', 'presetQualityDesc',
+                    Icons.hd_outlined),
+                _presetChip(app, 'search', 'presetSearch', 'presetSearchDesc',
+                    Icons.travel_explore),
+                _presetChip(app, 'chat', 'presetChat', 'presetChatDesc',
+                    Icons.chat_bubble_outline),
+              ],
+            ),
+          ),
+        ]),
+        full: true,
+      ),
       _CardSpec(
         evsCard(context,
             icon: Icons.dns_outlined,
