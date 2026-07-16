@@ -992,6 +992,17 @@ const Map<String, Map<String, String>> _i18n = {
     'voiceResponsesDesc': 'Проговаривать ответы ассистента голосом',
     'announceReady': 'Озвучивать готовность',
     'announceReadyDesc': 'Произносить голосом, когда ассистент готов слушать',
+    'ttsEngineTitle': 'Движок озвучки',
+    'ttsEnginePiper': 'Piper',
+    'ttsEnginePiperHint': 'быстро, офлайн, CPU',
+    'ttsEngineCosy': 'CosyVoice',
+    'ttsEngineCosyHint': 'качество, GPU',
+    'ttsCosyUnavailable': 'CosyVoice недоступен — сервер не отвечает',
+    'ttsCosyEndpoint': 'Endpoint CosyVoice',
+    'ttsCosyCheck': 'Проверить соединение',
+    'ttsCosyOnline': 'На связи',
+    'ttsCosyOffline': 'Не отвечает',
+    'ttsCosyChecking': 'Проверка…',
     'ttsInterp': 'Интерпретатор озвучки',
     'ttsInterpDesc':
         'Приводит текст к произносимому виду перед синтезом: числа и даты словами, '
@@ -1888,6 +1899,17 @@ const Map<String, Map<String, String>> _i18n = {
     'voiceResponsesDesc': 'Read the assistant\'s replies aloud',
     'announceReady': 'Announce readiness',
     'announceReadyDesc': 'Say aloud when the assistant is ready to listen',
+    'ttsEngineTitle': 'Voice engine',
+    'ttsEnginePiper': 'Piper',
+    'ttsEnginePiperHint': 'fast, offline, CPU',
+    'ttsEngineCosy': 'CosyVoice',
+    'ttsEngineCosyHint': 'quality, GPU',
+    'ttsCosyUnavailable': 'CosyVoice unavailable — server not responding',
+    'ttsCosyEndpoint': 'CosyVoice endpoint',
+    'ttsCosyCheck': 'Check connection',
+    'ttsCosyOnline': 'Online',
+    'ttsCosyOffline': 'Not responding',
+    'ttsCosyChecking': 'Checking…',
     'ttsInterp': 'Speech interpreter',
     'ttsInterpDesc':
         'Rewrites text into a speakable form before synthesis: numbers and dates '
@@ -4931,6 +4953,13 @@ class AppState extends ChangeNotifier {
   String ttsInterpMode = 'rules'; // 'rules' | 'model'
   String ttsInterpModel = 'qwen3-interp';
   bool _ttsInterpFellBack = false; // one-shot "fell back to rules" notice guard
+  // TTS engine choice (settings TZ §3.2). Piper is the built-in offline engine;
+  // CosyVoice is a separate HTTP server (GPU) — selectable only once its
+  // endpoint responds. The server isn't deployed yet, so it stays unavailable.
+  String ttsEngineChoice = 'piper'; // 'piper' | 'cosyvoice'
+  String cosyvoiceEndpoint = '';
+  // Transient (not persisted): null = unknown, true/false = last check result.
+  bool? cosyvoiceOnline;
 
   // STT language resolved against the UI language when set to 'auto'.
   String get effectiveSttLanguage =>
@@ -5119,6 +5148,8 @@ class AppState extends ChangeNotifier {
     ttsInterpEnabled = prefs.getBool('ttsInterpEnabled') ?? true;
     ttsInterpMode = prefs.getString('ttsInterpMode') ?? 'rules';
     ttsInterpModel = prefs.getString('ttsInterpModel') ?? 'qwen3-interp';
+    ttsEngineChoice = prefs.getString('ttsEngineChoice') ?? 'piper';
+    cosyvoiceEndpoint = prefs.getString('cosyvoiceEndpoint') ?? '';
     final vcRaw = prefs.getString('voiceCommands');
     if (vcRaw != null) {
       try {
@@ -5269,6 +5300,8 @@ class AppState extends ChangeNotifier {
     await prefs.setBool('ttsInterpEnabled', ttsInterpEnabled);
     await prefs.setString('ttsInterpMode', ttsInterpMode);
     await prefs.setString('ttsInterpModel', ttsInterpModel);
+    await prefs.setString('ttsEngineChoice', ttsEngineChoice);
+    await prefs.setString('cosyvoiceEndpoint', cosyvoiceEndpoint);
     await prefs.setString(
       'voiceCommands',
       jsonEncode(voiceCommands.map((c) => c.toJson()).toList()),
@@ -5455,6 +5488,8 @@ class AppState extends ChangeNotifier {
     ttsInterpEnabled = prefs.getBool('ttsInterpEnabled') ?? true;
     ttsInterpMode = prefs.getString('ttsInterpMode') ?? 'rules';
     ttsInterpModel = prefs.getString('ttsInterpModel') ?? 'qwen3-interp';
+    ttsEngineChoice = prefs.getString('ttsEngineChoice') ?? 'piper';
+    cosyvoiceEndpoint = prefs.getString('cosyvoiceEndpoint') ?? '';
     final vcRaw = prefs.getString('voiceCommands');
     if (vcRaw != null) {
       try {
@@ -5569,6 +5604,46 @@ class AppState extends ChangeNotifier {
     ttsInterpMode = v == 'model' ? 'model' : 'rules';
     _save();
     notifyListeners();
+  }
+
+  void setTtsEngineChoice(String v) {
+    // CosyVoice can only be made active once its endpoint answers (§3.2).
+    if (v == 'cosyvoice' && cosyvoiceOnline != true) return;
+    ttsEngineChoice = v == 'cosyvoice' ? 'cosyvoice' : 'piper';
+    _save();
+    notifyListeners();
+  }
+
+  void setCosyvoiceEndpoint(String v) {
+    cosyvoiceEndpoint = v.trim();
+    cosyvoiceOnline = null; // must re-check after an address change
+    _save();
+    notifyListeners();
+  }
+
+  // Best-effort reachability probe for the CosyVoice HTTP server. Any response
+  // (even an error status) means it's up; a timeout/refusal means offline. The
+  // server isn't deployed yet, so this normally reports offline and CosyVoice
+  // stays unselectable.
+  Future<bool> checkCosyvoice() async {
+    final url = cosyvoiceEndpoint.trim();
+    if (url.isEmpty) {
+      cosyvoiceOnline = false;
+      notifyListeners();
+      return false;
+    }
+    try {
+      final res = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 5));
+      cosyvoiceOnline = res.statusCode > 0;
+    } catch (_) {
+      cosyvoiceOnline = false;
+      // A downed server must never leave CosyVoice as the active engine.
+      if (ttsEngineChoice == 'cosyvoice') ttsEngineChoice = 'piper';
+    }
+    notifyListeners();
+    return cosyvoiceOnline ?? false;
   }
 
   void setTtsInterpModel(String v) {
@@ -18295,6 +18370,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             desc: app.t('announceReadyDesc'),
             control: evsToggle(app.announceReady, app.setAnnounceReady),
           ),
+          _TtsEngineCard(app),
           _TtsInterpCard(app),
           evsRow(
             label: app.t('ttsRate'),
@@ -18414,6 +18490,168 @@ class _ConnCheckRow extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+// TTS engine selector (settings TZ §3.2): Piper (offline, active) vs CosyVoice
+// (GPU HTTP server). CosyVoice is only selectable once its endpoint answers a
+// probe; the server isn't deployed yet, so it stays greyed with a note. The
+// deeper CosyVoice controls (voice cloning, speed, emotion) come once the server
+// exists and its API is known.
+class _TtsEngineCard extends StatefulWidget {
+  const _TtsEngineCard(this.app);
+  final AppState app;
+  @override
+  State<_TtsEngineCard> createState() => _TtsEngineCardState();
+}
+
+class _TtsEngineCardState extends State<_TtsEngineCard> {
+  late final TextEditingController _ep =
+      TextEditingController(text: widget.app.cosyvoiceEndpoint);
+  bool _checking = false;
+
+  AppState get app => widget.app;
+
+  @override
+  void dispose() {
+    _ep.dispose();
+    super.dispose();
+  }
+
+  Widget _engineChip(String id, String nameKey, String hintKey,
+      {required bool enabled}) {
+    final selected = app.ttsEngineChoice == id;
+    return Expanded(
+      child: Opacity(
+        opacity: enabled ? 1 : 0.5,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: enabled ? () => app.setTtsEngineChoice(id) : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: selected
+                  ? const Color(0x263A7BE0)
+                  : Colors.white.withValues(alpha: 0.04),
+              border: Border.all(
+                  color: selected ? const Color(0xFF3A7BE0) : _evsStroke),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(app.t(nameKey),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFD0D4E2))),
+                Text(app.t(hintKey),
+                    style:
+                        const TextStyle(fontSize: 11, color: Color(0xFF6E7280))),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cosyOnline = app.cosyvoiceOnline == true;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+          child: Text(app.t('ttsEngineTitle'),
+              style: const TextStyle(
+                  color: Color(0xFFD0D4E2),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700)),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+          child: Row(children: [
+            _engineChip('piper', 'ttsEnginePiper', 'ttsEnginePiperHint',
+                enabled: true),
+            const SizedBox(width: 8),
+            _engineChip('cosyvoice', 'ttsEngineCosy', 'ttsEngineCosyHint',
+                enabled: cosyOnline),
+          ]),
+        ),
+        if (!cosyOnline)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+            child: Text(app.t('ttsCosyUnavailable'),
+                style: const TextStyle(fontSize: 11.5, color: Color(0xFFE0A07A))),
+          ),
+        // Endpoint + check.
+        evsRow(
+          stacked: true,
+          label: app.t('ttsCosyEndpoint'),
+          control: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _RemoteField(
+                controller: _ep,
+                onChanged: app.setCosyvoiceEndpoint,
+              ),
+              const SizedBox(height: 8),
+              Row(children: [
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: _checking
+                      ? null
+                      : () async {
+                          setState(() => _checking = true);
+                          await app.checkCosyvoice();
+                          if (mounted) setState(() => _checking = false);
+                        },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _evsStroke),
+                      color: Colors.white.withValues(alpha: 0.04),
+                    ),
+                    child: Text(
+                        _checking ? app.t('ttsCosyChecking') : app.t('ttsCosyCheck'),
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFC0C4D4))),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (app.cosyvoiceOnline != null)
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: cosyOnline
+                                ? const Color(0xFF54E08A)
+                                : const Color(0xFFE05D5D))),
+                    const SizedBox(width: 6),
+                    Text(
+                        cosyOnline
+                            ? app.t('ttsCosyOnline')
+                            : app.t('ttsCosyOffline'),
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: cosyOnline
+                                ? const Color(0xFF54E08A)
+                                : const Color(0xFFE05D5D))),
+                  ]),
+              ]),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
