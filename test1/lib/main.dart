@@ -5941,6 +5941,96 @@ class AppState extends ChangeNotifier {
     return (true, say);
   }
 
+  // Build AI voice-command suggestions (Ф1). Uses the real app scan (paths are
+  // authoritative — never from the model), ranks by UserAssist frequency, asks
+  // the configured server model for phrases (names only), and falls back to
+  // "открой <name>" per app when the model is unavailable or replies badly.
+  // Apps already mapped to a command are skipped so a repeat run only offers new
+  // ones (§1.8).
+  Future<List<CmdSuggestion>> buildCommandSuggestions({int topN = 20}) async {
+    final apps = (await listInstalledPrograms())
+        .where((p) => !SuggestionEngine.isJunk(p))
+        .toList();
+    final usage = await readUsageScores();
+    final existingTargets = voiceCommands
+        .where((c) => c.type == VoiceCommandType.app)
+        .map((c) => c.value.toLowerCase())
+        .toSet();
+    final candidates = apps
+        .where((p) => !existingTargets.contains(p.value.toLowerCase()))
+        .toList()
+      ..sort((a, b) {
+        final sa = SuggestionEngine.scoreFor(a, usage);
+        final sb = SuggestionEngine.scoreFor(b, usage);
+        if (sa != sb) return sb.compareTo(sa); // most-used first
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+    final top = candidates.take(topN).toList();
+    final anyUsage = top.any((p) => SuggestionEngine.scoreFor(p, usage) > 0);
+
+    Map<String, List<String>>? ai;
+    if (top.isNotEmpty) {
+      ai = await _requestSuggestionPhrases(top.map((e) => e.name).toList());
+    }
+
+    final out = <CmdSuggestion>[];
+    for (var i = 0; i < top.length; i++) {
+      final p = top[i];
+      final score = SuggestionEngine.scoreFor(p, usage);
+      final phrases = ai?[p.name];
+      final phrase = (phrases != null && phrases.isNotEmpty)
+          ? phrases.first
+          : SuggestionEngine.fallbackPhrase(p.name);
+      out.add(CmdSuggestion(
+        p,
+        phrase,
+        // Pre-check the frequently-used apps; if there's no frequency data at
+        // all, pre-check the first few so the list is still actionable (§1.5a).
+        selected: anyUsage ? score > 0 : i < 6,
+        usage: score,
+      ));
+    }
+    SuggestionEngine.resolveCollisions(out, voiceCommands);
+    return out;
+  }
+
+  // Best-effort call to the configured server model for suggestion phrases.
+  // Returns null (→ per-app fallback) when there's no server, the model is local
+  // (this needs Ollama), the request fails, or the reply isn't parseable JSON.
+  Future<Map<String, List<String>>?> _requestSuggestionPhrases(
+      List<String> names) async {
+    final model = chatModel.isNotEmpty ? chatModel : selectedModel;
+    if (serverUrl.trim().isEmpty || model.isEmpty || isLocalModel(model)) {
+      return null;
+    }
+    try {
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      if (apiKey.isNotEmpty) headers['Authorization'] = 'Bearer $apiKey';
+      final res = await http
+          .post(Uri.parse('$baseUrl/api/chat'),
+              headers: headers,
+              body: jsonEncode({
+                'model': model,
+                'stream': false,
+                'messages': [
+                  {'role': 'user', 'content': SuggestionEngine.buildPrompt(names)}
+                ],
+                'options': {'temperature': 0.2},
+              }))
+          .timeout(const Duration(seconds: 30));
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(utf8.decode(res.bodyBytes));
+      if (data is! Map) return null;
+      final msg = data['message'];
+      final content = msg is Map ? msg['content'] : null;
+      return content is String
+          ? SuggestionEngine.parseModelJson(content)
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   void addVoiceCommand(VoiceCommand c) {
     voiceCommands.add(c);
     _save();
@@ -12458,6 +12548,165 @@ Future<List<ProgramEntry>> listInstalledPrograms() async {
   final list = out.values.toList()
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   return list;
+}
+
+// ---- AI voice-command suggestions (new-features Ф1) ----
+
+// One AI-proposed command in the confirmation screen: an app from the real scan
+// (its path is authoritative — the model never touches it), a proposed, editable
+// phrase, whether it's selected, and whether the phrase collides.
+class CmdSuggestion {
+  final ProgramEntry program;
+  String phrase;
+  bool selected;
+  bool collides;
+  final int usage;
+  CmdSuggestion(this.program, this.phrase,
+      {this.selected = true, this.collides = false, this.usage = 0});
+}
+
+// Windows UserAssist run-counts keyed by normalized app name (leaf without
+// .exe/.lnk, lowercased). Best-effort: {} on any failure, and the caller falls
+// back to alphabetical order (Ф1 §1.5a / §1.8). Uses PowerShell -EncodedCommand
+// (base64 UTF-16LE) so the script needs no shell-quoting.
+Future<Map<String, int>> readUsageScores() async {
+  if (!io.Platform.isWindows) return {};
+  const ps = r'''
+$ErrorActionPreference='SilentlyContinue'
+function R13($s){ -join ($s.ToCharArray()|%{ $c=[int][char]$_
+  if($c-ge65-and$c-le90){[char](65+($c-65+13)%26)}
+  elseif($c-ge97-and$c-le122){[char](97+($c-97+13)%26)}else{[char]$c} }) }
+$guids='{CEBFF5CD-ACE2-4F4F-9178-9926F41749EA}','{F4E57C4B-2036-45F0-A9AB-443BCFE33D9F}'
+$out=@{}
+foreach($g in $guids){
+  $k="HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\$g\Count"
+  if(-not(Test-Path $k)){continue}
+  $p=Get-Item $k
+  foreach($n in $p.GetValueNames()){
+    if([string]::IsNullOrEmpty($n)){continue}
+    $d=R13 $n; $data=$p.GetValue($n); $c=0
+    if($data -is [byte[]] -and $data.Length -ge 8){$c=[BitConverter]::ToUInt32($data,4)}
+    $leaf=($d -split '[\\/]')[-1] -replace '\.(exe|lnk)$',''
+    $leaf=$leaf.ToLower().Trim()
+    if($leaf){ if(-not $out.ContainsKey($leaf) -or $out[$leaf]-lt $c){$out[$leaf]=$c} }
+  }
+}
+$out.GetEnumerator()|%{ "$($_.Key)`t$($_.Value)" }
+''';
+  try {
+    final units = ps.codeUnits;
+    final b = Uint8List(units.length * 2);
+    for (var i = 0; i < units.length; i++) {
+      b[i * 2] = units[i] & 0xff;
+      b[i * 2 + 1] = (units[i] >> 8) & 0xff;
+    }
+    final r = await io.Process.run('powershell', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-EncodedCommand',
+      base64.encode(b),
+    ]).timeout(const Duration(seconds: 12));
+    final map = <String, int>{};
+    for (final line in (r.stdout as String).split('\n')) {
+      final parts = line.trim().split('\t');
+      if (parts.length == 2) {
+        final n = int.tryParse(parts[1].trim());
+        if (n != null) map[parts[0].trim()] = n;
+      }
+    }
+    return map;
+  } catch (_) {
+    return {};
+  }
+}
+
+class SuggestionEngine {
+  static String normalizeName(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'\.(exe|lnk)$'), '').trim();
+
+  // Filter out installers/updaters/uninstallers and EVS itself before anything
+  // is shown or sent to the model (§1.8).
+  static final RegExp _junk = RegExp(
+      r'(uninstall|установка|удал|setup|installer|updater|обновлen|crash|report|helper|redist|vcredist)',
+      caseSensitive: false);
+  static bool isJunk(ProgramEntry p) {
+    final n = p.name.toLowerCase();
+    if (n == 'evs' || p.value.toLowerCase().contains('evs.exe')) return true;
+    return _junk.hasMatch(n);
+  }
+
+  static int scoreFor(ProgramEntry p, Map<String, int> usage) {
+    final byName = usage[normalizeName(p.name)];
+    if (byName != null) return byName;
+    // Fall back to the exe basename of the launch target.
+    final v = p.value.toLowerCase();
+    final slash = v.lastIndexOf(RegExp(r'[\\/]'));
+    final leaf = normalizeName(slash >= 0 ? v.substring(slash + 1) : v);
+    return usage[leaf] ?? 0;
+  }
+
+  static String fallbackPhrase(String name) {
+    var n = name.trim();
+    // Drop a trailing version/edition tail so "открой" reads naturally.
+    n = n.replaceAll(RegExp(r'\s*\d[\d.]*$'), '').trim();
+    return 'открой ${n.toLowerCase()}';
+  }
+
+  // Prompt the model to return ONLY JSON {name: [phrases]}. Names only — never
+  // paths (§1.3).
+  static String buildPrompt(List<String> names) =>
+      'Для каждого приложения из списка предложи 1–3 коротких естественных '
+      'русских голосовых фразы для его запуска. Фразы должны быть разными и не '
+      'пересекаться между приложениями. Ответь ТОЛЬКО валидным JSON, без пояснений '
+      'и разметки: {"Google Chrome": ["открой хром", "браузер"]}\n\n'
+      'Список приложений: ${jsonEncode(names)}';
+
+  // Defensive parse: tolerate ```-fences and surrounding prose, extract the
+  // first {...} block, coerce to {name: [phrases]}. Null on failure.
+  static Map<String, List<String>>? parseModelJson(String raw) {
+    try {
+      var s = raw.trim();
+      s = s.replaceAll(RegExp(r'```[a-zA-Z]*'), '').replaceAll('```', '');
+      final start = s.indexOf('{');
+      final end = s.lastIndexOf('}');
+      if (start < 0 || end <= start) return null;
+      final decoded = jsonDecode(s.substring(start, end + 1));
+      if (decoded is! Map) return null;
+      final out = <String, List<String>>{};
+      decoded.forEach((k, v) {
+        if (v is List) {
+          final phrases = v
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+          if (phrases.isNotEmpty) out[k.toString()] = phrases;
+        } else if (v is String && v.trim().isNotEmpty) {
+          out[k.toString()] = [v.trim()];
+        }
+      });
+      return out.isEmpty ? null : out;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Assign a unique phrase per suggestion and flag any that still collide with an
+  // existing command or an earlier suggestion (§1.8). Mutates in place.
+  static void resolveCollisions(
+      List<CmdSuggestion> sugg, List<VoiceCommand> existing) {
+    final taken = <String>{
+      for (final c in existing) c.phrase.trim().toLowerCase(),
+    };
+    for (final s in sugg) {
+      final p = s.phrase.trim().toLowerCase();
+      if (p.isEmpty || taken.contains(p)) {
+        s.collides = true;
+      } else {
+        taken.add(p);
+        s.collides = false;
+      }
+    }
+  }
 }
 
 // Step-by-step "add command" wizard: pick a category (program / file / site /
