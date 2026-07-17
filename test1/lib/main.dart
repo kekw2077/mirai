@@ -3597,6 +3597,17 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.1.1', [
+    'Акценты интерфейса теперь следуют выбранной теме (Claude — терракота, Apple — синий, Steam/Discord — свои): пузыри чата, визуализация, переключатели и выбранные пункты больше не фиолетовые по умолчанию.',
+    'Светлые темы: текст стал читаемо-тёмным везде, включая выбранные (обведённые) настройки.',
+    'Убрана кнопка голосового ввода из строки ввода — микрофон и так слушает команды постоянно.',
+    'Настройки CosyVoice (голос/пресет, клонирование по образцу WAV, скорость, эмоция, устройство) теперь видны всегда — можно настроить заранее, до подъёма сервера.',
+  ]),
+  ChangelogEntry('2.1.0', [
+    'Добавлено: светлые темы оформления — Apple (светлая) и Claude (кремовая), плюс Discord; выбираются в «Оформление». Интерфейс перекрашен под светлый фон: текст, рамки, диалоги и панели корректно читаются на белом.',
+    'Добавлено: подсказка настройки голосовых команд при первом запуске — можно сразу предложить команды запуска для ваших приложений.',
+    'Исправлено: окно обновления могло появляться при каждом запуске (петля перезапуска) — установщик теперь ставит новую версию поверх запущенной копии, и версия корректно обновляется.',
+  ]),
   ChangelogEntry('2.0.3', [
     'Добавлено: приём команд с телефонов по сети (Tailscale/LAN) — раздел «Телефоны». Привязка по одноразовому коду или QR, у каждого телефона свои права (голос/текст) и токен; ответ озвучивается на десктопе и/или возвращается на телефон.',
     'Добавлено: выбор движка озвучки — Piper (офлайн) или CosyVoice (когда его сервер доступен); проверка соединения с CosyVoice.',
@@ -7919,6 +7930,46 @@ Color _card2(BuildContext c) => _pal(c).card2;
 Color _success(BuildContext c) => _pal(c).success;
 Color _danger(BuildContext c) => _pal(c).danger;
 
+// Two-stop gradient derived from the theme accent — replaces the hardcoded
+// blue/violet gradients on the assistant bubble, primary buttons and toggles so
+// they follow each theme's accent (terracotta on Claude, blue on Apple, …).
+List<Color> _accentGradientOf(BuildContext c) {
+  final a = _accent(c);
+  return [Color.lerp(a, Colors.white, 0.22)!, a];
+}
+
+LinearGradient _accentGradient(BuildContext c) => LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: _accentGradientOf(c),
+    );
+
+// Subtle overlay fill / hairline that used to be a hardcoded white alpha (tuned
+// for the dark shell). White-on-white is invisible on the light themes, so flip
+// to a black alpha there — same visual weight on both.
+Color _overlayFill(BuildContext c, double a) =>
+    (_pal(c).brightness == Brightness.dark ? Colors.white : Colors.black)
+        .withValues(alpha: a);
+
+// Hero-visualization mark colour: light marks on dark themes, the theme accent
+// (dark enough to read) on the light themes — the same rule ParticleSphere
+// already applies inline.
+Color _vizColor(BuildContext c) =>
+    _pal(c).brightness == Brightness.dark ? Colors.white : _accent(c);
+
+// Soft halo so text stays legible when it sits directly over a visualization or
+// media (hero title/subtitle, the dark VoiceScreen). Dark halo on dark themes,
+// light halo on light — either way it lifts the glyphs off the busy backdrop.
+List<Shadow> _overTextShadows(BuildContext c) {
+  final halo =
+      (_pal(c).brightness == Brightness.dark ? Colors.black : Colors.white)
+          .withValues(alpha: 0.6);
+  return [
+    Shadow(color: halo, blurRadius: 14),
+    Shadow(color: halo, blurRadius: 5),
+  ];
+}
+
 // Liquid Glass was removed — only the standard style ships. Kept as a no-op so
 // the (now dead) glass branches at call sites still compile and render the
 // standard path. TODO: physically prune those branches in a later cleanup.
@@ -8989,9 +9040,7 @@ class _AnimatedBorderState extends State<AnimatedBorder>
    composer, the particle orb and all send/voice logic are reused as-is. */
 
 // Mockup palette: violet accent + blue→purple→pink gradient on near-black.
-const Color _evsGBlue = Color(0xFF5068D8);
 const Color _evsGMid = Color(0xFF8855CC);
-const Color _evsViolet = Color(0xFF8A7BE0);
 const Color _evsViolet2 = Color(0xFFB0A8F0);
 const Color _evsStroke = Color(0x0DFFFFFF);
 const Color _evsBgSolid = Color(0xFF09090F);
@@ -10366,16 +10415,16 @@ class AppUpdater {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 6),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
                           child: Icon(Icons.circle,
-                              size: 5, color: Color(0xFF8A7BE0)),
+                              size: 5, color: _accent(dctx)),
                         ),
                         const SizedBox(width: 9),
                         Expanded(
                           child: Text(n,
-                              style: const TextStyle(
-                                  color: Color(0xFFC8CCDA),
+                              style: TextStyle(
+                                  color: _body(dctx),
                                   fontSize: 13,
                                   height: 1.45)),
                         ),
@@ -11954,6 +12003,14 @@ class DesktopHome extends StatelessWidget {
   const DesktopHome({super.key});
   @override
   Widget build(BuildContext context) {
+    // Subscribe the shell to theme changes. Every colour token resolves through
+    // `_pal(context)` which uses `context.read` (no subscription), and this
+    // widget is `const`, so without an explicit dependency the shell background
+    // (_bg / _evsShellBg) was computed once and never repainted when themeMode
+    // changed (live theme switch, or the async prefs load right after startup) —
+    // leaving a stale dark shell behind the transparent chat area while the
+    // sidebar/content (which do watch) followed the theme. Rebuild on themeMode.
+    context.select<AppState, AppThemeMode>((a) => a.themeMode);
     return Scaffold(
       backgroundColor: _bg(context),
       body: Container(
@@ -11995,7 +12052,7 @@ class _DesktopSidebar extends StatelessWidget {
         height: 34,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.white.withValues(alpha: 0.042),
+          color: _overlayFill(context, 0.042),
           border: Border.all(color: _stroke(context)),
         ),
         child: Icon(icon, size: 15, color: _sub(context)),
@@ -12105,7 +12162,7 @@ class _DesktopSidebar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 color: active ? const Color(0x12FFFFFF) : Colors.transparent,
                 border: Border.all(
-                  color: active ? const Color(0x338A7BE0) : Colors.transparent,
+                  color: active ? _accent(context).withValues(alpha: 0.2) : Colors.transparent,
                 ),
               ),
               child: Row(
@@ -12115,7 +12172,7 @@ class _DesktopSidebar extends StatelessWidget {
                     height: 30,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(9),
-                      color: Colors.white.withValues(alpha: 0.042),
+                      color: _overlayFill(context, 0.042),
                     ),
                     child: Icon(
                         c.pinned
@@ -12133,10 +12190,10 @@ class _DesktopSidebar extends StatelessWidget {
                           c.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFFD4D7E2),
+                            color: _txt(context),
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -12245,7 +12302,7 @@ void deleteChatWithUndo(BuildContext ctx, Conversation c, AppState app) {
     content: Text(app.t('chatDeleted'), style: TextStyle(color: _txt(ctx))),
     action: SnackBarAction(
       label: app.t('undo'),
-      textColor: const Color(0xFF8A7BE0),
+      textColor: _accent(ctx),
       onPressed: () => app.undoDeleteChat(),
     ),
   ));
@@ -12342,7 +12399,7 @@ class _DesktopSystemWidget extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: Colors.white.withValues(alpha: 0.042),
+        color: _overlayFill(context, 0.042),
         border: Border.all(color: _evsStroke),
       ),
       child: Column(
@@ -12368,7 +12425,7 @@ class _DesktopSystemWidget extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _bar('CPU', active ? '${(s.cpu * 100).round()}%' : '—', s.cpu,
-                      const [_evsViolet], const Color(0xFFA99DE8)),
+                      [_accent(context)], const Color(0xFFA99DE8)),
                   _bar('RAM', ramTxt, s.ram, const [Color(0xFF5DE0D8)],
                       const Color(0xFF5DE0D8)),
                   _bar('VRAM', '—', 0.0, const [Color(0xFFE08A5D)],
@@ -12434,7 +12491,7 @@ class EvsWaveViz extends StatelessWidget {
     this.reactive = false,
   });
 
-  Widget _field(Color? accent) => ValueListenableBuilder<double>(
+  Widget _field(Color? accent, bool onLight) => ValueListenableBuilder<double>(
         valueListenable: VoiceLevels.instance.tts,
         builder: (_, lv, __) {
           if (kind == 'wave3d') {
@@ -12444,6 +12501,7 @@ class EvsWaveViz extends StatelessWidget {
               numCols: numCols ?? 110,
               numRows: numRows ?? 75,
               accent: accent,
+              onLight: onLight,
             );
           }
           return WaveFieldFlat(
@@ -12451,15 +12509,17 @@ class EvsWaveViz extends StatelessWidget {
             background: background,
             particleCount: particleCount ?? 5000,
             accent: accent,
+            onLight: onLight,
           );
         },
       );
 
   @override
   Widget build(BuildContext context) {
+    final onLight = _pal(context).brightness == Brightness.light;
     Widget field;
     if (!reactive) {
-      field = _field(null);
+      field = _field(null, onLight);
     } else {
       final app = context.watch<AppState>();
       field = AnimatedBuilder(
@@ -12470,11 +12530,11 @@ class EvsWaveViz extends StatelessWidget {
           vizNotice,
         ]),
         builder: (_, __) {
-          final target = vizStateAccent(app);
+          final target = vizStateAccent(context, app);
           return TweenAnimationBuilder<Color?>(
             tween: ColorTween(end: target),
             duration: const Duration(milliseconds: 320),
-            builder: (_, tweened, ___) => _field(tweened ?? target),
+            builder: (_, tweened, ___) => _field(tweened ?? target, onLight),
           );
         },
       );
@@ -12567,7 +12627,8 @@ class _EvsBarsVizState extends State<EvsBarsViz>
     return RepaintBoundary(
       child: CustomPaint(
         size: Size(widget.width, widget.height),
-        painter: _BarsPainter(_cur, tint: widget.color, repaint: _c),
+        painter: _BarsPainter(_cur,
+            tint: widget.color, hair: _overlayFill(context, 0.08), repaint: _c),
       ),
     );
   }
@@ -12576,7 +12637,9 @@ class _EvsBarsVizState extends State<EvsBarsViz>
 class _BarsPainter extends CustomPainter {
   final List<double> heights;
   final Color? tint;
-  _BarsPainter(this.heights, {this.tint, required Listenable repaint})
+  final Color hair; // center baseline — theme-aware (was hardcoded white alpha)
+  _BarsPainter(this.heights,
+      {this.tint, this.hair = const Color(0x0FFFFFFF), required Listenable repaint})
       : super(repaint: repaint);
 
   static const _c1 = Color(0xFF5068D8);
@@ -12594,7 +12657,7 @@ class _BarsPainter extends CustomPainter {
         Offset(0, midY),
         Offset(size.width, midY),
         Paint()
-          ..color = Colors.white.withValues(alpha: 0.06)
+          ..color = hair
           ..strokeWidth = 1);
     for (var i = 0; i < n; i++) {
       final v = heights[i].clamp(0.0, 1.0);
@@ -12751,7 +12814,7 @@ class _RingPainter extends CustomPainter {
 
 /// Generates the three orb blob colors from a single accent (HSL shifts) —
 /// same recipe as the user-provided widgets settings mock.
-SiriOrbColors evsOrbColors(Color accent) {
+SiriOrbColors evsOrbColors(Color accent, {bool onLight = false}) {
   final h = HSLColor.fromColor(accent);
   Color shift(double deg, double satMul, double lightMul) => h
       .withHue((h.hue + deg) % 360)
@@ -12759,7 +12822,9 @@ SiriOrbColors evsOrbColors(Color accent) {
       .withLightness((h.lightness * lightMul).clamp(0.0, 1.0))
       .toColor();
   return SiriOrbColors(
-    bg: const Color(0xFF0A0A12),
+    // Dark orb base on dark themes; a light neutral on the light themes so the
+    // orb doesn't read as a dark blob on cream/white.
+    bg: onLight ? const Color(0xFFECECF1) : const Color(0xFF0A0A12),
     c1: accent,
     c2: shift(42, 1.0, 1.05),
     c3: shift(-52, 0.95, 1.0),
@@ -12775,8 +12840,17 @@ SiriOrbColors evsOrbColors(Color accent) {
 // to the user's accent when idle. Replaces the old text badges. Reads the
 // (WS-mirrored) VoiceAssistant notifiers + vizNotice, so it works in both the
 // main app and the widget process.
-Color vizStateAccent(AppState app) {
-  final base = Color(app.vizAccent);
+// Default visualization accent (violet). When vizAccent still equals this, the
+// visualization follows the theme accent; any other value is a user override.
+const int kDefaultVizAccent = 0xFF7C4DFF;
+
+Color vizStateAccent(BuildContext c, AppState app) {
+  // Idle/base colour follows the theme accent by default (so the visualization
+  // matches Claude terracotta / Apple blue / … ); if the user picked a custom
+  // swatch in the Widgets settings (vizAccent changed from the default), honour
+  // that override instead.
+  final base =
+      app.vizAccent == kDefaultVizAccent ? _accent(c) : Color(app.vizAccent);
   final notice = vizNotice.value;
   if (notice != null && notice.$1.isNotEmpty) {
     switch (notice.$2) {
@@ -12832,7 +12906,7 @@ class EvsLiveViz extends StatelessWidget {
             (va == VaState.listening || MicMeter.instance.active);
         // Colour by assistant state (green wake / violet think / amber run …),
         // smoothly fading back to the user's accent when idle.
-        final target = vizStateAccent(app);
+        final target = vizStateAccent(context, app);
         return TweenAnimationBuilder<Color?>(
           tween: ColorTween(end: target),
           duration: const Duration(milliseconds: 320),
@@ -12869,7 +12943,8 @@ class EvsLiveViz extends StatelessWidget {
               size: math.min(app.orbSize, maxSize),
               level: lv,
               state: st,
-              colors: evsOrbColors(accent),
+              colors: evsOrbColors(accent,
+                  onLight: _pal(context).brightness == Brightness.light),
               animationDuration: app.orbSpeed,
             );
           },
@@ -12927,7 +13002,7 @@ class _OverlayWidgetViewState extends State<OverlayWidgetView> {
                 vizNotice,
               ]),
               builder: (context, __) {
-                final targetColor = vizStateAccent(app);
+                final targetColor = vizStateAccent(context, app);
                 return TweenAnimationBuilder<Color?>(
                   tween: ColorTween(end: targetColor),
                   duration: const Duration(milliseconds: 320),
@@ -13178,7 +13253,7 @@ class _DesktopMicWidgetState extends State<_DesktopMicWidget>
       padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: Colors.white.withValues(alpha: 0.042),
+        color: _overlayFill(context, 0.042),
         border: Border.all(color: _evsStroke),
       ),
       child: Column(
@@ -13257,10 +13332,10 @@ class _DesktopMicWidgetState extends State<_DesktopMicWidget>
         height: height,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(2),
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,
-            colors: [_evsViolet, Color(0xFFB681E6)],
+            colors: [_accent(context), const Color(0xFFB681E6)],
           ),
         ),
       );
@@ -13944,7 +14019,7 @@ class _RemoteInputPanelState extends State<_RemoteInputPanel> {
         evsRow(context, 
           label: app.t('remoteEnable'),
           desc: app.t('remoteEnableDesc'),
-          control: evsToggle(on, app.setRemoteInputEnabled),
+          control: evsToggle(context, on, app.setRemoteInputEnabled),
         ),
         if (on) ...[
           // Status + port.
@@ -14009,7 +14084,7 @@ class _RemoteInputPanelState extends State<_RemoteInputPanel> {
           evsRow(context, 
             stacked: true,
             label: app.t('remoteResponse'),
-            control: evsSegmentedWide<String>([
+            control: evsSegmentedWide<String>(context, [
               ('desktop_tts', app.t('remoteRespDesktop')),
               ('phone_text', app.t('remoteRespPhone')),
               ('both', app.t('remoteRespBoth')),
@@ -14041,7 +14116,7 @@ class _RemoteInputPanelState extends State<_RemoteInputPanel> {
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: evsAddButton(app.t('remoteCardAdd'), _newCode),
+              child: evsAddButton(context, app.t('remoteCardAdd'), _newCode),
             ),
           )
         else
@@ -14133,7 +14208,7 @@ class _RemoteInputPanelState extends State<_RemoteInputPanel> {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: Colors.white.withValues(alpha: 0.03),
+        color: _overlayFill(context, 0.03),
         border: Border.all(color: _evsStroke),
       ),
       child: Column(
@@ -14154,7 +14229,7 @@ class _RemoteInputPanelState extends State<_RemoteInputPanel> {
             Text(_deviceStatus(d),
                 style: const TextStyle(fontSize: 11, color: Color(0xFF6E7280))),
             const SizedBox(width: 8),
-            evsToggle(d.enabled, (v) => app.setRemoteDeviceEnabled(d, v)),
+            evsToggle(context, d.enabled, (v) => app.setRemoteDeviceEnabled(d, v)),
           ]),
           const SizedBox(height: 6),
           Row(children: [
@@ -14189,7 +14264,7 @@ class _RemoteInputPanelState extends State<_RemoteInputPanel> {
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(7),
-          color: on ? const Color(0x2654E08A) : Colors.white.withValues(alpha: 0.04),
+          color: on ? const Color(0x2654E08A) : _overlayFill(context, 0.04),
           border: Border.all(
               color: on ? _success(context) : _evsStroke),
         ),
@@ -14221,7 +14296,7 @@ class _RemoteField extends StatelessWidget {
       alignment: Alignment.centerLeft,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Colors.white.withValues(alpha: 0.04),
+        color: _overlayFill(context, 0.04),
         border: Border.all(color: _evsStroke),
       ),
       child: TextField(
@@ -14389,7 +14464,7 @@ class _SuggestCommandsDialogState extends State<_SuggestCommandsDialog> {
       padding: const EdgeInsets.fromLTRB(6, 8, 10, 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: Colors.white.withValues(alpha: 0.03),
+        color: _overlayFill(context, 0.03),
         border: Border.all(
             color: s.collides ? const Color(0xFFE0685E) : _evsStroke),
       ),
@@ -14430,7 +14505,7 @@ class _SuggestCommandsDialogState extends State<_SuggestCommandsDialog> {
               decoration: InputDecoration(
                 isDense: true,
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.04),
+                fillColor: _overlayFill(context, 0.04),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 border: OutlineInputBorder(
@@ -14762,7 +14837,7 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
                     hintStyle:
                         TextStyle(fontSize: 12, color: _faint(context)),
                     filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.04),
+                    fillColor: _overlayFill(context, 0.04),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: _evsStroke),
@@ -14797,7 +14872,7 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
           borderRadius: BorderRadius.circular(8),
           color: selected
               ? const Color(0x263A7BE0)
-              : Colors.white.withValues(alpha: 0.03),
+              : _overlayFill(context, 0.03),
           border: Border.all(
               color: selected ? const Color(0xFF3A7BE0) : _evsStroke),
         ),
@@ -14909,7 +14984,7 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
   Widget _progIconFallback(ProgramEntry p) => Icon(
         p.iconSource.startsWith('uwp:') ? Icons.storefront : Icons.launch,
         size: 18,
-        color: const Color(0xFF8A7BE0),
+        color: _accent(context),
       );
 
   Widget _programStep() {
@@ -15023,7 +15098,7 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
+            color: _overlayFill(context, 0.04),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(children: [
@@ -15076,11 +15151,11 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          color: Colors.white.withValues(alpha: 0.04),
+          color: _overlayFill(context, 0.04),
           border: Border.all(color: _stroke(context)),
         ),
         child: Row(children: [
-          Icon(icon, size: 19, color: const Color(0xFF8A7BE0)),
+          Icon(icon, size: 19, color: _accent(context)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(label,
@@ -15175,10 +15250,10 @@ class _SttTestCardState extends State<_SttTestCard> {
                 const Icon(Icons.spellcheck, size: 15, color: Color(0xFF8A90A0)),
                 const SizedBox(width: 7),
                 Text(app.t('sttTest'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFFCFD3E0))),
+                        color: _txt(context))),
               ]),
               const SizedBox(height: 8),
               Text(app.t('sttTestDesc'),
@@ -15194,7 +15269,7 @@ class _SttTestCardState extends State<_SttTestCard> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
-                    color: Colors.white.withValues(alpha: 0.03),
+                    color: _overlayFill(context, 0.03),
                     border: Border.all(color: _stroke(context)),
                   ),
                   child: Column(
@@ -15204,8 +15279,8 @@ class _SttTestCardState extends State<_SttTestCard> {
                       // selected/copied (Ctrl+C or right-click → Copy).
                       if (_final.isNotEmpty)
                         SelectableText(_final,
-                            style: const TextStyle(
-                                color: Color(0xFFEAECF5),
+                            style: TextStyle(
+                                color: _txt(context),
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600)),
                       if (_partial.isNotEmpty) ...[
@@ -15283,7 +15358,7 @@ class _WebSearchCardState extends State<_WebSearchCard> {
       alignment: Alignment.centerLeft,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Colors.white.withValues(alpha: 0.04),
+        color: _overlayFill(context, 0.04),
         border: Border.all(color: _evsStroke),
       ),
       child: TextField(
@@ -15325,10 +15400,10 @@ class _WebSearchCardState extends State<_WebSearchCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(app.t('webSearchEnable'),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFFCFD3E0))),
+                          color: _txt(context))),
                   const SizedBox(height: 3),
                   Text(app.t('webSearchDesc'),
                       style: const TextStyle(
@@ -15337,7 +15412,7 @@ class _WebSearchCardState extends State<_WebSearchCard> {
               ),
             ),
             const SizedBox(width: 10),
-            evsToggle(app.webSearchEnabled, app.setWebSearchEnabled),
+            evsToggle(context, app.webSearchEnabled, app.setWebSearchEnabled),
           ]),
           if (app.webSearchEnabled) ...[
             const SizedBox(height: 14),
@@ -15497,7 +15572,7 @@ class _VizPreviewCardState extends State<_VizPreviewCard>
           ),
         ),
         const SizedBox(height: 12),
-        evsSegmentedWide<String>([
+        evsSegmentedWide<String>(context, [
           ('idle', app.t('wsStateIdle')),
           ('listening', app.t('wsStateListening')),
           ('speaking', app.t('wsStateSpeaking')),
@@ -15514,7 +15589,7 @@ class _VizPreviewCardState extends State<_VizPreviewCard>
                     fontWeight: FontWeight.w600,
                     color: _body(context))),
           ),
-          evsToggle(_simulate, (v) {
+          evsToggle(context, _simulate, (v) {
             setState(() => _simulate = v);
             if (!v) VoiceLevels.instance.tts.value = 0;
           }),
@@ -15549,8 +15624,8 @@ class _VizStyleTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0x1A8A7BE0)
-              : Colors.white.withValues(alpha: 0.03),
+              ? _accent(context).withValues(alpha: 0.1)
+              : _overlayFill(context, 0.03),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? accent : _stroke(context),
@@ -15674,7 +15749,7 @@ class _DeviceSelector extends StatelessWidget {
             Text(app.t('deviceLabel'),
                 style: TextStyle(color: _sub(context), fontSize: 11)),
             const SizedBox(height: 6),
-            evsSegmentedWide<String>(
+            evsSegmentedWide<String>(context, 
               [
                 ('cpu', app.t('deviceCpu')),
                 ('cuda', name.isNotEmpty ? 'GPU · $name' : app.t('deviceGpu')),
@@ -15867,7 +15942,7 @@ class _SttEngineCardsState extends State<_SttEngineCards> {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected
-                  ? const Color(0x668A7BE0)
+                  ? _accent(context).withValues(alpha: 0.4)
                   : _stroke(context),
               width: selected ? 1.5 : 1,
             ),
@@ -15937,7 +16012,7 @@ class _SttEngineCardsState extends State<_SttEngineCards> {
                     style: TextStyle(
                         color: _sub(context), fontSize: 11)),
                 const SizedBox(height: 6),
-                evsSegmentedWide<String>(
+                evsSegmentedWide<String>(context, 
                   const [('tiny', 'tiny'), ('base', 'base'), ('small', 'small')],
                   ['tiny', 'base', 'small'].contains(app.whisperModel)
                       ? app.whisperModel
@@ -16380,7 +16455,7 @@ class _DenoiseSelectorState extends State<_DenoiseSelector> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              evsSegmentedWide<String>(
+              evsSegmentedWide<String>(context, 
                 [
                   ('off', app.t('dnOff')),
                   ('light', app.t('dnLight')),
@@ -16496,11 +16571,11 @@ class _MultiMicCardState extends State<_MultiMicCard> {
                       color: _txt(context),
                       fontSize: 13,
                       fontWeight: FontWeight.w600))),
-          evsToggle(active, (v) => app.toggleExtraMic(d.id, d.label, v)),
+          evsToggle(context, active, (v) => app.toggleExtraMic(d.id, d.label, v)),
         ]),
         if (active) ...[
           const SizedBox(height: 10),
-          evsSegmentedWide<String>(
+          evsSegmentedWide<String>(context, 
             [
               ('off', app.t('dnOff')),
               ('light', app.t('dnLight')),
@@ -16592,18 +16667,18 @@ class _GameModeCard extends StatelessWidget {
             evsRow(context, 
               label: app.t('gmFullscreen'),
               desc: app.t('gmFullscreenDesc'),
-              control: evsToggle(
+              control: evsToggle(context, 
                   app.gameModeFullscreen, (v) => app.setGameModeFullscreen(v)),
             ),
             evsRow(context, 
               label: app.t('gmVram'),
               desc: app.t('gmVramDesc'),
-              control: evsToggle(app.gameModeVram, (v) => app.setGameModeVram(v)),
+              control: evsToggle(context, app.gameModeVram, (v) => app.setGameModeVram(v)),
             ),
             if (app.gameModeVram) ...[
               evsRow(context, 
                 label: app.t('gmVramEnter'),
-                control: evsSlider(
+                control: evsSlider(context, 
                   value: app.gameModeVramEnter.clamp(50, 99),
                   min: 50,
                   max: 99,
@@ -16615,7 +16690,7 @@ class _GameModeCard extends StatelessWidget {
               ),
               evsRow(context, 
                 label: app.t('gmVramExit'),
-                control: evsSlider(
+                control: evsSlider(context, 
                   value: app.gameModeVramExit
                       .clamp(30, app.gameModeVramEnter - 5),
                   min: 30,
@@ -16631,7 +16706,7 @@ class _GameModeCard extends StatelessWidget {
               label: app.t('gmNotify'),
               desc: app.t('gmNotifyDesc'),
               control:
-                  evsToggle(app.gameModeNotify, (v) => app.setGameModeNotify(v)),
+                  evsToggle(context, app.gameModeNotify, (v) => app.setGameModeNotify(v)),
             ),
             evsRow(context, 
               stacked: true,
@@ -17058,7 +17133,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                       height: 34,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.042),
+                        color: _overlayFill(context, 0.042),
                         border: Border.all(color: _stroke(context)),
                       ),
                       child: Icon(Icons.arrow_back,
@@ -17106,11 +17181,11 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(13),
                             color: active
-                                ? const Color(0x218A7BE0)
+                                ? _accent(context).withValues(alpha: 0.13)
                                 : Colors.transparent,
                             border: Border.all(
                               color: active
-                                  ? const Color(0x388A7BE0)
+                                  ? _accent(context).withValues(alpha: 0.22)
                                   : Colors.transparent,
                             ),
                           ),
@@ -17122,13 +17197,13 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(9),
                                   color: active
-                                      ? const Color(0x338A7BE0)
-                                      : Colors.white.withValues(alpha: 0.042),
+                                      ? _accent(context).withValues(alpha: 0.2)
+                                      : _overlayFill(context, 0.042),
                                 ),
                                 child: Icon(s.$1,
                                     size: 14,
                                     color: active
-                                        ? _evsViolet2
+                                        ? _accent(context)
                                         : const Color(0xFF9691C0)),
                               ),
                               const SizedBox(width: 11),
@@ -17321,7 +17396,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             stacked: true,
             label: app.t('interfaceLanguage'),
             desc: app.t('interfaceLanguageDesc'),
-            control: evsSegmentedWide<String>(
+            control: evsSegmentedWide<String>(context, 
               const [('ru', 'RU'), ('en', 'EN')],
               app.lang,
               (v) => app.setLang(v),
@@ -17331,7 +17406,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             stacked: true,
             label: app.t('recognitionLanguage'),
             desc: app.t('recognitionLanguageDesc'),
-            control: evsSegmentedWide<String>(
+            control: evsSegmentedWide<String>(context, 
               [('auto', app.t('sttAuto')), ('ru', 'RU'), ('en', 'EN')],
               app.sttLanguage,
               (v) => app.setSttLanguage(v),
@@ -17347,7 +17422,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           evsRow(context, 
             stacked: true,
             label: app.t('themeMode'),
-            control: evsSegmentedWide<AppThemeMode>(
+            control: evsSegmentedWide<AppThemeMode>(context, 
               [
                 (AppThemeMode.dark, app.t('themeDark')),
                 (AppThemeMode.steam, app.t('themeSteam')),
@@ -17371,7 +17446,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                       min: 0.75,
                       max: 1.5,
                       value: app.fontSize.clamp(0.75, 1.5),
-                      activeColor: _evsViolet,
+                      activeColor: _accent(context),
                       onChanged: (v) => app.setFontSize(v),
                     ),
                   ),
@@ -17379,10 +17454,10 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                     width: 44,
                     child: Text('${(app.fontSize * 100).round()}%',
                         textAlign: TextAlign.right,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w700,
-                            color: _evsViolet)),
+                            color: _accent(context))),
                   ),
                 ],
               ),
@@ -17399,7 +17474,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             evsRow(context, 
               label: app.t('autostart'),
               desc: app.t('autostartDesc'),
-              control: evsToggle(app.autostart, (v) {
+              control: evsToggle(context, app.autostart, (v) {
                 app.setAutostart(v);
                 DesktopIntegration.instance.applyAutostart(v);
               }),
@@ -17408,12 +17483,12 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               label: app.t('minimizeToTray'),
               desc: app.t('minimizeToTrayDesc'),
               control:
-                  evsToggle(app.minimizeToTray, (v) => app.setMinimizeToTray(v)),
+                  evsToggle(context, app.minimizeToTray, (v) => app.setMinimizeToTray(v)),
             ),
             evsRow(context, 
               label: app.t('closeToTray'),
               desc: app.t('closeToTrayDesc'),
-              control: evsToggle(app.closeToTray, (v) => app.setCloseToTray(v)),
+              control: evsToggle(context, app.closeToTray, (v) => app.setCloseToTray(v)),
             ),
             evsRow(context, 
               label: app.t('globalHotkey'),
@@ -17436,7 +17511,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
     ];
   }
 
-  Widget _stubToggle(String key) => evsToggle(
+  Widget _stubToggle(String key) => evsToggle(context, 
         _stub[key] ?? false,
         (v) => setState(() => _stub[key] = v),
       );
@@ -17469,9 +17544,17 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               height: 7,
               decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
           const SizedBox(width: 7),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12.5, fontWeight: FontWeight.w700, color: color)),
+          // Flexible + ellipsis so a long "Подключён · GigaAM-v3" degrades
+          // gracefully in the narrow 3-column layout instead of hard-clipping
+          // past the card edge (it still shows in full at 1–2 columns).
+          Flexible(
+            child: Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+                style: TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.w700, color: color)),
+          ),
         ],
       ),
     );
@@ -17614,7 +17697,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       alignment: maxLines > 1 ? null : Alignment.centerLeft,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: Colors.white.withValues(alpha: 0.06),
+        color: _overlayFill(context, 0.06),
         border: Border.all(color: _stroke(context)),
       ),
       child: TextField(
@@ -17645,7 +17728,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         alignment: Alignment.centerLeft,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          color: Colors.white.withValues(alpha: 0.04),
+          color: _overlayFill(context, 0.04),
           border: Border.all(color: _evsStroke),
         ),
         child: TextField(
@@ -17703,7 +17786,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               borderRadius: BorderRadius.circular(14),
               color: active
                   ? accent.withValues(alpha: 0.16)
-                  : Colors.white.withValues(alpha: 0.04),
+                  : _overlayFill(context, 0.04),
               border: Border.all(
                   color: active ? accent.withValues(alpha: 0.5) : _evsStroke),
             ),
@@ -17761,12 +17844,12 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           evsRow(context, 
             label: app.t('cmdAllow'),
             desc: app.t('cmdAllowDesc'),
-            control: evsToggle(app.cmdEnabled, app.setCmdEnabled),
+            control: evsToggle(context, app.cmdEnabled, app.setCmdEnabled),
           ),
           evsRow(context, 
             label: app.t('chatToggle'),
             desc: app.t('chatToggleDesc'),
-            control: evsToggle(app.chatEnabled, app.setChatEnabled),
+            control: evsToggle(context, app.chatEnabled, app.setChatEnabled),
           ),
         ]),
         full: true,
@@ -17777,7 +17860,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           stacked: true,
           label: app.t('cmdMode'),
           desc: app.t('cmdModeDesc'),
-          control: evsSegmentedWide<String>([
+          control: evsSegmentedWide<String>(context, [
             ('wakeword', app.t('cmdModeWake')),
             ('separate', app.t('cmdModeSeparate')),
             ('first', app.t('cmdModeFirst')),
@@ -17804,7 +17887,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         evsRow(context, 
           label: app.t('cmdThreshold'),
           desc: app.t('cmdThresholdDesc'),
-          control: evsSlider(
+          control: evsSlider(context, 
             value: app.cmdThreshold * 100,
             min: 0,
             max: 100,
@@ -17816,7 +17899,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         evsRow(context, 
           stacked: true,
           label: app.t('cmdConfirm'),
-          control: evsSegmentedWide<String>([
+          control: evsSegmentedWide<String>(context, [
             ('always', app.t('cmdConfirmAlways')),
             ('risky', app.t('cmdConfirmRisky')),
             ('never', app.t('cmdConfirmNever')),
@@ -17839,7 +17922,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               spacing: 10,
               runSpacing: 8,
               children: [
-                evsAddButton(app.t('cmdAdd'), () => _openAddCommandWizard(app)),
+                evsAddButton(context, app.t('cmdAdd'), () => _openAddCommandWizard(app)),
                 InkWell(
                   borderRadius: BorderRadius.circular(9),
                   onTap: () => _openSuggestCommands(app),
@@ -17848,18 +17931,18 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: const Color(0x338A7BE0)),
-                      color: const Color(0x1A8A7BE0),
+                      border: Border.all(color: _accent(context).withValues(alpha: 0.2)),
+                      color: _accent(context).withValues(alpha: 0.1),
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.auto_awesome,
-                          size: 14, color: _evsViolet2),
+                      Icon(Icons.auto_awesome,
+                          size: 14, color: _accent(context)),
                       const SizedBox(width: 6),
                       Text(app.t('cmdSuggest'),
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: _evsViolet2)),
+                              color: _accent(context))),
                     ]),
                   ),
                 ),
@@ -17921,7 +18004,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               margin: const EdgeInsets.only(right: 6),
               decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  color: const Color(0x268A7BE0)),
+                  color: _accent(context).withValues(alpha: 0.15)),
               child: const Icon(Icons.play_arrow_rounded,
                   size: 15, color: Color(0xFFB0A8F0)),
             ),
@@ -17935,7 +18018,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               margin: const EdgeInsets.only(right: 6),
               decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  color: Colors.white.withValues(alpha: 0.06)),
+                  color: _overlayFill(context, 0.06)),
               child: Icon(Icons.edit_outlined,
                   size: 13, color: _sub(context)),
             ),
@@ -18038,11 +18121,11 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            color: Colors.white.withValues(alpha: 0.05),
+            color: _overlayFill(context, 0.05),
             border: Border.all(color: _evsStroke),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 15, color: _evsViolet2),
+            Icon(icon, size: 15, color: _accent(context)),
             const SizedBox(width: 7),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -18208,7 +18291,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         evsRow(context, 
           label: app.t('showVizBg'),
           desc: app.t('showVizBgDesc'),
-          control: evsToggle(app.showVizBg, app.setShowVizBg),
+          control: evsToggle(context, app.showVizBg, app.setShowVizBg),
         ),
       ])),
       _CardSpec(evsCard(context,
@@ -18218,13 +18301,13 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             evsRow(context, 
               label: app.t('ovlShow'),
               desc: app.t('ovlEnterDesc'),
-              control: evsToggle(app.overlayMode, app.setOverlayMode),
+              control: evsToggle(context, app.overlayMode, app.setOverlayMode),
             ),
             evsRow(context, 
               stacked: true,
               label: app.t('ovlSize'),
               desc: app.t('ovlSizeDesc'),
-              control: evsSegmentedWide<double>([
+              control: evsSegmentedWide<double>(context, [
                 (200.0, app.t('ovlSizeS')),
                 (260.0, app.t('ovlSizeM')),
                 (330.0, app.t('ovlSizeL')),
@@ -18419,9 +18502,9 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               height: 10,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: active ? _evsViolet : Colors.transparent,
+                color: active ? _accent(context) : Colors.transparent,
                 border: Border.all(
-                    color: active ? _evsViolet : const Color(0x33FFFFFF),
+                    color: active ? _accent(context) : const Color(0x33FFFFFF),
                     width: 2),
               ),
             ),
@@ -18438,7 +18521,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(7),
-                    color: Colors.white.withValues(alpha: 0.06)),
+                    color: _overlayFill(context, 0.06)),
                 child: Text(size,
                     style: const TextStyle(
                         fontSize: 12,
@@ -18447,8 +18530,8 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               ),
             const SizedBox(width: 8),
             Text(active ? app.t('modelActive') : '',
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700, color: _evsViolet2)),
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700, color: _accent(context))),
           ],
         ),
       ),
@@ -18519,7 +18602,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           stacked: true,
           label: app.t('emojiPolicy'),
           desc: app.t('emojiPolicyDesc'),
-          control: evsSegmentedWide<String>(
+          control: evsSegmentedWide<String>(context, 
             [
               ('emoji_never', app.t('emojiNever')),
               ('emoji_sometimes', app.t('emojiSometimes')),
@@ -18555,13 +18638,13 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           evsRow(context, 
             label: app.t('autoSaveFacts'),
             desc: app.t('autoSaveFactsDesc'),
-            control: evsToggle(
+            control: evsToggle(context, 
                 p.autoSaveMemories, (v) => _persona((x) => x.autoSaveMemories = v)),
           ),
           evsRow(context, 
             label: app.t('askBeforeRemember'),
             desc: app.t('askBeforeRememberDesc'),
-            control: evsToggle(p.askBeforeRemembering,
+            control: evsToggle(context, p.askBeforeRemembering,
                 (v) => _persona((x) => x.askBeforeRemembering = v)),
           ),
           for (final m in p.savedMemories) _memItem(app, m),
@@ -18592,8 +18675,8 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             height: 28,
             decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                color: const Color(0x1F8A7BE0)),
-            child: const Icon(Icons.place_outlined, size: 12, color: _evsViolet2),
+                color: _accent(context).withValues(alpha: 0.12)),
+            child: Icon(Icons.place_outlined, size: 12, color: _accent(context)),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -18655,7 +18738,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             runSpacing: 6,
             children: [
               for (final t in _blacklist) _tag(t),
-              evsAddButton(app.t('add'),
+              evsAddButton(context, app.t('add'),
                   () => _stubSnack(app), small: true),
             ],
           ),
@@ -18713,10 +18796,10 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(6),
                             color: (_stub[it.$1] ?? false)
-                                ? const Color(0x4D8A7BE0)
+                                ? _accent(context).withValues(alpha: 0.3)
                                 : Colors.transparent,
                             border: Border.all(
-                                color: const Color(0x668A7BE0), width: 2),
+                                color: _accent(context).withValues(alpha: 0.4), width: 2),
                           ),
                           child: (_stub[it.$1] ?? false)
                               ? const Icon(Icons.check,
@@ -18749,7 +18832,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: Colors.white.withValues(alpha: 0.06),
+        color: _overlayFill(context, 0.06),
         border: Border.all(color: _evsStroke),
       ),
       child: Row(
@@ -18812,7 +18895,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         evsRow(context, 
             label: app.t('autoCheck'),
             desc: app.t('autoCheckDesc'),
-            control: evsToggle(app.autoUpdateCheck, app.setAutoUpdateCheck)),
+            control: evsToggle(context, app.autoUpdateCheck, app.setAutoUpdateCheck)),
         evsRow(context, 
             label: app.t('checkNow'),
             desc: app.t('updFlowDesc'),
@@ -18890,7 +18973,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             stacked: true,
             label: app.t('sttEngine'),
             desc: app.t('sttEngineDesc'),
-            control: evsSegmentedWide<String>(
+            control: evsSegmentedWide<String>(context, 
               [('windows', 'Windows STT'), ('whisper', app.t('localEngineName'))],
               app.sttEngine,
               (v) => app.setSttEngine(v),
@@ -18923,7 +19006,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             stacked: true,
             label: app.t('recognitionLanguage'),
             desc: app.t('recognitionLanguageDesc'),
-            control: evsSegmentedWide<String>(
+            control: evsSegmentedWide<String>(context, 
               [('auto', app.t('sttAuto')), ('ru', 'RU'), ('en', 'EN')],
               app.sttLanguage,
               (v) => app.setSttLanguage(v),
@@ -18989,7 +19072,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             stacked: true,
             label: app.t('activationMode'),
             desc: app.t('activationModeDesc'),
-            control: evsSegmentedWide<String>(
+            control: evsSegmentedWide<String>(context, 
               [('continuous', app.t('continuous')), ('ptt', 'Push-to-Talk')],
               app.listenMode,
               (v) => app.setListenMode(v),
@@ -18998,12 +19081,12 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           evsRow(context, 
             label: app.t('autoSendPause'),
             desc: app.t('autoSendPauseDesc'),
-            control: evsToggle(app.micAutoSend, (v) => app.setMicAutoSend(v)),
+            control: evsToggle(context, app.micAutoSend, (v) => app.setMicAutoSend(v)),
           ),
           evsRow(context, 
             label: app.t('pauseDuration'),
             desc: app.t('pauseDurationDesc'),
-            control: evsSlider(
+            control: evsSlider(context, 
               value: app.micPauseSeconds.toDouble().clamp(1, 10),
               min: 1,
               max: 10,
@@ -19015,7 +19098,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           evsRow(context, 
             label: app.t('showPartial'),
             desc: app.t('showPartialDesc'),
-            control: evsToggle(app.showPartial, app.setShowPartial),
+            control: evsToggle(context, app.showPartial, app.setShowPartial),
           ),
         ],
       )),
@@ -19027,19 +19110,19 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           evsRow(context, 
             label: app.t('voiceResponses'),
             desc: app.t('voiceResponsesDesc'),
-            control: evsToggle(app.voiceResponses, app.setVoiceResponses),
+            control: evsToggle(context, app.voiceResponses, app.setVoiceResponses),
           ),
           evsRow(context, 
             label: app.t('announceReady'),
             desc: app.t('announceReadyDesc'),
-            control: evsToggle(app.announceReady, app.setAnnounceReady),
+            control: evsToggle(context, app.announceReady, app.setAnnounceReady),
           ),
           _TtsEngineCard(app),
           _TtsInterpCard(app),
           evsRow(context, 
             label: app.t('ttsRate'),
             desc: app.t('ttsRateDesc'),
-            control: evsSlider(
+            control: evsSlider(context, 
               value: app.ttsRate.clamp(0.5, 2.0),
               min: 0.5,
               max: 2.0,
@@ -19050,7 +19133,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           ),
           evsRow(context, 
             label: app.t('ttsVolume'),
-            control: evsSlider(
+            control: evsSlider(context, 
               value: (app.ttsVolume * 100).clamp(0, 100),
               min: 0,
               max: 100,
@@ -19224,7 +19307,7 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
               borderRadius: BorderRadius.circular(10),
               color: selected
                   ? const Color(0x263A7BE0)
-                  : Colors.white.withValues(alpha: 0.04),
+                  : _overlayFill(context, 0.04),
               border: Border.all(
                   color: selected ? const Color(0xFF3A7BE0) : _evsStroke),
             ),
@@ -19256,7 +19339,7 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
       padding: const EdgeInsets.symmetric(horizontal: 11),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Colors.white.withValues(alpha: 0.04),
+        color: _overlayFill(context, 0.04),
         border: Border.all(color: _evsStroke),
       ),
       child: DropdownButtonHideUnderline(
@@ -19348,7 +19431,7 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
       ),
       evsRow(context, 
         label: app.t('ttsCosySpeed'),
-        control: evsSlider(
+        control: evsSlider(context, 
           value: app.cosyvoiceSpeed.clamp(0.5, 2.0),
           min: 0.5,
           max: 2.0,
@@ -19376,7 +19459,7 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
           animation: sc.gpuInfo,
           builder: (context, _) {
             final name = sc.gpuInfo.value.$2;
-            return evsSegmentedWide<String>(
+            return evsSegmentedWide<String>(context, 
               [
                 ('cpu', app.t('deviceCpu')),
                 ('cuda', name.isNotEmpty ? 'GPU · $name' : app.t('deviceGpu')),
@@ -19484,9 +19567,11 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
             ],
           ),
         ),
-        // Deep CosyVoice controls (§3.2) — visible once an endpoint is entered,
-        // so they can be configured before the server is reachable.
-        if (app.cosyvoiceEndpoint.trim().isNotEmpty) ..._cosyDeepControls(),
+        // Deep CosyVoice controls (§3.2) — voice/preset, clone-by-WAV sample,
+        // speed, emotion, instruct and synthesis device. Always visible now so
+        // the voice cloner is discoverable and can be configured up front (they
+        // still only take effect once the CosyVoice server is reachable).
+        ..._cosyDeepControls(),
       ],
     );
   }
@@ -19521,13 +19606,13 @@ class _TtsInterpCardState extends State<_TtsInterpCard> {
         evsRow(context, 
           label: app.t('ttsInterp'),
           desc: app.t('ttsInterpDesc'),
-          control: evsToggle(app.ttsInterpEnabled, app.setTtsInterpEnabled),
+          control: evsToggle(context, app.ttsInterpEnabled, app.setTtsInterpEnabled),
         ),
         if (app.ttsInterpEnabled) ...[
           evsRow(context, 
             stacked: true,
             label: app.t('ttsInterpMode'),
-            control: evsSegmentedWide<String>(
+            control: evsSegmentedWide<String>(context, 
               [
                 ('rules', app.t('ttsInterpRules')),
                 ('model', app.t('ttsInterpModel')),
@@ -19556,7 +19641,7 @@ class _TtsInterpCardState extends State<_TtsInterpCard> {
                   alignment: Alignment.centerLeft,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    color: Colors.white.withValues(alpha: 0.04),
+                    color: _overlayFill(context, 0.04),
                     border: Border.all(color: _evsStroke),
                   ),
                   child: TextField(
@@ -19748,7 +19833,7 @@ class _LlmAdvancedCardState extends State<_LlmAdvancedCard> {
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            color: Colors.white.withValues(alpha: 0.04),
+            color: _overlayFill(context, 0.04),
             border: Border.all(
                 color: error == null ? _evsStroke : const Color(0xFFF0685E)),
           ),
@@ -19868,7 +19953,7 @@ Widget evsCard(
   return Container(
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(18),
-      color: Colors.white.withValues(alpha: 0.033),
+      color: _overlayFill(context, 0.033),
       border: Border.all(color: _evsStroke),
     ),
     clipBehavior: Clip.antiAlias,
@@ -19887,9 +19972,9 @@ Widget evsCard(
                 height: 26,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  color: const Color(0x268A7BE0),
+                  color: _accent(context).withValues(alpha: 0.15),
                 ),
-                child: Icon(icon, size: 13, color: _evsViolet2),
+                child: Icon(icon, size: 13, color: _accent(context)),
               ),
               const SizedBox(width: 9),
               Text(title.toUpperCase(),
@@ -19964,6 +20049,7 @@ Widget evsRow(BuildContext context, {
 // the available width (used with `evsRow(context, stacked: true)`). Replaces the
 // right-aligned Wrap that folded 3–4 options into a cramped floating block.
 Widget evsSegmentedWide<T>(
+  BuildContext context,
   List<(T, String)> options,
   T value,
   ValueChanged<T> onChanged,
@@ -19972,8 +20058,8 @@ Widget evsSegmentedWide<T>(
     padding: const EdgeInsets.all(3),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(11),
-      color: Colors.white.withValues(alpha: 0.055),
-      border: Border.all(color: _evsStroke),
+      color: _overlayFill(context, 0.055),
+      border: Border.all(color: _stroke(context)),
     ),
     child: Row(
       children: [
@@ -19989,11 +20075,11 @@ Widget evsSegmentedWide<T>(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   color: options[i].$1 == value
-                      ? const Color(0x3D8A7BE0)
+                      ? _accent(context).withValues(alpha: 0.22)
                       : Colors.transparent,
                   border: Border.all(
                     color: options[i].$1 == value
-                        ? const Color(0x478A7BE0)
+                        ? _accent(context).withValues(alpha: 0.45)
                         : Colors.transparent,
                   ),
                 ),
@@ -20005,8 +20091,8 @@ Widget evsSegmentedWide<T>(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         color: options[i].$1 == value
-                            ? const Color(0xFFD0CCF6)
-                            : const Color(0xFF6E7280))),
+                            ? _txt(context)
+                            : _sub(context))),
               ),
             ),
           ),
@@ -20017,6 +20103,7 @@ Widget evsSegmentedWide<T>(
 }
 
 Widget evsSegmented<T>(
+  BuildContext context,
   List<(T, String)> options,
   T value,
   ValueChanged<T> onChanged,
@@ -20025,8 +20112,8 @@ Widget evsSegmented<T>(
     padding: const EdgeInsets.all(3),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(11),
-      color: Colors.white.withValues(alpha: 0.055),
-      border: Border.all(color: _evsStroke),
+      color: _overlayFill(context, 0.055),
+      border: Border.all(color: _stroke(context)),
     ),
     // Wrap (not Row) so the options flow onto a second line in narrow cards
     // instead of overflowing.
@@ -20043,11 +20130,11 @@ Widget evsSegmented<T>(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 color: o.$1 == value
-                    ? const Color(0x3D8A7BE0)
+                    ? _accent(context).withValues(alpha: 0.22)
                     : Colors.transparent,
                 border: Border.all(
                   color: o.$1 == value
-                      ? const Color(0x478A7BE0)
+                      ? _accent(context).withValues(alpha: 0.45)
                       : Colors.transparent,
                 ),
               ),
@@ -20056,8 +20143,8 @@ Widget evsSegmented<T>(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                       color: o.$1 == value
-                          ? const Color(0xFFD0CCF6)
-                          : const Color(0xFF6E7280))),
+                          ? _txt(context)
+                          : _sub(context))),
             ),
           ),
       ],
@@ -20065,7 +20152,7 @@ Widget evsSegmented<T>(
   );
 }
 
-Widget evsToggle(bool value, ValueChanged<bool> onChanged) {
+Widget evsToggle(BuildContext context, bool value, ValueChanged<bool> onChanged) {
   return GestureDetector(
     onTap: () => onChanged(!value),
     child: AnimatedContainer(
@@ -20074,12 +20161,10 @@ Widget evsToggle(bool value, ValueChanged<bool> onChanged) {
       height: 23,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        gradient: value
-            ? const LinearGradient(colors: [_evsGBlue, _evsGMid])
-            : null,
-        color: value ? null : const Color(0xFF1E1F2E),
+        gradient: value ? _accentGradient(context) : null,
+        color: value ? null : _overlayFill(context, 0.12),
         border: Border.all(
-            color: value ? Colors.transparent : const Color(0x1AFFFFFF)),
+            color: value ? Colors.transparent : _stroke(context)),
       ),
       alignment: value ? Alignment.centerRight : Alignment.centerLeft,
       padding: const EdgeInsets.all(2),
@@ -20106,7 +20191,7 @@ Widget evsSelectButton(BuildContext context, String label, {double minWidth = 14
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: Colors.white.withValues(alpha: 0.06),
+        color: _overlayFill(context, 0.06),
         border: Border.all(color: _stroke(context)),
       ),
       child: Row(
@@ -20137,7 +20222,7 @@ Widget evsGhostButton(BuildContext context, String label, IconData icon, {VoidCa
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Colors.white.withValues(alpha: 0.042),
+        color: _overlayFill(context, 0.042),
         border: Border.all(color: _stroke(context)),
       ),
       child: Row(
@@ -20156,7 +20241,7 @@ Widget evsGhostButton(BuildContext context, String label, IconData icon, {VoidCa
   );
 }
 
-Widget evsSlider({
+Widget evsSlider(BuildContext context, {
   required double value,
   required double min,
   required double max,
@@ -20176,7 +20261,7 @@ Widget evsSlider({
             min: min,
             max: max,
             divisions: divisions,
-            activeColor: _evsViolet,
+            activeColor: _accent(context),
             onChanged: onChanged,
           ),
         ),
@@ -20185,10 +20270,10 @@ Widget evsSlider({
           width: 46,
           child: Text(label,
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  color: _evsViolet)),
+                  color: _accent(context))),
         ),
       ],
     ),
@@ -20225,8 +20310,8 @@ Widget evsNamedSlider(BuildContext context, {
                     color: _body(context))),
             if (valueLabel != null)
               Text(valueLabel,
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w700, color: _evsViolet)),
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: _accent(context))),
           ],
         ),
         if (desc != null)
@@ -20244,7 +20329,7 @@ Widget evsNamedSlider(BuildContext context, {
             value: value.clamp(min, max),
             min: min,
             max: max,
-            activeColor: _evsViolet,
+            activeColor: _accent(context),
             inactiveColor: const Color(0x1AFFFFFF),
             onChanged: onChanged,
           ),
@@ -20279,9 +20364,9 @@ Widget evsRadioCard(BuildContext context, {
       padding: const EdgeInsets.fromLTRB(15, 13, 15, 13),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: selected ? const Color(0x1A8A7BE0) : Colors.white.withValues(alpha: 0.03),
+        color: selected ? _accent(context).withValues(alpha: 0.1) : _overlayFill(context, 0.03),
         border: Border.all(
-            color: selected ? const Color(0x4D8A7BE0) : const Color(0x0FFFFFFF)),
+            color: selected ? _accent(context).withValues(alpha: 0.3) : const Color(0x0FFFFFFF)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -20293,15 +20378,15 @@ Widget evsRadioCard(BuildContext context, {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                  color: selected ? _evsViolet : const Color(0x33FFFFFF), width: 2),
+                  color: selected ? _accent(context) : const Color(0x33FFFFFF), width: 2),
             ),
             alignment: Alignment.center,
             child: selected
                 ? Container(
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
-                        shape: BoxShape.circle, color: _evsViolet))
+                    decoration: BoxDecoration(
+                        shape: BoxShape.circle, color: _accent(context)))
                 : null,
           ),
           const SizedBox(width: 12),
@@ -20334,7 +20419,7 @@ Widget evsRadioCard(BuildContext context, {
   );
 }
 
-Widget evsAddButton(String label, VoidCallback onTap,
+Widget evsAddButton(BuildContext context, String label, VoidCallback onTap,
     {IconData icon = Icons.add, bool small = false}) {
   return GestureDetector(
     onTap: onTap,
@@ -20342,19 +20427,19 @@ Widget evsAddButton(String label, VoidCallback onTap,
       padding: EdgeInsets.symmetric(horizontal: small ? 12 : 16, vertical: small ? 4 : 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: const Color(0x268A7BE0),
-        border: Border.all(color: const Color(0x408A7BE0)),
+        color: _accent(context).withValues(alpha: 0.15),
+        border: Border.all(color: _accent(context).withValues(alpha: 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: small ? 12 : 13, color: const Color(0xFFC0B8F0)),
+          Icon(icon, size: small ? 12 : 13, color: _accent(context)),
           const SizedBox(width: 7),
           Text(label,
               style: TextStyle(
                   fontSize: small ? 12 : 13,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFFC0B8F0))),
+                  color: _accent(context))),
         ],
       ),
     ),
@@ -20393,8 +20478,8 @@ class _VersionText extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            color: const Color(0x1F8A7BE0),
-            border: Border.all(color: const Color(0x408A7BE0)),
+            color: _accent(context).withValues(alpha: 0.12),
+            border: Border.all(color: _accent(context).withValues(alpha: 0.25)),
           ),
           child: Text(text,
               style: const TextStyle(
@@ -20475,14 +20560,14 @@ class _KeyCap extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(7),
-          color: Colors.white.withValues(alpha: 0.08),
-          border: Border.all(color: const Color(0x21FFFFFF)),
+          color: _overlayFill(context, 0.08),
+          border: Border.all(color: _stroke(context)),
         ),
         child: Text(label,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFFD0D4E4),
+                color: _body(context),
                 fontFamily: 'monospace')),
       );
 }
@@ -20644,6 +20729,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // Desktop voice button: use the sidecar's Whisper STT when connected,
   // otherwise fall back to the existing speech_to_text VoiceScreen.
+  // The input-bar mic button was removed (the mic already listens for commands
+  // continuously), so this is currently unreferenced — kept so the VoiceScreen
+  // dictation flow can be re-exposed without rebuilding it.
+  // ignore: unused_element
   void _desktopVoice() {
     final sc = SidecarClient.instance;
     if (sc.status.value != SidecarStatus.connected || !sc.sttAvailable) {
@@ -21012,7 +21101,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      color: Color.lerp(color, const Color(0xFFFFFFFF), 0.4)!,
+                      color: Color.lerp(color, _txt(context), 0.4)!,
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600)),
             ),
@@ -21045,7 +21134,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final label = status == ConnectionStatus.connected
         ? '${isLocal ? app.t('statusLocalModel') : app.t('statusRemoteModel')} · ${app.t('statusConnected')}'
         : _statusText(app, status);
-    final textColor = Color.lerp(color, const Color(0xFFFFFFFF), 0.45)!;
+    final textColor = Color.lerp(color, _txt(context), 0.45)!;
     return InkWell(
       borderRadius: BorderRadius.circular(21),
       onTap: () => _showConnectionDialog(app, status, isLocal),
@@ -21509,9 +21598,7 @@ class _ChatScreenState extends State<ChatScreen> {
               else
                 ParticleSphere(
                   size: 200,
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white
-                      : _accent(context),
+                  color: _vizColor(context),
                   scattered: keyboardOpen,
                   soundLevel: VoiceLevels.instance.tts,
                 ),
@@ -21525,6 +21612,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 color: _txt(context),
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
+                // The hero sits directly over the visualization; a soft halo
+                // keeps it legible whatever the viz is doing underneath.
+                shadows: _overTextShadows(context),
               ),
             ),
             const SizedBox(height: 12),
@@ -21539,6 +21629,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   color: _sub(context),
                   fontSize: 14,
                   height: 1.4,
+                  shadows: _overTextShadows(context),
                 ),
               ),
             ),
@@ -21612,11 +21703,7 @@ class _ChatScreenState extends State<ChatScreen> {
         color: isUser ? Theme.of(context).colorScheme.primary : null,
         gradient: isUser
             ? null
-            : const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: kAccentGradientColors,
-              ),
+            : _accentGradient(context),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -22132,13 +22219,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Text(app.t('chatDisabledHint'),
                     style: TextStyle(color: _sub(context), fontSize: 14)),
               ),
-              _buildAnimatedBtn(
-                onTap: widget.desktop ? _desktopVoice : _openVoice,
-                icon: (widget.desktop && _scListening)
-                    ? Icons.stop_rounded
-                    : Icons.graphic_eq,
-              ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 14),
             ],
           ),
         ),
@@ -22196,14 +22277,6 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               ),
-              // Кнопка голосового ввода с анимированной обводкой
-              _buildAnimatedBtn(
-                onTap: widget.desktop ? _desktopVoice : _openVoice,
-                icon: (widget.desktop && _scListening)
-                    ? Icons.stop_rounded
-                    : Icons.graphic_eq,
-              ),
-              const SizedBox(width: 4),
               // Кнопка отправки (фиксированный размер, чтобы не "скакать"
               // между обычным и состоянием отправки)
               Builder(
@@ -22622,7 +22695,7 @@ class _ThinkingDotsState extends State<_ThinkingDots>
                     height: 7,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.6 + 0.4 * lift),
+                      color: _txt(context).withValues(alpha: 0.6 + 0.4 * lift),
                     ),
                   ),
                 ),
@@ -23721,12 +23794,8 @@ class _ConversationsSheetState extends State<ConversationsSheet> {
                   Navigator.pop(context);
                 },
                 child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: kAccentGradientColors,
-                    ),
+                  decoration: BoxDecoration(
+                    gradient: _accentGradient(context),
                   ),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,

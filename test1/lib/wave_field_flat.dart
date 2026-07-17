@@ -17,6 +17,7 @@ class WaveFieldFlat extends StatefulWidget {
     this.background = Colors.black,
     this.glow = true,
     this.accent,
+    this.onLight = false,
   });
 
   final double level;
@@ -24,6 +25,10 @@ class WaveFieldFlat extends StatefulWidget {
   final int particleCount;
   final Color background;
   final bool glow;
+
+  /// On the light themes the ramp toward white is invisible on cream/white; when
+  /// true it inverts to dark particles on a light page.
+  final bool onLight;
 
   /// Опционально: акцентный цвет по состоянию ассистента. null — исходная
   /// сине-белая палитра (идентична HTML).
@@ -84,6 +89,7 @@ class _WaveFieldFlatState extends State<WaveFieldFlat>
           level: () => widget.level.clamp(0.0, 1.0),
           glow: widget.glow,
           accent: widget.accent,
+          onLight: widget.onLight,
         ),
         child: const SizedBox.expand(),
       ),
@@ -104,6 +110,7 @@ class _FlatPainter extends CustomPainter {
     required this.level,
     required this.glow,
     this.accent,
+    this.onLight = false,
   }) : super(repaint: repaint);
 
   final List<_Particle> particles;
@@ -111,6 +118,7 @@ class _FlatPainter extends CustomPainter {
   final double Function() level;
   final bool glow;
   final Color? accent;
+  final bool onLight;
 
   // Константы из wave.html
   static const baseR = 0, baseG = 150, baseB = 255;
@@ -134,12 +142,21 @@ class _FlatPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
 
     // Опорные цвета рампы. Дефолт — как в wave.html; с акцентом — сам акцент
-    // (базовая яркость) → почти-белый (максимум).
+    // (базовая яркость) → почти-белый (максимум). На светлых темах инверсия:
+    // база — бледный акцент, пик — тёмная версия акцента (видна на кремовом).
     final Color? acc = accent;
-    final Color baseC = acc ?? const Color.fromARGB(255, baseR, baseG, baseB);
-    final Color brightC = acc == null
-        ? const Color.fromARGB(255, brightR, brightG, brightB)
-        : Color.lerp(acc, Colors.white, 0.72)!;
+    final Color baseC;
+    final Color brightC;
+    if (onLight) {
+      final acc2 = acc ?? const Color.fromARGB(255, baseR, baseG, baseB);
+      baseC = Color.lerp(acc2, Colors.white, 0.4)!;
+      brightC = Color.lerp(acc2, Colors.black, 0.5)!;
+    } else {
+      baseC = acc ?? const Color.fromARGB(255, baseR, baseG, baseB);
+      brightC = acc == null
+          ? const Color.fromARGB(255, brightR, brightG, brightB)
+          : Color.lerp(acc, Colors.white, 0.72)!;
+    }
 
     for (final p in particles) {
       final x = p.nx * vw;

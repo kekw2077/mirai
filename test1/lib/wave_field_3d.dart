@@ -20,6 +20,7 @@ class WaveField3D extends StatefulWidget {
     this.numRows = 75,
     this.background = const Color(0xFF020208),
     this.accent,
+    this.onLight = false,
   });
 
   final double level;
@@ -28,6 +29,10 @@ class WaveField3D extends StatefulWidget {
   final int numCols;
   final int numRows;
   final Color background;
+
+  /// On the light themes (Apple/Claude) the crest ramp toward white is invisible
+  /// on cream/white; when true the ramp inverts to dark marks on a light page.
+  final bool onLight;
 
   /// Опционально: акцентный цвет по состоянию ассистента. Если задан — вся
   /// цветовая рампа впадина→гребень строится от него; при null остаётся
@@ -82,6 +87,7 @@ class _WaveField3DState extends State<WaveField3D>
           numCols: widget.numCols,
           numRows: widget.numRows,
           accent: widget.accent,
+          onLight: widget.onLight,
         ),
         child: const SizedBox.expand(),
       ),
@@ -98,6 +104,7 @@ class _Wave3DPainter extends CustomPainter {
     required this.numCols,
     required this.numRows,
     this.accent,
+    this.onLight = false,
   }) : super(repaint: repaint);
 
   final double Function() time;
@@ -106,6 +113,7 @@ class _Wave3DPainter extends CustomPainter {
   final int numCols;
   final int numRows;
   final Color? accent;
+  final bool onLight;
 
   // Константы из wawe2.html
   static const double fov = 450;
@@ -143,13 +151,22 @@ class _Wave3DPainter extends CustomPainter {
 
     // Опорные цвета рампы. По умолчанию — дословный сине-циановый градиент из
     // wawe2.html; с акцентом — тёмный акцент (впадина) → почти-белый (гребень).
+    // На светлых темах рампа инвертируется: впадина — бледный акцент (утопает),
+    // гребень — тёмная «чернильная» версия акцента (читается на кремовом/белом).
     final Color? acc = accent;
-    final Color troughC = acc == null
-        ? const Color.fromARGB(255, 5, 60, 180)
-        : Color.lerp(Colors.black, acc, 0.55)!;
-    final Color crestC = acc == null
-        ? const Color.fromARGB(255, 160, 235, 255)
-        : Color.lerp(acc, Colors.white, 0.72)!;
+    final Color troughC;
+    final Color crestC;
+    if (onLight) {
+      final acc2 = acc ?? const Color(0xFF3C5BD8);
+      troughC = Color.lerp(acc2, Colors.white, 0.45)!;
+      crestC = Color.lerp(acc2, Colors.black, 0.55)!;
+    } else if (acc == null) {
+      troughC = const Color.fromARGB(255, 5, 60, 180);
+      crestC = const Color.fromARGB(255, 160, 235, 255);
+    } else {
+      troughC = Color.lerp(Colors.black, acc, 0.55)!;
+      crestC = Color.lerp(acc, Colors.white, 0.72)!;
+    }
 
     // Заполнение из глубины вперёд — дальние точки рисуются первыми.
     for (var r = numRows - 1; r >= 0; r--) {
