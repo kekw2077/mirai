@@ -1501,6 +1501,8 @@ const Map<String, Map<String, String>> _i18n = {
     'themeSystem': 'Системная',
     'themeLight': 'Светлая',
     'themeDark': 'Тёмная',
+    'themeSteam': 'Steam',
+    'themeApple': 'Apple',
     'themeGray': 'Серая',
     'appStyle': 'Стиль приложения',
     'appStyleDialogTitle': 'Стиль приложения',
@@ -2430,6 +2432,8 @@ const Map<String, Map<String, String>> _i18n = {
     'themeSystem': 'System',
     'themeLight': 'Light',
     'themeDark': 'Dark',
+    'themeSteam': 'Steam',
+    'themeApple': 'Apple',
     'themeGray': 'Gray',
     'appStyle': 'App style',
     'appStyleDialogTitle': 'App style',
@@ -4568,7 +4572,10 @@ class TokenCounter {
 // Only one theme ships today: dark (the palette the user's OS resolved to). The
 // enum and its selector are kept single-valued on purpose — new palettes will be
 // added as new enum values + list entries, and the switching mechanism stays.
-enum AppThemeMode { dark }
+// `apple` (light) is defined but not yet exposed in the theme picker — its
+// light-mode readability pass over the remaining hardcoded colors is a
+// compiler-in-the-loop follow-up. `dark` and `steam` ship now.
+enum AppThemeMode { dark, apple, steam }
 
 // Liquid Glass was removed — only the standard (solid) style remains. Kept as a
 // single-value enum so the appStyle field / prefs migration stay graceful.
@@ -4720,6 +4727,11 @@ class AppState extends ChangeNotifier {
   bool _settingsEditing = false;
   bool settingsDirty = false;
   bool settingsApplying = false;
+  // Snapshot of the settings values captured when the draft opened. Dirtiness is
+  // computed by diffing the current values against this — so a control that
+  // re-fires its setter with an IDENTICAL value (e.g. when a section is first
+  // built on tab switch) no longer flips the "unsaved changes" state.
+  String _savedSnapshot = '';
   bool get settingsEditing => _settingsEditing;
   bool haptics = true;
   bool showKeyboardOnLaunch = false;
@@ -5290,12 +5302,39 @@ class AppState extends ChangeNotifier {
     fetchModels();
   }
 
+  // Stable string of every user-editable setting, used to detect REAL changes in
+  // draft mode (see `_savedSnapshot`). Excludes volatile non-settings data
+  // (conversations, model lists, paired devices) that can change outside the
+  // settings screen and shouldn't count as an unsaved edit.
+  String _settingsSnapshot() => <Object?>[
+        lang, themeMode.name, appStyle.name, haptics, showKeyboardOnLaunch,
+        showPromptChips, fontSize, micAutoSend, micPauseSeconds, serverUrl,
+        savedServers.join(','), llmNumCtx, llmNumPredict, llmTemperature,
+        llmKeepAlive, searchModel, chatModel, apiKey, selectedModel, inferenceMode,
+        autostart, minimizeToTray, closeToTray, inputDeviceId, extraMicIds.join(','),
+        jsonEncode(deviceDenoise), listenMode, sttLanguage, whisperModel, sttEngine,
+        sttSidecarEngine, denoiseMode, sttDevice, gameModeFullscreen, gameModeVram,
+        gameModeVramEnter, gameModeVramExit, gameModeNotify,
+        gameModeExclusions.join(','), cmdMode, wakeWord, stopWords.join(','),
+        cmdThreshold, cmdConfirm, cmdEnabled, chatEnabled, vizType, showVizBg,
+        showPartial, overlayMode, overlaySize, vizAccent, orbSize, orbSpeed,
+        barCount, autoUpdateCheck, webSearchEnabled, tavilyKey, braveKey,
+        voiceResponses, announceReady, ttsPiperVoice, ttsRate, ttsVolume,
+        ttsInterpEnabled, ttsInterpMode, ttsInterpModel, ttsEngineChoice,
+        cosyvoiceEndpoint, cosyvoiceVoice, cosyvoiceClonePath,
+        cosyvoiceClonePromptText, cosyvoiceSpeed, cosyvoiceEmotion,
+        cosyvoiceInstruct, cosyvoiceDevice,
+        jsonEncode(voiceCommands.map((c) => c.toJson()).toList()),
+        remoteInputEnabled, remoteInputPort, remoteResponseTarget,
+        jsonEncode(persona.toJson()),
+      ].join('');
+
   Future<void> _save() async {
     if (_settingsEditing) {
-      // Draft mode: defer persistence to Save; just flag the screen dirty. The
-      // caller's notifyListeners() (setters call it right after _save) rebuilds
-      // the settings UI so the sticky save bar appears.
-      settingsDirty = true;
+      // Draft mode: defer persistence to Save. Flag dirty only when the values
+      // actually differ from the snapshot taken when the draft opened — an
+      // idempotent setter re-fire (e.g. on section switch) is not an edit.
+      settingsDirty = _settingsSnapshot() != _savedSnapshot;
       return;
     }
     await prefs.setString('lang', lang);
@@ -5420,6 +5459,7 @@ class AppState extends ChangeNotifier {
     _settingsEditing = true;
     settingsDirty = false;
     settingsApplying = false;
+    _savedSnapshot = _settingsSnapshot();
   }
 
   // Save: persist the current fields and sync the backend. On failure, revert to
@@ -7558,9 +7598,11 @@ class MiraiApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       navigatorKey: rootNavKey,
       title: 'EVS',
-      theme: _buildTheme(),
-      darkTheme: _buildTheme(),
-      themeMode: ThemeMode.dark,
+      theme: _buildTheme(app.themeMode),
+      darkTheme: _buildTheme(app.themeMode),
+      themeMode: _palFor(app.themeMode).brightness == Brightness.light
+          ? ThemeMode.light
+          : ThemeMode.dark,
       builder: (context, child) {
         final mq = MediaQuery.of(context);
         // Combine the OS-level accessibility text scale with the app's own
@@ -7584,36 +7626,43 @@ class MiraiApp extends StatelessWidget {
   String? get _appFontFamily =>
       defaultTargetPlatform == TargetPlatform.iOS ? null : 'Nunito';
 
-  ThemeData _buildTheme() {
-    const scheme = ColorScheme.dark(
-      primary: Color(0xFF7C8CF8),
-      surface: Color(0xFF15151E),
+  ThemeData _buildTheme(AppThemeMode mode) {
+    final p = _palFor(mode);
+    final scheme = ColorScheme.fromSeed(
+      seedColor: p.accent,
+      brightness: p.brightness,
+    ).copyWith(
+      primary: p.accent,
+      surface: p.card2,
+      onSurface: p.txt,
     );
-    const card = Color(0xFF1C1C26);
+    final card = p.card;
+    final txtStyle = TextStyle(color: p.txt);
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: const Color(0xFF0E0E15),
+      scaffoldBackgroundColor: p.bg,
+      dividerColor: p.stroke,
       fontFamily: _appFontFamily,
       // Cover the surfaces that otherwise fall back to Material defaults so the
       // system dialogs / menus / snackbars / tooltips follow the app theme even
       // when a call site doesn't set colours explicitly (TZ3.1 §1.2).
-      dialogTheme: const DialogThemeData(backgroundColor: card),
-      popupMenuTheme: const PopupMenuThemeData(
+      dialogTheme: DialogThemeData(backgroundColor: card),
+      popupMenuTheme: PopupMenuThemeData(
         color: card,
-        textStyle: TextStyle(color: Colors.white),
+        textStyle: txtStyle,
       ),
-      snackBarTheme: const SnackBarThemeData(
+      snackBarTheme: SnackBarThemeData(
         backgroundColor: card,
-        contentTextStyle: TextStyle(color: Colors.white),
+        contentTextStyle: txtStyle,
         behavior: SnackBarBehavior.floating,
       ),
-      tooltipTheme: const TooltipThemeData(
+      tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
           color: card,
-          borderRadius: BorderRadius.all(Radius.circular(6)),
+          borderRadius: const BorderRadius.all(Radius.circular(6)),
         ),
-        textStyle: TextStyle(color: Colors.white),
+        textStyle: txtStyle,
       ),
     );
   }
@@ -7705,13 +7754,88 @@ class _ImmersiveSplashState extends State<ImmersiveSplash>
   }
 }
 
-// The app ships a single dark theme, so these are the canonical surface tokens.
-// (A future theme would parameterise them by the active AppThemeMode.) The
+// Semantic theme palette. The color helpers below resolve against the active
+// AppThemeMode, so the hundreds of `_bg(context)`/`_card(context)`/… call sites
+// re-theme automatically. Rare one-off hardcoded literals are not yet tokenised
+// (tracked as a follow-up), so `apple` (light) stays out of the picker until its
+// readability pass lands; `dark` and `steam` are complete.
+class _Palette {
+  final Color bg; // page background
+  final Color card; // primary surface
+  final Color card2; // elevated surface / popovers
+  final Color txt; // primary text
+  final Color sub; // secondary text
+  final Color accent; // primary interactive
+  final Color stroke; // hairline / border
+  final Brightness brightness;
+  const _Palette({
+    required this.bg,
+    required this.card,
+    required this.card2,
+    required this.txt,
+    required this.sub,
+    required this.accent,
+    required this.stroke,
+    required this.brightness,
+  });
+}
+
+// Dark = the app's shipped palette (canonical current values).
+const _Palette _kDark = _Palette(
+  bg: Color(0xFF0E0E15),
+  card: Color(0xFF1C1C26),
+  card2: Color(0xFF15151E),
+  txt: Color(0xFFFFFFFF),
+  sub: Color(0xFF8A8A95),
+  accent: Color(0xFF7C8CF8),
+  stroke: Color(0x14FFFFFF),
+  brightness: Brightness.dark,
+);
+
+// Steam — dark navy gaming palette (steamDESIGN.md).
+const _Palette _kSteam = _Palette(
+  bg: Color(0xFF1B2838),
+  card: Color(0xFF16202D),
+  card2: Color(0xFF2A475E),
+  txt: Color(0xFFC6D4DF),
+  sub: Color(0xFF8F98A0),
+  accent: Color(0xFF1B90FF),
+  stroke: Color(0xFF335266),
+  brightness: Brightness.dark,
+);
+
+// Apple — light, museum-gallery palette (appleDESIGN.md). Defined but dormant
+// (not in the picker) until the light-mode color pass lands.
+const _Palette _kApple = _Palette(
+  bg: Color(0xFFFFFFFF),
+  card: Color(0xFFF5F5F7),
+  card2: Color(0xFFFFFFFF),
+  txt: Color(0xFF1D1D1F),
+  sub: Color(0xFF6E6E73),
+  accent: Color(0xFF0066CC),
+  stroke: Color(0xFFE0E0E0),
+  brightness: Brightness.light,
+);
+
+_Palette _palFor(AppThemeMode m) {
+  switch (m) {
+    case AppThemeMode.apple:
+      return _kApple;
+    case AppThemeMode.steam:
+      return _kSteam;
+    case AppThemeMode.dark:
+      return _kDark;
+  }
+}
+
+_Palette _pal(BuildContext c) => _palFor(c.read<AppState>().themeMode);
+
+// Canonical surface/text tokens — resolve against the active theme. The
 // BuildContext param is kept so the hundreds of call sites stay unchanged.
-Color _bg(BuildContext c) => const Color(0xFF0E0E15);
-Color _card(BuildContext c) => const Color(0xFF1C1C26);
-Color _txt(BuildContext c) => Colors.white;
-Color _sub(BuildContext c) => const Color(0xFF8A8A95);
+Color _bg(BuildContext c) => _pal(c).bg;
+Color _card(BuildContext c) => _pal(c).card;
+Color _txt(BuildContext c) => _pal(c).txt;
+Color _sub(BuildContext c) => _pal(c).sub;
 
 // Liquid Glass was removed — only the standard style ships. Kept as a no-op so
 // the (now dead) glass branches at call sites still compile and render the
@@ -10102,7 +10226,11 @@ class AppUpdater {
                   color: Colors.black54, blurRadius: 40, offset: Offset(0, 16)),
             ],
           ),
-          child: Column(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(dctx).size.height * 0.85),
+            child: SingleChildScrollView(
+              child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -10199,6 +10327,8 @@ class AppUpdater {
                 ],
               ),
             ],
+              ),
+            ),
           ),
         ),
       ),
@@ -16704,28 +16834,94 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       if (mounted) Navigator.of(context).pop();
       return;
     }
+    // Styled to match the update-restart prompt (_showPrompt): dark rounded card,
+    // logo mark + title, a hint line, and Stay / Don't-save / Save actions with a
+    // gradient primary. Height-capped + scrollable so long copy can't overflow.
     final choice = await showDialog<String>(
       context: context,
-      builder: (_) => _AppDialog(
-        backgroundColor: _card(context),
-        title: Text(app.t('settingsExitTitle'),
-            style: TextStyle(color: _txt(context))),
-        content: Text(app.t('settingsUnsaved'),
-            style: TextStyle(color: _sub(context))),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'stay'),
-            child: Text(app.t('settingsExitStay')),
+      builder: (dctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(dctx).size.height * 0.85),
+          child: SingleChildScrollView(
+            child: Container(
+              width: 440,
+              padding: const EdgeInsets.fromLTRB(24, 22, 24, 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF12131C),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0x1AFFFFFF)),
+                boxShadow: const [
+                  BoxShadow(
+                      color: Colors.black54,
+                      blurRadius: 40,
+                      offset: Offset(0, 16)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const _EvsLogoMark(),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          app.t('settingsExitTitle'),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(app.t('settingsUnsaved'),
+                      style: const TextStyle(
+                          color: Color(0xFF6E7280), fontSize: 12)),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dctx, 'stay'),
+                        child: Text(app.t('settingsExitStay'),
+                            style: const TextStyle(color: Color(0xFF9AA0B4))),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(dctx, 'discard'),
+                        child: Text(app.t('settingsExitDiscard'),
+                            style: const TextStyle(color: Color(0xFF9AA0B4))),
+                      ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.pop(dctx, 'save'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 10),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            gradient: const LinearGradient(
+                                colors: [Color(0xFF5068D8), Color(0xFF8855CC)]),
+                          ),
+                          child: Text(app.t('settingsExitSave'),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'discard'),
-            child: Text(app.t('settingsExitDiscard')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, 'save'),
-            child: Text(app.t('settingsExitSave')),
-          ),
-        ],
+        ),
       ),
     );
     if (!mounted) return;
@@ -17059,6 +17255,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             control: evsSegmentedWide<AppThemeMode>(
               [
                 (AppThemeMode.dark, app.t('themeDark')),
+                (AppThemeMode.steam, app.t('themeSteam')),
               ],
               app.themeMode,
               (v) => app.setThemeMode(v),
@@ -24152,6 +24349,7 @@ class SettingsSheet extends StatelessWidget {
             children: [
               for (final entry in [
                 (AppThemeMode.dark, app.t('themeDark')),
+                (AppThemeMode.steam, app.t('themeSteam')),
               ])
                 RadioListTile<AppThemeMode>(
                   value: entry.$1,
