@@ -3597,6 +3597,10 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.1.2', [
+    'Исправлено: обновление не устанавливалось, а приложение уходило в петлю перезапуска — установщик обновления не переживал закрытие приложения и фактически не запускался (лог установки не появлялся ни разу). Теперь установка идёт отдельным самостоятельным процессом через планировщик задач и переживает выход приложения; каждый шаг пишется в update-runner.log.',
+    'Примечание: этот фикс живёт ВНУТРИ обновления, поэтому текущую (сломанную) версию он вылечить не может — эту сборку нужно один раз установить вручную, дальше авто-обновления заработают штатно.',
+  ]),
   ChangelogEntry('2.1.1', [
     'Акценты интерфейса теперь следуют выбранной теме (Claude — терракота, Apple — синий, Steam/Discord — свои): пузыри чата, визуализация, переключатели и выбранные пункты больше не фиолетовые по умолчанию.',
     'Светлые темы: текст стал читаемо-тёмным везде, включая выбранные (обведённые) настройки.',
@@ -10193,19 +10197,23 @@ class AppUpdater {
         // FAILED: the running files never advanced to the new version.
         unawaited(appendLog('errors',
             'update did not apply: still ${info.version}, expected $expected'));
-        // Attach the tail of the installer's own log (if any) so the failure
-        // reason (locked file / permission / …) is captured for diagnosis.
-        try {
-          final logf = io.File(await updateDownloadPath('update-install.log'));
-          if (await logf.exists()) {
-            final lines = await logf.readAsLines();
-            final tail = lines.length > 25
-                ? lines.sublist(lines.length - 25)
-                : lines;
-            unawaited(appendLog(
-                'errors', 'install.log tail:\n${tail.join('\n')}'));
-          }
-        } catch (_) {}
+        // Attach the tail of both the updater-runner and the installer's own
+        // log (if any) so the failure reason (runner never ran / locked file /
+        // permission / …) is captured for diagnosis.
+        for (final name in const ['update-runner.log', 'update-install.log']) {
+          try {
+            final logf = io.File(await updateDownloadPath(name));
+            if (await logf.exists()) {
+              final lines = await logf.readAsLines();
+              final tail =
+                  lines.length > 25 ? lines.sublist(lines.length - 25) : lines;
+              unawaited(
+                  appendLog('errors', '$name tail:\n${tail.join('\n')}'));
+            } else {
+              unawaited(appendLog('errors', '$name: MISSING (updater step never ran)'));
+            }
+          } catch (_) {}
+        }
         // Remember the failed version so the auto-check offers manual recovery
         // instead of re-showing the modal restart prompt every launch.
         _lastFailedVersion = expected;
@@ -10506,62 +10514,83 @@ class AppUpdater {
           .writeAsString(availableVersion);
     } catch (_) {}
     // Install OVER the currently-running copy, wherever it lives (portable
-    // E:\EVS, a manually-placed folder, or the default %LocalAppData%\Programs\
+    // F:\EVS, a manually-placed folder, or the default %LocalAppData%\Programs\
     // EVS). Without /DIR the installer's fixed DefaultDirName installs a SECOND
     // copy in AppData, the running exe is never replaced, its version never
     // advances, and the update re-offers on every launch — the reported loop.
-    final runDir = io.File(io.Platform.resolvedExecutable).parent.path;
-    final fallbackArgs = [
-      '/VERYSILENT',
-      '/SUPPRESSMSGBOXES',
-      '/NORESTART',
-      '/CURRENTUSER',
-      '/RELAUNCH=1',
-      '/DIR=$runDir',
-    ];
+    final exePath = io.Platform.resolvedExecutable;
+    final runDir = io.File(exePath).parent.path;
+    final scriptPath = await updateDownloadPath('evs_update.cmd');
+    final installLog = await updateDownloadPath('update-install.log');
+    final runnerLog = await updateDownloadPath('update-runner.log');
+    // A SELF-CONTAINED updater that runs entirely OUTSIDE this process. The old
+    // approach launched a detached PowerShell and immediately quit — but that
+    // child did not reliably outlive our exit here, so the installer never ran
+    // (no update-install.log was ever produced across many versions). This .cmd
+    // is started via a one-shot Scheduled Task, which the OS runs independently
+    // of our process/session, guaranteeing it survives quitForUpdate below. It:
+    //  1) waits until every evs.exe (main + widget) has closed, force-killing
+    //     any leftover so nothing keeps the app files locked,
+    //  2) installs silently OVER the running directory (/DIR) with a log,
+    //  3) relaunches the freshly-installed evs.exe,
+    //  4) removes the task and deletes itself.
+    // Every step is written to update-runner.log so a failure is diagnosable.
+    final script = '''@echo off
+setlocal enableextensions
+set "RLOG=$runnerLog"
+echo [%date% %time%] updater started > "%RLOG%"
+:waitloop
+tasklist /FI "IMAGENAME eq evs.exe" 2>nul | find /I "evs.exe" >nul
+if not errorlevel 1 (
+  timeout /t 1 /nobreak >nul
+  goto waitloop
+)
+echo [%date% %time%] evs closed, killing leftovers >> "%RLOG%"
+taskkill /F /IM evs.exe /IM evs_sidecar.exe >nul 2>&1
+timeout /t 1 /nobreak >nul
+echo [%date% %time%] launching installer >> "%RLOG%"
+"$path" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /DIR="$runDir" /LOG="$installLog"
+echo [%date% %time%] installer exit %errorlevel%, relaunching >> "%RLOG%"
+start "" "$exePath"
+echo [%date% %time%] done >> "%RLOG%"
+schtasks /Delete /TN "EVSSelfUpdate" /F >nul 2>&1
+del "%~f0" >nul 2>&1
+''';
     try {
-      // Run the installer through a detached PowerShell that:
-      //  1) waits until EVERY evs.exe is gone (main AND the widget — a second
-      //     evs.exe that holds the same files; waiting only on our own PID left
-      //     the widget locking evs.exe, so the silent install couldn't replace
-      //     it and the version never advanced),
-      //  2) runs the installer silently WITH a log (so a failed apply is
-      //     diagnosable — update-install.log next to the app), targeting the
-      //     running directory (/DIR) so the live copy is the one replaced,
-      //  3) lets the installer's own /RELAUNCH=1 [Run] entry relaunch the
-      //     freshly-installed {app}\evs.exe (the correct new version) — we no
-      //     longer relaunch the old resolvedExecutable ourselves.
-      final esc = path.replaceAll("'", "''");
-      final dir = runDir.replaceAll("'", "''");
-      final log =
-          (await updateDownloadPath('update-install.log')).replaceAll("'", "''");
-      final ps = "\$ErrorActionPreference='SilentlyContinue'; "
-          // Wait for our processes to exit on their own...
-          "\$n=0; while ((Get-Process evs) -and \$n -lt 80) "
-          "{ Start-Sleep -Milliseconds 250; \$n++ }; "
-          // ...then hard-kill anything still lingering (widget/sidecar) so
-          // no leftover process can keep the app files locked.
-          "Get-Process evs,evs_sidecar | Stop-Process -Force; "
-          "Start-Sleep -Milliseconds 700; "
-          // ArgumentList as ONE verbatim string (not an array): the array form
-          // re-quotes elements containing spaces, which would mangle
-          // /DIR="C:\path with spaces". A single string is passed to the
-          // installer's command line as-is, with the paths double-quoted.
-          "Start-Process -FilePath '$esc' -ArgumentList "
-          "'/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /RELAUNCH=1 "
-          "/DIR=\"$dir\" /LOG=\"$log\"'";
-      await io.Process.start(
-        'powershell',
-        ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps],
-        mode: io.ProcessStartMode.detached,
-      );
-    } catch (_) {
-      // PowerShell unavailable — fall back to launching the installer directly
-      // (Restart Manager / CloseApplications=force still closes us; the
-      // installer's /RELAUNCH=1 brings the new version back up).
+      await io.File(scriptPath).writeAsString(script);
+    } catch (_) {}
+    bool launched = false;
+    // Preferred: a one-shot scheduled task detaches the script from this process
+    // entirely (not a child, not in our session/job) so it survives our exit.
+    try {
+      await io.Process.run('schtasks', [
+        '/Create', '/TN', 'EVSSelfUpdate',
+        '/TR', 'cmd /c "$scriptPath"',
+        '/SC', 'ONCE', '/ST', '23:59', '/F',
+      ]);
+      final r = await io.Process.run('schtasks', ['/Run', '/TN', 'EVSSelfUpdate']);
+      launched = r.exitCode == 0;
+    } catch (_) {}
+    // Fallback: launch the script through the shell (`start`) so it is reparented
+    // to the session and outlives us.
+    if (!launched) {
       try {
-        await io.Process.start(path, fallbackArgs,
-            mode: io.ProcessStartMode.detached);
+        await io.Process.start(
+          'cmd.exe',
+          ['/c', 'start', '""', '/min', 'cmd', '/c', scriptPath],
+          mode: io.ProcessStartMode.detached,
+        );
+        launched = true;
+      } catch (_) {}
+    }
+    // Last resort: the installer's own /RELAUNCH (Restart Manager closes us).
+    if (!launched) {
+      try {
+        await io.Process.start(path, [
+          '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER',
+          '/RELAUNCH=1', '/DIR=$runDir',
+        ], mode: io.ProcessStartMode.detached);
+        launched = true;
       } catch (e) {
         lastError = e.toString();
         status.value = UpdateStatus.error;
