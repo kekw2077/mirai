@@ -1002,6 +1002,7 @@ const Map<String, Map<String, String>> _i18n = {
     'ttsCosyCheck': 'Проверить соединение',
     'ttsCosyOnline': 'На связи',
     'ttsCosyOffline': 'Не отвечает',
+    'ttsCosyFellBack': 'CosyVoice недоступен — озвучка переключена на Piper',
     'ttsCosyChecking': 'Проверка…',
     'ttsCosyWiringHint':
         'Настройки сохраняются. Синтез через CosyVoice подключится, когда сервер будет развёрнут.',
@@ -1938,6 +1939,7 @@ const Map<String, Map<String, String>> _i18n = {
     'ttsCosyCheck': 'Check connection',
     'ttsCosyOnline': 'Online',
     'ttsCosyOffline': 'Not responding',
+    'ttsCosyFellBack': 'CosyVoice unavailable — switched to Piper',
     'ttsCosyChecking': 'Checking…',
     'ttsCosyWiringHint':
         'Settings are saved. CosyVoice synthesis connects once the server is deployed.',
@@ -5827,11 +5829,25 @@ class AppState extends ChangeNotifier {
       cosyvoiceOnline = res.statusCode > 0;
     } catch (_) {
       cosyvoiceOnline = false;
-      // A downed server must never leave CosyVoice as the active engine.
-      if (ttsEngineChoice == 'cosyvoice') ttsEngineChoice = 'piper';
+      // A downed server must never leave CosyVoice as the active engine — fall
+      // back to Piper so speech keeps working, persist it, and note it once.
+      if (ttsEngineChoice == 'cosyvoice') {
+        ttsEngineChoice = 'piper';
+        _save();
+        VizOverlayServer.instance.note(t('ttsCosyFellBack'), kind: 'info');
+      }
     }
     notifyListeners();
     return cosyvoiceOnline ?? false;
+  }
+
+  // One-shot probe at launch: if CosyVoice is the saved engine or an endpoint is
+  // configured, verify reachability so an unavailable server auto-reverts to
+  // Piper (§3.2) instead of leaving the app "stuck" on an unreachable engine.
+  Future<void> checkCosyvoiceOnStartup() async {
+    if (ttsEngineChoice == 'cosyvoice' || cosyvoiceEndpoint.trim().isNotEmpty) {
+      await checkCosyvoice();
+    }
   }
 
   void setTtsInterpModel(String v) {
@@ -9578,6 +9594,11 @@ class DesktopIntegration with WindowListener, TrayListener {
       // installer in the background and shows an in-app "restart to update"
       // banner — no native WinSparkle prompts.
       AppUpdater.instance.start(app);
+
+      // Verify CosyVoice reachability once at launch; an unavailable server
+      // auto-reverts the TTS engine to Piper (§3.2) so speech never silently
+      // breaks and the app doesn't stay stuck on an unreachable engine.
+      unawaited(app.checkCosyvoiceOnStartup());
 
       // Floating widget: separate process, fed over a localhost WebSocket.
       // Spawns immediately when enabled (the chat window itself may stay
