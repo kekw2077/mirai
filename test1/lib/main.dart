@@ -3597,6 +3597,11 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.1.4', [
+    'Исправлено: голосовой движок иногда не запускался («голосовой движок не запущен»), если при старте не удавалось загрузить манифест компонентов (нет сети) — выбирался старый сайдкар, не понимающий новых параметров. Теперь манифест кэшируется локально (работает офлайн), а при его отсутствии выбирается актуальный сайдкар.',
+    'Исправлено: «Открыть папку моделей» открывала «Документы» вместо папки с моделями (из-за смешанных слэшей в пути).',
+    'Улучшено: убраны оставшиеся фиолетовые тексты/иконки на светлых темах (ссылка «Подробнее» и др.) — теперь по цвету выбранной темы.',
+  ]),
   ChangelogEntry('2.1.3', [
     'Дочерние процессы теперь различимы в диспетчере задач (вкладка «Подробности»): виджет визуализации запускается как evs_widget.exe — отдельно от evs.exe (главное приложение) и evs_sidecar.exe (голосовой движок), видно, за что отвечает каждый.',
   ]),
@@ -7010,7 +7015,10 @@ class AppState extends ChangeNotifier {
 
   Future<void> openModelsFolder() async {
     try {
-      final dir = await modelsDirPath();
+      // modelsDirPath joins with '/', producing a mixed-slash path like
+      // "F:\EVS\userdata/models"; explorer.exe can't navigate that and silently
+      // opens Documents instead — normalize to backslashes on Windows.
+      final dir = (await modelsDirPath()).replaceAll('/', r'\');
       await io.Process.start('explorer.exe', [dir], runInShell: false);
     } catch (_) {}
   }
@@ -10771,7 +10779,21 @@ class ComponentManager {
       final p = '$dir$sep$id$sep${info.exe}';
       return await io.File(p).exists() ? p : null;
     }
-    final name = fileName ?? info?.fileName ?? '$id.bin';
+    if (info == null) {
+      // Manifest unavailable (e.g. the fetch timed out and there was no cache):
+      // probe disk directly and PREFER the current onedir layout
+      // (components/<id>/<exe>) over any stale legacy onefile — otherwise we
+      // launch an old sidecar that rejects the current CLI args (the reported
+      // "голосовой движок не запущен").
+      if (fileName != null) {
+        final onedir = '$dir$sep$id$sep$fileName';
+        if (await io.File(onedir).exists()) return onedir;
+        final onefile = '$dir$sep$fileName';
+        if (await io.File(onefile).exists()) return onefile;
+      }
+      return null;
+    }
+    final name = fileName ?? info.fileName;
     final p = '$dir$sep$name';
     return await io.File(p).exists() ? p : null;
   }
@@ -10779,20 +10801,39 @@ class ComponentManager {
   bool isReady(String id) => statusOf(id).value.state == ComponentState.ready;
 
   Future<void> loadManifest() async {
+    final sep = io.Platform.pathSeparator;
+    final cache = io.File('${await _componentsDir()}${sep}manifest.json');
+    String? body;
     try {
       final res = await http
           .get(Uri.parse(manifestUrl))
           .timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
-        final j = jsonDecode(res.body) as Map<String, dynamic>;
+        body = res.body;
+        try {
+          await cache.writeAsString(body);
+        } catch (_) {}
+      }
+    } catch (_) {}
+    // Offline / fetch failed: fall back to the last cached manifest so component
+    // resolution (which sidecar exe to launch) still works without network,
+    // instead of an empty manifest that reverts to a stale legacy onefile.
+    if (body == null) {
+      try {
+        if (await cache.exists()) body = await cache.readAsString();
+      } catch (_) {}
+    }
+    if (body != null) {
+      try {
+        final j = jsonDecode(body) as Map<String, dynamic>;
         final comps = (j['components'] as Map?)?.cast<String, dynamic>() ?? {};
         _manifest = {
           for (final e in comps.entries)
             e.key: ComponentInfo.fromJson(
                 e.key, (e.value as Map).cast<String, dynamic>())
         };
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
     await refreshStates();
   }
 
@@ -12235,7 +12276,7 @@ class _DesktopSidebar extends StatelessWidget {
                             ? Icons.push_pin
                             : Icons.chat_bubble_outline,
                         size: 13,
-                        color: const Color(0xFF9691C0)),
+                        color: _sub(context)),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -15864,12 +15905,12 @@ class _DetailDisclosure extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Text(open ? lessLabel : moreLabel,
-                  style: const TextStyle(
-                      color: Color(0xFFB9A6FF),
+                  style: TextStyle(
+                      color: _accent(context),
                       fontSize: 12,
                       fontWeight: FontWeight.w600)),
               Icon(open ? Icons.expand_less : Icons.expand_more,
-                  size: 16, color: const Color(0xFFB9A6FF)),
+                  size: 16, color: _accent(context)),
             ]),
           ),
         ),
@@ -18858,8 +18899,8 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                                 color: _accent(context).withValues(alpha: 0.4), width: 2),
                           ),
                           child: (_stub[it.$1] ?? false)
-                              ? const Icon(Icons.check,
-                                  size: 12, color: Color(0xFFD0CCF6))
+                              ? Icon(Icons.check,
+                                  size: 12, color: _accent(context))
                               : null,
                         ),
                         const SizedBox(width: 10),
@@ -20538,10 +20579,10 @@ class _VersionText extends StatelessWidget {
             border: Border.all(color: _accent(context).withValues(alpha: 0.25)),
           ),
           child: Text(text,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFFC0B8F0))),
+                  color: _accent(context))),
         );
       },
     );
