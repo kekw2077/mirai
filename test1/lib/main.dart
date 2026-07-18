@@ -3593,6 +3593,10 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.2.1', [
+    'Исправлены невидимые на светлых темах рамки во всех карточках настроек, диалогах, полях ввода и разделителях — единый токен обводки следует теме.',
+    'Выбранные состояния (движок распознавания и др.) и метки разделов теперь следуют акценту/теме, без жёстко-синего и «слепого» серого на кремовом.',
+  ]),
   ChangelogEntry('2.2.0', [
     'Единая дизайн-система: общие токены цвета/типографики/отступов; карточки, строки, кнопки, слайдеры, переключатели и radio переведены на токены — корректные рамки и контраст на светлых темах во всём приложении.',
     'Темы курированы до трёх: Тёмная, Claude и Claude (тёмная). Steam/Apple/Discord убраны (сохранённая ранее из них тема автоматически переключается на Тёмную).',
@@ -7927,7 +7931,7 @@ Color _danger(BuildContext c) => _pal(c).danger;
 // were invisible or wrong on the light themes.
 
 // Hairline divider inside cards/lists — fainter than the row `stroke`. Was the
-// const white-alpha `_evsStroke`, invisible on cream.
+// const white-alpha `_stroke(context)`, invisible on cream.
 Color _divider(BuildContext c) => _stroke(c).withValues(alpha: 0.55);
 
 // Muted ALL-CAPS section label (card headers). Was the fixed slate 0xFF8890A8.
@@ -9122,7 +9126,6 @@ class _AnimatedBorderState extends State<AnimatedBorder>
 
 // Mockup palette: violet accent + blue→purple→pink gradient on near-black.
 const Color _evsGMid = Color(0xFF8855CC);
-const Color _evsStroke = Color(0x0DFFFFFF);
 const Color _evsBgSolid = Color(0xFF09090F);
 
 // Desktop window background — the radial gradient from the mockups.
@@ -14280,9 +14283,9 @@ class _RemoteInputPanelState extends State<_RemoteInputPanel> {
               ('both', app.t('remoteRespBoth')),
             ], app.remoteResponseTarget, app.setRemoteResponseTarget),
           ),
-          const Divider(color: _evsStroke, height: 20),
+          Divider(color: _stroke(context), height: 20),
           _addPhoneSection(),
-          const Divider(color: _evsStroke, height: 20),
+          Divider(color: _stroke(context), height: 20),
           _devicesSection(),
         ],
       ],
@@ -14399,7 +14402,7 @@ class _RemoteInputPanelState extends State<_RemoteInputPanel> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
         color: _overlayFill(context, 0.03),
-        border: Border.all(color: _evsStroke),
+        border: Border.all(color: _stroke(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -14456,7 +14459,7 @@ class _RemoteInputPanelState extends State<_RemoteInputPanel> {
           borderRadius: BorderRadius.circular(7),
           color: on ? const Color(0x2654E08A) : _overlayFill(context, 0.04),
           border: Border.all(
-              color: on ? _success(context) : _evsStroke),
+              color: on ? _success(context) : _stroke(context)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(on ? Icons.check : Icons.close,
@@ -14487,7 +14490,7 @@ class _RemoteField extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         color: _overlayFill(context, 0.04),
-        border: Border.all(color: _evsStroke),
+        border: Border.all(color: _stroke(context)),
       ),
       child: TextField(
         controller: controller,
@@ -14656,7 +14659,7 @@ class _SuggestCommandsDialogState extends State<_SuggestCommandsDialog> {
         borderRadius: BorderRadius.circular(10),
         color: _overlayFill(context, 0.03),
         border: Border.all(
-            color: s.collides ? const Color(0xFFE0685E) : _evsStroke),
+            color: s.collides ? const Color(0xFFE0685E) : _stroke(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -14700,11 +14703,11 @@ class _SuggestCommandsDialogState extends State<_SuggestCommandsDialog> {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: _evsStroke),
+                  borderSide: BorderSide(color: _stroke(context)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: _evsStroke),
+                  borderSide: BorderSide(color: _stroke(context)),
                 ),
               ),
             ),
@@ -15030,11 +15033,11 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
                     fillColor: _overlayFill(context, 0.04),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: _evsStroke),
+                      borderSide: BorderSide(color: _stroke(context)),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: _evsStroke),
+                      borderSide: BorderSide(color: _stroke(context)),
                     ),
                   ),
                 ),
@@ -15064,7 +15067,7 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
               ? const Color(0x263A7BE0)
               : _overlayFill(context, 0.03),
           border: Border.all(
-              color: selected ? const Color(0xFF3A7BE0) : _evsStroke),
+              color: selected ? _accent(context) : _stroke(context)),
         ),
         child: Row(children: [
           Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
@@ -15549,7 +15552,7 @@ class _WebSearchCardState extends State<_WebSearchCard> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         color: _overlayFill(context, 0.04),
-        border: Border.all(color: _evsStroke),
+        border: Border.all(color: _stroke(context)),
       ),
       child: TextField(
         controller: c,
@@ -15570,10 +15573,10 @@ class _WebSearchCardState extends State<_WebSearchCard> {
   Widget _label(String s) => Padding(
         padding: const EdgeInsets.only(bottom: 5),
         child: Text(s,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF8890A8))),
+                color: _sectionLabel(context))),
       );
 
   @override
@@ -15770,7 +15773,7 @@ class _VizPreviewCardState extends State<_VizPreviewCard>
         ], _preview, (v) => setState(() => _preview = v)),
         const SizedBox(height: 10),
         Row(children: [
-          const Icon(Icons.graphic_eq, size: 17, color: Color(0xFF8890A8)),
+          Icon(Icons.graphic_eq, size: 17, color: _sectionLabel(context)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(app.t('wsSimVoice'),
@@ -15831,7 +15834,7 @@ class _VizStyleTile extends StatelessWidget {
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   color: selected
                       ? _body(context)
-                      : const Color(0xFF8890A8))),
+                      : _sectionLabel(context))),
         ]),
       ),
     );
@@ -17136,7 +17139,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
               decoration: BoxDecoration(
                 color: _card2(context),
-                border: const Border(top: BorderSide(color: _evsStroke)),
+                border: Border(top: BorderSide(color: _stroke(context))),
               ),
               child: Row(
                 children: [
@@ -17347,14 +17350,14 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                 ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(18, 0, 18, 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
               child: Text('РАЗДЕЛЫ',
                   style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1,
-                      color: Color(0xFF4A4F5E))),
+                      color: _faint(context))),
             ),
             Expanded(
               child: ListView.builder(
@@ -17452,7 +17455,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               ],
             ),
           ),
-          const Divider(color: _evsStroke, height: 1),
+          Divider(color: _stroke(context), height: 1),
           Expanded(
             child: LayoutBuilder(
               builder: (ctx, cons) {
@@ -17922,7 +17925,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           color: _overlayFill(context, 0.04),
-          border: Border.all(color: _evsStroke),
+          border: Border.all(color: _stroke(context)),
         ),
         child: TextField(
           controller: c,
@@ -17946,7 +17949,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _evsStroke),
+              border: Border.all(color: _stroke(context)),
               color: _stroke(context),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -17981,7 +17984,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                   ? accent.withValues(alpha: 0.16)
                   : _overlayFill(context, 0.04),
               border: Border.all(
-                  color: active ? accent.withValues(alpha: 0.5) : _evsStroke),
+                  color: active ? accent.withValues(alpha: 0.5) : _stroke(context)),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Flexible(
@@ -18315,7 +18318,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             color: _overlayFill(context, 0.05),
-            border: Border.all(color: _evsStroke),
+            border: Border.all(color: _stroke(context)),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, size: 15, color: _accent(context)),
@@ -18716,10 +18719,10 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                     borderRadius: BorderRadius.circular(7),
                     color: _overlayFill(context, 0.06)),
                 child: Text(size,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF8890A8))),
+                        color: _sectionLabel(context))),
               ),
             const SizedBox(width: 8),
             Text(active ? app.t('modelActive') : '',
@@ -19026,7 +19029,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         color: _overlayFill(context, 0.06),
-        border: Border.all(color: _evsStroke),
+        border: Border.all(color: _stroke(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -19039,7 +19042,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           const SizedBox(width: 6),
           GestureDetector(
             onTap: () => setState(() => _blacklist.remove(text)),
-            child: const Icon(Icons.close, size: 13, color: Color(0xFF4A4F5E)),
+            child: Icon(Icons.close, size: 13, color: _faint(context)),
           ),
         ],
       ),
@@ -19386,7 +19389,7 @@ class _ConnCheckRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _evsStroke),
+                border: Border.all(color: _stroke(context)),
                 color: _stroke(context),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -19502,7 +19505,7 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
                   ? const Color(0x263A7BE0)
                   : _overlayFill(context, 0.04),
               border: Border.all(
-                  color: selected ? const Color(0xFF3A7BE0) : _evsStroke),
+                  color: selected ? _accent(context) : _stroke(context)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -19533,7 +19536,7 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         color: _overlayFill(context, 0.04),
-        border: Border.all(color: _evsStroke),
+        border: Border.all(color: _stroke(context)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -19588,7 +19591,7 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
                       const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _evsStroke),
+                    border: Border.all(color: _stroke(context)),
                     color: _stroke(context),
                   ),
                   child: Text(app.t('ttsCosyClonePick'),
@@ -19723,7 +19726,7 @@ class _TtsEngineCardState extends State<_TtsEngineCard> {
                         const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _evsStroke),
+                      border: Border.all(color: _stroke(context)),
                       color: _stroke(context),
                     ),
                     child: Text(
@@ -19835,7 +19838,7 @@ class _TtsInterpCardState extends State<_TtsInterpCard> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     color: _overlayFill(context, 0.04),
-                    border: Border.all(color: _evsStroke),
+                    border: Border.all(color: _stroke(context)),
                   ),
                   child: TextField(
                     controller: _model,
@@ -20028,7 +20031,7 @@ class _LlmAdvancedCardState extends State<_LlmAdvancedCard> {
             borderRadius: BorderRadius.circular(8),
             color: _overlayFill(context, 0.04),
             border: Border.all(
-                color: error == null ? _evsStroke : const Color(0xFFF0685E)),
+                color: error == null ? _stroke(context) : const Color(0xFFF0685E)),
           ),
           child: TextField(
             controller: c,
