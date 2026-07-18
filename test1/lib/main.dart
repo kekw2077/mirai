@@ -15295,7 +15295,7 @@ class _AddCommandWizardState extends State<_AddCommandWizard> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(children: [
-            const Icon(Icons.bolt, size: 15, color: Color(0xFFB0A8F0)),
+            Icon(Icons.bolt, size: 15, color: _accent(context)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -18201,8 +18201,8 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   color: _accent(context).withValues(alpha: 0.15)),
-              child: const Icon(Icons.play_arrow_rounded,
-                  size: 15, color: Color(0xFFB0A8F0)),
+              child: Icon(Icons.play_arrow_rounded,
+                  size: 15, color: _accent(context)),
             ),
           ),
           InkResponse(
