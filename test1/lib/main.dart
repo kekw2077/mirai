@@ -1502,11 +1502,8 @@ const Map<String, Map<String, String>> _i18n = {
     'themeSystem': 'Системная',
     'themeLight': 'Светлая',
     'themeDark': 'Тёмная',
-    'themeSteam': 'Steam',
-    'themeApple': 'Apple',
     'themeClaude': 'Claude',
     'themeClaudeDark': 'Claude (тёмная)',
-    'themeDiscord': 'Discord',
     'themeGray': 'Серая',
     'appStyle': 'Стиль приложения',
     'appStyleDialogTitle': 'Стиль приложения',
@@ -2437,11 +2434,8 @@ const Map<String, Map<String, String>> _i18n = {
     'themeSystem': 'System',
     'themeLight': 'Light',
     'themeDark': 'Dark',
-    'themeSteam': 'Steam',
-    'themeApple': 'Apple',
     'themeClaude': 'Claude',
     'themeClaudeDark': 'Claude (dark)',
-    'themeDiscord': 'Discord',
     'themeGray': 'Gray',
     'appStyle': 'App style',
     'appStyleDialogTitle': 'App style',
@@ -3599,6 +3593,13 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.2.0', [
+    'Единая дизайн-система: общие токены цвета/типографики/отступов; карточки, строки, кнопки, слайдеры, переключатели и radio переведены на токены — корректные рамки и контраст на светлых темах во всём приложении.',
+    'Темы курированы до трёх: Тёмная, Claude и Claude (тёмная). Steam/Apple/Discord убраны (сохранённая ранее из них тема автоматически переключается на Тёмную).',
+    'Полностью убран остаточный фиолетовый — все акценты следуют текущей теме; цвет визуализации по умолчанию — терракота.',
+    'Растушёвка краёв визуализации: волна на плавающем виджете больше не обрывается жёстким квадратом, а мягко растворяется по всем сторонам.',
+    'Пузыри чата, меню моделей и баннер статуса распознавания переведены на токены (мягкие тени, тональные статусы, читаемость).',
+  ]),
   ChangelogEntry('2.1.5', [
     'Добавлено: тёмная версия темы Claude (тёплый графит, кремовый текст, терракотовый акцент) — в списке тем «Claude (тёмная)».',
     'Улучшено: боковая колонка теперь кремовая/тёмная от самого верха до низа, а верх окна двухцветный (рейка слева, фон справа) — без «уступа» сверху.',
@@ -4610,7 +4611,10 @@ class TokenCounter {
 // ThemeData cleanly. Light palettes (apple/claude) also switch, but their full
 // readability over the remaining hardcoded dark-assuming colors is a
 // compiler-in-the-loop pass (see APPLE-THEME-TODO.md).
-enum AppThemeMode { dark, apple, steam, claude, discord, claudeDark }
+// Curated theme set: a neutral dark plus the two Claude editorial palettes.
+// (apple/steam/discord were dropped in the design-system consolidation; a saved
+// legacy value migrates to `dark` via the orElse in the prefs load.)
+enum AppThemeMode { dark, claude, claudeDark }
 
 // Liquid Glass was removed — only the standard (solid) style remains. Kept as a
 // single-value enum so the appStyle field / prefs migration stay graceful.
@@ -5022,7 +5026,7 @@ class AppState extends ChangeNotifier {
   bool showPartial = true;
   // Widget appearance (the «Виджеты» settings section). Accent drives the
   // Siri Orb blob palette (HSL shifts) and the LK bars color.
-  int vizAccent = 0xFF7C4DFF;
+  int vizAccent = 0xFFCC785C;
   double orbSize = 200; // 120..320 px
   double orbSpeed = 20; // seconds per rotation, 6..40
   int barCount = 7; // 3..13 bars
@@ -5257,7 +5261,7 @@ class AppState extends ChangeNotifier {
     showPartial = prefs.getBool('showPartial') ?? true;
     overlayMode = prefs.getBool('overlayMode') ?? true;
     overlaySize = prefs.getDouble('overlaySize') ?? 260;
-    vizAccent = prefs.getInt('vizAccent') ?? 0xFF7C4DFF;
+    vizAccent = prefs.getInt('vizAccent') ?? 0xFFCC785C;
     orbSize = prefs.getDouble('orbSize') ?? 200;
     orbSpeed = prefs.getDouble('orbSpeed') ?? 20;
     barCount = prefs.getInt('barCount') ?? 7;
@@ -5642,7 +5646,7 @@ class AppState extends ChangeNotifier {
     showPartial = prefs.getBool('showPartial') ?? true;
     overlayMode = prefs.getBool('overlayMode') ?? true;
     overlaySize = prefs.getDouble('overlaySize') ?? 260;
-    vizAccent = prefs.getInt('vizAccent') ?? 0xFF7C4DFF;
+    vizAccent = prefs.getInt('vizAccent') ?? 0xFFCC785C;
     orbSize = prefs.getDouble('orbSize') ?? 200;
     orbSpeed = prefs.getDouble('orbSpeed') ?? 20;
     barCount = prefs.getInt('barCount') ?? 7;
@@ -7856,55 +7860,6 @@ const _Palette _kDark = _Palette(
   brightness: Brightness.dark,
 );
 
-// Steam — dark navy gaming palette (steamDESIGN.md).
-const _Palette _kSteam = _Palette(
-  bg: Color(0xFF1B2838),
-  card: Color(0xFF16202D),
-  card2: Color(0xFF2A475E),
-  txt: Color(0xFFC6D4DF),
-  sub: Color(0xFF8F98A0),
-  accent: Color(0xFF1B90FF),
-  stroke: Color(0xFF335266),
-  body: Color(0xFFC6D4DF),
-  faint: Color(0xFF66707A),
-  success: Color(0xFF8FD14F),
-  danger: Color(0xFFFF6B6B),
-  brightness: Brightness.dark,
-);
-
-// Apple — light, museum-gallery palette (appleDESIGN.md). Light theme: full
-// readability needs the color pass (APPLE-THEME-TODO.md).
-const _Palette _kApple = _Palette(
-  bg: Color(0xFFFFFFFF),
-  card: Color(0xFFF5F5F7),
-  card2: Color(0xFFFFFFFF),
-  txt: Color(0xFF1D1D1F),
-  sub: Color(0xFF6E6E73),
-  accent: Color(0xFF0066CC),
-  stroke: Color(0xFFE0E0E0),
-  body: Color(0xFF1D1D1F),
-  faint: Color(0xFF86868B),
-  success: Color(0xFF1E8E3E),
-  danger: Color(0xFFD93025),
-  brightness: Brightness.light,
-);
-
-// Discord — dark blurple community palette (discordDESIGN.md).
-const _Palette _kDiscord = _Palette(
-  bg: Color(0xFF313338),
-  card: Color(0xFF2B2D31),
-  card2: Color(0xFF1E1F22),
-  txt: Color(0xFFDBDEE1),
-  sub: Color(0xFF949BA4),
-  accent: Color(0xFF5865F2),
-  stroke: Color(0xFF3F4147),
-  body: Color(0xFFDBDEE1),
-  faint: Color(0xFF949BA4),
-  success: Color(0xFF23A55A),
-  danger: Color(0xFFED4245),
-  brightness: Brightness.dark,
-);
-
 // Claude — warm cream editorial palette (claudeDESIGN.md). Light theme: full
 // readability needs the color pass (APPLE-THEME-TODO.md).
 const _Palette _kClaude = _Palette(
@@ -7941,16 +7896,10 @@ const _Palette _kClaudeDark = _Palette(
 
 _Palette _palFor(AppThemeMode m) {
   switch (m) {
-    case AppThemeMode.apple:
-      return _kApple;
-    case AppThemeMode.steam:
-      return _kSteam;
     case AppThemeMode.claude:
       return _kClaude;
     case AppThemeMode.claudeDark:
       return _kClaudeDark;
-    case AppThemeMode.discord:
-      return _kDiscord;
     case AppThemeMode.dark:
       return _kDark;
   }
@@ -7971,6 +7920,96 @@ Color _stroke(BuildContext c) => _pal(c).stroke;
 Color _card2(BuildContext c) => _pal(c).card2;
 Color _success(BuildContext c) => _pal(c).success;
 Color _danger(BuildContext c) => _pal(c).danger;
+
+// --- Derived semantic tokens ---------------------------------------------
+// Computed from the base tokens above, so every theme gets them for free (no
+// new _Palette fields). These replace the scattered hardcoded literals that
+// were invisible or wrong on the light themes.
+
+// Hairline divider inside cards/lists — fainter than the row `stroke`. Was the
+// const white-alpha `_evsStroke`, invisible on cream.
+Color _divider(BuildContext c) => _stroke(c).withValues(alpha: 0.55);
+
+// Muted ALL-CAPS section label (card headers). Was the fixed slate 0xFF8890A8.
+Color _sectionLabel(BuildContext c) => _faint(c);
+
+// Readable text/icon on top of an accent fill — black or white by the accent's
+// luminance (terracotta/indigo take white; a pale accent takes near-black).
+Color _onAccent(BuildContext c) => _accent(c).computeLuminance() > 0.55
+    ? const Color(0xFF141413)
+    : Colors.white;
+
+// Semantic status colours (info/warn) — tuned per brightness for contrast.
+Color _info(BuildContext c) => _pal(c).brightness == Brightness.dark
+    ? const Color(0xFF5B9DF0)
+    : const Color(0xFF2C6FD6);
+Color _warn(BuildContext c) => _pal(c).brightness == Brightness.dark
+    ? const Color(0xFFE0B24A)
+    : const Color(0xFFB8862A);
+
+// Modal barrier behind dialogs/sheets.
+Color _scrim(BuildContext c) => Colors.black
+    .withValues(alpha: _pal(c).brightness == Brightness.dark ? 0.58 : 0.32);
+
+// Soft theme-aware drop shadow for elevated surfaces (cards/menus/sheets).
+List<BoxShadow> _shadow(BuildContext c,
+        {double y = 8, double blur = 24, double a = 0.18}) =>
+    [
+      BoxShadow(
+        color: Colors.black.withValues(
+            alpha: _pal(c).brightness == Brightness.dark ? a * 1.6 : a),
+        blurRadius: blur,
+        offset: Offset(0, y),
+      )
+    ];
+
+// --- Design scales — single source of truth for spacing / radii / type.
+// Ad-hoc `fontSize:` and magic paddings migrate onto these per screen.
+
+abstract final class EvsSpace {
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 24;
+  static const double xxl = 32;
+}
+
+abstract final class EvsRadius {
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 18;
+  static const double pill = 999;
+  static const BorderRadius rSm = BorderRadius.all(Radius.circular(sm));
+  static const BorderRadius rMd = BorderRadius.all(Radius.circular(md));
+  static const BorderRadius rLg = BorderRadius.all(Radius.circular(lg));
+}
+
+// Type scale. Colour is intentionally omitted — apply a token at the call site,
+// e.g. `EvsType.body.copyWith(color: _txt(context))`. Family comes from
+// ThemeData (Nunito), so it is not set here.
+abstract final class EvsType {
+  static const TextStyle display =
+      TextStyle(fontSize: 30, height: 1.15, fontWeight: FontWeight.w800, letterSpacing: -0.3);
+  static const TextStyle title =
+      TextStyle(fontSize: 20, height: 1.2, fontWeight: FontWeight.w700, letterSpacing: -0.2);
+  static const TextStyle heading =
+      TextStyle(fontSize: 16, height: 1.25, fontWeight: FontWeight.w700);
+  static const TextStyle sectionLabel = TextStyle(
+      fontSize: 11.5, height: 1.2, fontWeight: FontWeight.w700, letterSpacing: 0.6);
+  static const TextStyle body =
+      TextStyle(fontSize: 14, height: 1.45, fontWeight: FontWeight.w400);
+  static const TextStyle bodyStrong =
+      TextStyle(fontSize: 14, height: 1.45, fontWeight: FontWeight.w600);
+  static const TextStyle label =
+      TextStyle(fontSize: 13.5, height: 1.3, fontWeight: FontWeight.w600);
+  static const TextStyle control =
+      TextStyle(fontSize: 12.5, height: 1.2, fontWeight: FontWeight.w600);
+  static const TextStyle caption =
+      TextStyle(fontSize: 12, height: 1.4, fontWeight: FontWeight.w400);
+  static const TextStyle mono =
+      TextStyle(fontSize: 12.5, height: 1.4, fontFamily: 'monospace');
+}
 
 // Two-stop gradient derived from the theme accent — replaces the hardcoded
 // blue/violet gradients on the assistant bubble, primary buttons and toggles so
@@ -9083,7 +9122,6 @@ class _AnimatedBorderState extends State<AnimatedBorder>
 
 // Mockup palette: violet accent + blue→purple→pink gradient on near-black.
 const Color _evsGMid = Color(0xFF8855CC);
-const Color _evsViolet2 = Color(0xFFB0A8F0);
 const Color _evsStroke = Color(0x0DFFFFFF);
 const Color _evsBgSolid = Color(0xFF09090F);
 
@@ -12238,16 +12276,12 @@ class _DesktopSidebar extends StatelessWidget {
                 ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(18, 0, 18, 10),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
               child: Text(
                 'ИСТОРИЯ',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.9,
-                  color: Color(0xFF4A4F5E),
-                ),
+                style: EvsType.sectionLabel
+                    .copyWith(letterSpacing: 0.9, color: _sectionLabel(context)),
               ),
             ),
             Expanded(
@@ -12263,7 +12297,7 @@ class _DesktopSidebar extends StatelessWidget {
                       },
                     ),
             ),
-            const Divider(color: _evsStroke, height: 1, indent: 10, endIndent: 10),
+            Divider(color: _divider(context), height: 1, indent: 10, endIndent: 10),
             const Padding(
               padding: EdgeInsets.fromLTRB(10, 14, 10, 0),
               child: _DesktopSystemWidget(),
@@ -12299,7 +12333,9 @@ class _DesktopSidebar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: active ? const Color(0x12FFFFFF) : Colors.transparent,
+                color: active
+                    ? _accent(context).withValues(alpha: 0.10)
+                    : Colors.transparent,
                 border: Border.all(
                   color: active ? _accent(context).withValues(alpha: 0.2) : Colors.transparent,
                 ),
@@ -12338,10 +12374,7 @@ class _DesktopSidebar extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           _evsRelTime(app, c.updatedAt),
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: Color(0xFF6E7280),
-                          ),
+                          style: TextStyle(fontSize: 11.5, color: _faint(context)),
                         ),
                       ],
                     ),
@@ -12680,17 +12713,31 @@ class EvsWaveViz extends StatelessWidget {
       );
     }
     if (fadeEdges) {
-      // Soft vignette: opaque in the middle, fading out toward every edge (so
-      // the left/bottom no longer read as a hard square boundary).
+      // Rectangular edge-feather: a symmetric fade on each of the four sides so
+      // the widget dissolves into the background instead of ending on a hard
+      // square. A radial vignette left the straight edges ~two-thirds opaque
+      // (still boxy); stacking a horizontal and a vertical linear fade with
+      // dstIn multiplies the alphas into a soft picture-frame on all sides
+      // (corners fade the most, which reads naturally).
+      const f = 0.16; // fraction of each side that dissolves
       field = ShaderMask(
         blendMode: BlendMode.dstIn,
-        shaderCallback: (rect) => const RadialGradient(
-          center: Alignment.center,
-          radius: 0.72,
-          colors: [Colors.white, Colors.white, Colors.transparent],
-          stops: [0.0, 0.55, 1.0],
+        shaderCallback: (rect) => const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+          stops: [0.0, f, 1 - f, 1.0],
         ).createShader(rect),
-        child: field,
+        child: ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (rect) => const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+            stops: [0.0, f, 1 - f, 1.0],
+          ).createShader(rect),
+          child: field,
+        ),
       );
     }
     return SizedBox(
@@ -12982,7 +13029,7 @@ SiriOrbColors evsOrbColors(Color accent, {bool onLight = false}) {
 // main app and the widget process.
 // Default visualization accent (violet). When vizAccent still equals this, the
 // visualization follows the theme accent; any other value is a user override.
-const int kDefaultVizAccent = 0xFF7C4DFF;
+const int kDefaultVizAccent = 0xFFCC785C;
 
 Color vizStateAccent(BuildContext c, AppState app) {
   // Idle/base colour follows the theme accent by default (so the visualization
@@ -13181,11 +13228,13 @@ class _OverlayWidgetViewState extends State<OverlayWidgetView> {
                         EvsWaveViz(
                             kind: 'wave3d',
                             size: content * 0.92,
+                            fadeEdges: true,
                             reactive: true)
                       else if (viz == 'waveflat')
                         EvsWaveViz(
                             kind: 'waveflat',
                             size: content * 0.92,
+                            fadeEdges: true,
                             reactive: true)
                       else
                         ParticleSphere(
@@ -13409,10 +13458,10 @@ class _DesktopMicWidgetState extends State<_DesktopMicWidget>
                   child: Text(app.t('microphone'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF6E7280))),
+                          color: _sectionLabel(context))),
                 ),
                 const SizedBox(width: 8),
                 Container(
@@ -13420,15 +13469,16 @@ class _DesktopMicWidgetState extends State<_DesktopMicWidget>
                       const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    color: const Color(0x1A54E08A),
-                    border: Border.all(color: const Color(0x4054E08A)),
+                    color: _success(context).withValues(alpha: 0.12),
+                    border: Border.all(
+                        color: _success(context).withValues(alpha: 0.28)),
                   ),
                   child: Text(live ? app.t('micListening') : app.t('ready'),
                       maxLines: 1,
-                      style: const TextStyle(
+                      style: EvsType.caption.copyWith(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF7BE8AD))),
+                          color: _success(context))),
                 ),
               ],
             ),
@@ -13475,7 +13525,7 @@ class _DesktopMicWidgetState extends State<_DesktopMicWidget>
           gradient: LinearGradient(
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,
-            colors: [_accent(context), const Color(0xFFB681E6)],
+            colors: _accentGradientOf(context),
           ),
         ),
       );
@@ -15807,46 +15857,51 @@ class _SttReadinessBanner extends StatelessWidget {
         final state = sc.sttState.value;
         if (state == 'ready') return const SizedBox.shrink();
         String label;
-        var isError = false;
+        Color tone;
+        IconData? icon;
         switch (state) {
           case 'loading_models':
             label = app.t('sttLoadingModels');
+            tone = _info(context);
             break;
           case 'error':
             final msg = sc.sttStateMessage;
             label = (msg != null && msg.isNotEmpty)
                 ? '${app.t('sttErrorState')}: $msg'
                 : app.t('sttErrorState');
-            isError = true;
+            tone = _danger(context);
+            icon = Icons.error_outline;
             break;
           default: // starting / not yet connected
             label = app.t('sttStarting');
+            tone = _warn(context);
         }
         return Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: _card(context),
+              color: tone.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: tone.withValues(alpha: 0.28)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (isError)
-                  const Icon(Icons.error_outline,
-                      size: 16, color: Colors.redAccent)
+                if (icon != null)
+                  Icon(icon, size: 16, color: tone)
                 else
                   SizedBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: _sub(context)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: tone),
                   ),
                 const SizedBox(width: 10),
                 Flexible(
                   child: Text(label,
-                      style: TextStyle(color: _sub(context), fontSize: 13)),
+                      style: EvsType.body.copyWith(
+                          fontSize: 13,
+                          color: Color.lerp(tone, _txt(context), 0.35))),
                 ),
               ],
             ),
@@ -17353,8 +17408,8 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                                         fontSize: 13.5,
                                         fontWeight: FontWeight.w600,
                                         color: active
-                                            ? const Color(0xFFD4CFF0)
-                                            : const Color(0xFF6E7280))),
+                                            ? _txt(context)
+                                            : _sub(context))),
                               ),
                             ],
                           ),
@@ -17565,11 +17620,8 @@ class _DesktopSettingsState extends State<DesktopSettings> {
             control: evsSegmentedWide<AppThemeMode>(context, 
               [
                 (AppThemeMode.dark, app.t('themeDark')),
-                (AppThemeMode.steam, app.t('themeSteam')),
-                (AppThemeMode.apple, app.t('themeApple')),
                 (AppThemeMode.claude, app.t('themeClaude')),
                 (AppThemeMode.claudeDark, app.t('themeClaudeDark')),
-                (AppThemeMode.discord, app.t('themeDiscord')),
               ],
               app.themeMode,
               (v) => app.setThemeMode(v),
@@ -17912,7 +17964,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
 
     Widget chip(String s) {
       final active = s == app.serverUrl.trim();
-      const accent = Color(0xFF8A7BE0);
+      final accent = _accent(context);
       return ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 240),
         child: InkWell(
@@ -18221,7 +18273,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
       VoiceCommandType.file => (app.t('typeFile'), const Color(0xFF7BE0D8)),
       VoiceCommandType.url => (app.t('typeWeb'), const Color(0xFF8BE8B0)),
       VoiceCommandType.shell => ('Shell', const Color(0xFFE0C07A)),
-      VoiceCommandType.system => (app.t('typeSystem'), _evsViolet2),
+      VoiceCommandType.system => (app.t('typeSystem'), const Color(0xFFDD8AA8)),
       VoiceCommandType.media => (app.t('typeMedia'), const Color(0xFFE0A07A)),
       VoiceCommandType.appVolume =>
         (app.t('typeAppVolume'), const Color(0xFF7BA0E0)),
@@ -18362,7 +18414,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           desc: app.t('wsAccentDesc'),
           control: Row(mainAxisSize: MainAxisSize.min, children: [
             for (final c in const [
-              0xFF7C4DFF,
+              0xFFCC785C,
               0xFF4FC3F7,
               0xFFFF5FA8,
               0xFF34D399,
@@ -18794,7 +18846,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
               padding: const EdgeInsets.all(12),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: evsDangerButton(app.t('clearMemory'),
+                child: evsDangerButton(context, app.t('clearMemory'),
                     () => _persona((x) => x.savedMemories.clear())),
               ),
             ),
@@ -18890,12 +18942,12 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           evsRow(context, 
             label: app.t('clearHistory'),
             desc: app.t('clearHistoryDesc'),
-            control: evsDangerButton(app.t('clearHistory'), () => _stubSnack(app)),
+            control: evsDangerButton(context, app.t('clearHistory'), () => _stubSnack(app)),
           ),
           evsRow(context, 
             label: app.t('resetMemory'),
             desc: app.t('resetMemoryDesc'),
-            control: evsDangerButton(app.t('resetMemory'), () {
+            control: evsDangerButton(context, app.t('resetMemory'), () {
               _persona((x) {
                 x.savedMemories.clear();
                 x.memoryNote = '';
@@ -18905,7 +18957,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
           evsRow(context, 
             label: app.t('resetAll'),
             desc: app.t('resetAllDesc'),
-            control: evsDangerButton(app.t('fullReset'), () => _stubSnack(app)),
+            control: evsDangerButton(context, app.t('fullReset'), () => _stubSnack(app)),
           ),
         ]),
         full: true,
@@ -20093,9 +20145,9 @@ Widget evsCard(
 }) {
   return Container(
     decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: EvsRadius.rLg,
       color: _overlayFill(context, 0.033),
-      border: Border.all(color: _evsStroke),
+      border: Border.all(color: _stroke(context)),
     ),
     clipBehavior: Clip.antiAlias,
     child: Column(
@@ -20103,8 +20155,8 @@ Widget evsCard(
       children: [
         Container(
           padding: const EdgeInsets.fromLTRB(18, 13, 18, 11),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Color(0x0AFFFFFF))),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: _divider(context))),
           ),
           child: Row(
             children: [
@@ -20112,18 +20164,15 @@ Widget evsCard(
                 width: 26,
                 height: 26,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: EvsRadius.rSm,
                   color: _accent(context).withValues(alpha: 0.15),
                 ),
                 child: Icon(icon, size: 13, color: _accent(context)),
               ),
               const SizedBox(width: 9),
               Text(title.toUpperCase(),
-                  style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                      color: Color(0xFF8890A8))),
+                  style:
+                      EvsType.sectionLabel.copyWith(color: _sectionLabel(context))),
             ],
           ),
         ),
@@ -20142,16 +20191,10 @@ Widget evsRow(BuildContext context, {
   final labelCol = Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(label,
-          style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
-              color: _body(context))),
+      Text(label, style: EvsType.label.copyWith(color: _body(context))),
       if (desc != null) ...[
         const SizedBox(height: 2),
-        Text(desc,
-            style: const TextStyle(
-                fontSize: 12, height: 1.4, color: Color(0xFF6E7280))),
+        Text(desc, style: EvsType.caption.copyWith(color: _sub(context))),
       ],
     ],
   );
@@ -20347,8 +20390,7 @@ Widget evsSelectButton(BuildContext context, String label, {double minWidth = 14
                     color: _body(context))),
           ),
           const SizedBox(width: 7),
-          const Icon(Icons.keyboard_arrow_down,
-              size: 16, color: Color(0xFF6E7280)),
+          Icon(Icons.keyboard_arrow_down, size: 16, color: _faint(context)),
         ],
       ),
     ),
@@ -20369,13 +20411,9 @@ Widget evsGhostButton(BuildContext context, String label, IconData icon, {VoidCa
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: const Color(0xFF6E7280)),
+          Icon(icon, size: 13, color: _sub(context)),
           const SizedBox(width: 6),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6E7280))),
+          Text(label, style: EvsType.control.copyWith(color: _sub(context))),
         ],
       ),
     ),
@@ -20459,7 +20497,7 @@ Widget evsNamedSlider(BuildContext context, {
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(desc,
-                style: const TextStyle(fontSize: 11.5, color: Color(0xFF4A4F5E))),
+                style: TextStyle(fontSize: 11.5, color: _faint(context))),
           ),
         SliderTheme(
           data: const SliderThemeData(
@@ -20471,7 +20509,7 @@ Widget evsNamedSlider(BuildContext context, {
             min: min,
             max: max,
             activeColor: _accent(context),
-            inactiveColor: const Color(0x1AFFFFFF),
+            inactiveColor: _overlayFill(context, 0.10),
             onChanged: onChanged,
           ),
         ),
@@ -20480,9 +20518,9 @@ Widget evsNamedSlider(BuildContext context, {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(left ?? '',
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF4A4F5E))),
+                  style: TextStyle(fontSize: 11, color: _faint(context))),
               Text(right ?? '',
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF4A4F5E))),
+                  style: TextStyle(fontSize: 11, color: _faint(context))),
             ],
           ),
       ],
@@ -20507,7 +20545,7 @@ Widget evsRadioCard(BuildContext context, {
         borderRadius: BorderRadius.circular(14),
         color: selected ? _accent(context).withValues(alpha: 0.1) : _overlayFill(context, 0.03),
         border: Border.all(
-            color: selected ? _accent(context).withValues(alpha: 0.3) : const Color(0x0FFFFFFF)),
+            color: selected ? _accent(context).withValues(alpha: 0.3) : _stroke(context)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -20519,7 +20557,7 @@ Widget evsRadioCard(BuildContext context, {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                  color: selected ? _accent(context) : const Color(0x33FFFFFF), width: 2),
+                  color: selected ? _accent(context) : _faint(context), width: 2),
             ),
             alignment: Alignment.center,
             child: selected
@@ -20536,16 +20574,13 @@ Widget evsRadioCard(BuildContext context, {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: TextStyle(
-                        fontSize: 13.5,
+                    style: EvsType.label.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: selected
-                            ? const Color(0xFFD4CFF0)
-                            : _body(context))),
+                        color: selected ? _txt(context) : _body(context))),
                 const SizedBox(height: 2),
                 Text(desc,
-                    style: const TextStyle(
-                        fontSize: 12, height: 1.35, color: Color(0xFF6E7280))),
+                    style: EvsType.caption
+                        .copyWith(height: 1.35, color: _sub(context))),
                 if (extra != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
@@ -20587,19 +20622,20 @@ Widget evsAddButton(BuildContext context, String label, VoidCallback onTap,
   );
 }
 
-Widget evsDangerButton(String label, VoidCallback onTap) {
+Widget evsDangerButton(BuildContext context, String label, VoidCallback onTap) {
+  final d = _danger(context);
   return GestureDetector(
     onTap: onTap,
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: const Color(0x1FE05D5D),
-        border: Border.all(color: const Color(0x40E05D5D)),
+        color: d.withValues(alpha: 0.12),
+        border: Border.all(color: d.withValues(alpha: 0.32)),
       ),
       child: Text(label,
-          style: const TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFFF0A0A0))),
+          style: EvsType.label
+              .copyWith(fontSize: 13, fontWeight: FontWeight.w700, color: d)),
     ),
   );
 }
@@ -20683,8 +20719,9 @@ class _WinBtn extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          hoverColor:
-              danger ? const Color(0x33E05D5D) : _stroke(context),
+          hoverColor: danger
+              ? _danger(context).withValues(alpha: 0.20)
+              : _stroke(context),
           child: Center(
               child: Icon(icon, size: iconSize, color: _sub(context))),
         ),
@@ -20716,10 +20753,9 @@ class _KeyCap extends StatelessWidget {
 class _KeySep extends StatelessWidget {
   const _KeySep();
   @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 4),
-        child:
-            Text('+', style: TextStyle(fontSize: 11, color: Color(0xFF4A4F5E))),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Text('+', style: TextStyle(fontSize: 11, color: _faint(context))),
       );
 }
 
@@ -21083,6 +21119,7 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      barrierColor: _scrim(context),
       builder: (_) => const SettingsSheet(),
     );
   }
@@ -21255,7 +21292,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // Colour for a connection status (dot + tint + border).
   static Color _statusColor(ConnectionStatus s) => switch (s) {
         ConnectionStatus.connected => const Color(0xFF54E08A),
-        ConnectionStatus.connecting => const Color(0xFF8A7BE0),
+        ConnectionStatus.connecting => const Color(0xFF5B9DF0),
         ConnectionStatus.noModel => const Color(0xFFE0B454),
         ConnectionStatus.disconnected => const Color(0xFF8A90A0),
         ConnectionStatus.error => const Color(0xFFE05A6A),
@@ -21834,6 +21871,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }) {
     final isUser = m.role == 'user';
     final editing = _editingMessageId == m.id;
+    final fg = _onAccent(context);
     final bubble = Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -21857,17 +21895,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.attach_file,
                       size: 14,
-                      color: Colors.white70,
+                      color: fg.withValues(alpha: 0.75),
                     ),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
                         a.split('/').last,
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: TextStyle(
+                          color: fg.withValues(alpha: 0.75),
                           fontSize: 12,
                         ),
                       ),
@@ -21883,11 +21921,7 @@ class _ChatScreenState extends State<ChatScreen> {
           else if (m.content.isNotEmpty)
             Text(
               m.content,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                height: 1.4,
-              ),
+              style: EvsType.body.copyWith(color: fg),
             ),
         ],
       ),
@@ -21922,7 +21956,7 @@ class _ChatScreenState extends State<ChatScreen> {
           autofocus: true,
           minLines: 1,
           maxLines: 12,
-          style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+          style: EvsType.body.copyWith(color: _onAccent(context)),
           decoration: const InputDecoration(
             isDense: true,
             border: InputBorder.none,
@@ -21936,7 +21970,7 @@ class _ChatScreenState extends State<ChatScreen> {
             TextButton(
               onPressed: _cancelEdit,
               style: TextButton.styleFrom(
-                foregroundColor: Colors.white70,
+                foregroundColor: _onAccent(context).withValues(alpha: 0.7),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 minimumSize: const Size(0, 32),
               ),
@@ -21945,7 +21979,7 @@ class _ChatScreenState extends State<ChatScreen> {
             TextButton(
               onPressed: () => _saveEdit(m),
               style: TextButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: _onAccent(context),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 minimumSize: const Size(0, 32),
               ),
@@ -22386,6 +22420,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   showModalBottomSheet(
                     context: context,
                     backgroundColor: Colors.transparent,
+                    barrierColor: _scrim(context),
                     isScrollControlled: true,
                     builder: (_) => _RecentAttachSheet(
                       onPick: (path) =>
@@ -22880,6 +22915,7 @@ class _ModelMenu extends StatelessWidget {
                 color: _card(context),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: _stroke(context)),
+                boxShadow: _shadow(context, y: 12, blur: 32),
               ),
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Column(
@@ -24661,11 +24697,8 @@ class SettingsSheet extends StatelessWidget {
             children: [
               for (final entry in [
                 (AppThemeMode.dark, app.t('themeDark')),
-                (AppThemeMode.steam, app.t('themeSteam')),
-                (AppThemeMode.apple, app.t('themeApple')),
                 (AppThemeMode.claude, app.t('themeClaude')),
                 (AppThemeMode.claudeDark, app.t('themeClaudeDark')),
-                (AppThemeMode.discord, app.t('themeDiscord')),
               ])
                 RadioListTile<AppThemeMode>(
                   value: entry.$1,
