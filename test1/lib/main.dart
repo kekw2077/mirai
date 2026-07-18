@@ -1505,6 +1505,7 @@ const Map<String, Map<String, String>> _i18n = {
     'themeSteam': 'Steam',
     'themeApple': 'Apple',
     'themeClaude': 'Claude',
+    'themeClaudeDark': 'Claude (тёмная)',
     'themeDiscord': 'Discord',
     'themeGray': 'Серая',
     'appStyle': 'Стиль приложения',
@@ -2439,6 +2440,7 @@ const Map<String, Map<String, String>> _i18n = {
     'themeSteam': 'Steam',
     'themeApple': 'Apple',
     'themeClaude': 'Claude',
+    'themeClaudeDark': 'Claude (dark)',
     'themeDiscord': 'Discord',
     'themeGray': 'Gray',
     'appStyle': 'App style',
@@ -3597,6 +3599,12 @@ class ChangelogEntry {
 }
 
 const List<ChangelogEntry> kChangelog = [
+  ChangelogEntry('2.1.5', [
+    'Добавлено: тёмная версия темы Claude (тёплый графит, кремовый текст, терракотовый акцент) — в списке тем «Claude (тёмная)».',
+    'Улучшено: боковая колонка теперь кремовая/тёмная от самого верха до низа, а верх окна двухцветный (рейка слева, фон справа) — без «уступа» сверху.',
+    'Исправлено: на светлых темах не было рамок вокруг метрик (CPU/RAM/VRAM) и панели микрофона; значение CPU было фиолетовым, логотип EVS — белым на кремовом.',
+    'Исправлено: убран остаточный фиолет на светлых темах (бейдж «Слушаю», ссылки «Подробнее», иконки).',
+  ]),
   ChangelogEntry('2.1.4', [
     'Исправлено: голосовой движок иногда не запускался («голосовой движок не запущен»), если при старте не удавалось загрузить манифест компонентов (нет сети) — выбирался старый сайдкар, не понимающий новых параметров. Теперь манифест кэшируется локально (работает офлайн), а при его отсутствии выбирается актуальный сайдкар.',
     'Исправлено: «Открыть папку моделей» открывала «Документы» вместо папки с моделями (из-за смешанных слэшей в пути).',
@@ -4602,7 +4610,7 @@ class TokenCounter {
 // ThemeData cleanly. Light palettes (apple/claude) also switch, but their full
 // readability over the remaining hardcoded dark-assuming colors is a
 // compiler-in-the-loop pass (see APPLE-THEME-TODO.md).
-enum AppThemeMode { dark, apple, steam, claude, discord }
+enum AppThemeMode { dark, apple, steam, claude, discord, claudeDark }
 
 // Liquid Glass was removed — only the standard (solid) style remains. Kept as a
 // single-value enum so the appStyle field / prefs migration stay graceful.
@@ -7914,6 +7922,23 @@ const _Palette _kClaude = _Palette(
   brightness: Brightness.light,
 );
 
+// Claude — dark editorial palette (claude.ai dark mode): warm charcoal surfaces,
+// cream text, the same terracotta accent.
+const _Palette _kClaudeDark = _Palette(
+  bg: Color(0xFF262624),
+  card: Color(0xFF30302E),
+  card2: Color(0xFF383735),
+  txt: Color(0xFFF2F0E9),
+  sub: Color(0xFFA8A69C),
+  accent: Color(0xFFD97757),
+  stroke: Color(0xFF423F3B),
+  body: Color(0xFFE4E1D8),
+  faint: Color(0xFF8E8C85),
+  success: Color(0xFF5DB872),
+  danger: Color(0xFFE0685E),
+  brightness: Brightness.dark,
+);
+
 _Palette _palFor(AppThemeMode m) {
   switch (m) {
     case AppThemeMode.apple:
@@ -7922,6 +7947,8 @@ _Palette _palFor(AppThemeMode m) {
       return _kSteam;
     case AppThemeMode.claude:
       return _kClaude;
+    case AppThemeMode.claudeDark:
+      return _kClaudeDark;
     case AppThemeMode.discord:
       return _kDiscord;
     case AppThemeMode.dark:
@@ -12112,13 +12139,18 @@ class DesktopHome extends StatelessWidget {
       backgroundColor: _bg(context),
       body: Container(
         decoration: _evsShellBg(context),
-        child: const Column(
+        // The sidebar spans the FULL window height (its themed surface reaches
+        // the very top), and the window title bar sits only over the main
+        // content — so the top of the window reads as two colours (cream rail on
+        // the left, the page background on the right) instead of one strip above
+        // a shorter sidebar.
+        child: const Row(
           children: [
-            _WindowTitleBar(),
+            _DesktopSidebar(),
             Expanded(
-              child: Row(
+              child: Column(
                 children: [
-                  _DesktopSidebar(),
+                  _WindowTitleBar(),
                   Expanded(child: ChatScreen(desktop: true)),
                 ],
               ),
@@ -12173,18 +12205,28 @@ class _DesktopSidebar extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 20, 14, 16),
               child: Row(
                 children: [
-                  const _EvsLogoMark(),
-                  const SizedBox(width: 9),
-                  const Text(
-                    'EVS',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                      color: Colors.white,
+                  // The sidebar now reaches the top of the window, so its header
+                  // doubles as the drag area (the window title bar sits only over
+                  // the main content). Buttons stay outside the drag region.
+                  Expanded(
+                    child: DragToMoveArea(
+                      child: Row(
+                        children: [
+                          const _EvsLogoMark(),
+                          const SizedBox(width: 9),
+                          Text(
+                            'EVS',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                              color: _txt(context),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   _iconBtn(context, Icons.settings_outlined,
                       () => _openSettings(context),
                       tooltip: app.t('settings')),
@@ -12453,8 +12495,8 @@ class _DesktopSystemWidget extends StatelessWidget {
   String _gb(int bytes, {int digits = 1}) =>
       (bytes / (1024 * 1024 * 1024)).toStringAsFixed(digits);
 
-  Widget _bar(String name, String value, double frac, List<Color> grad,
-      Color numColor) {
+  Widget _bar(BuildContext context, String name, String value, double frac,
+      List<Color> grad, Color numColor) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 7),
       child: Column(
@@ -12464,10 +12506,10 @@ class _DesktopSystemWidget extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(name,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF6E7280))),
+                      color: _sub(context))),
               Text(value,
                   style: TextStyle(
                       fontSize: 11,
@@ -12481,7 +12523,7 @@ class _DesktopSystemWidget extends StatelessWidget {
             child: LinearProgressIndicator(
               value: frac,
               minHeight: 5,
-              backgroundColor: const Color(0x12FFFFFF),
+              backgroundColor: _overlayFill(context, 0.1),
               valueColor: AlwaysStoppedAnimation(grad.first),
             ),
           ),
@@ -12497,19 +12539,19 @@ class _DesktopSystemWidget extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: _overlayFill(context, 0.042),
-        border: Border.all(color: _evsStroke),
+        border: Border.all(color: _stroke(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(bottom: 9),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 9),
             child: Text('СИСТЕМА',
                 style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.3,
-                    color: Color(0xFF6E7280))),
+                    color: _sub(context))),
           ),
           ValueListenableBuilder<SystemStats>(
             valueListenable: SystemMonitor.instance.stats,
@@ -12521,12 +12563,13 @@ class _DesktopSystemWidget extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _bar('CPU', active ? '${(s.cpu * 100).round()}%' : '—', s.cpu,
-                      [_accent(context)], const Color(0xFFA99DE8)),
-                  _bar('RAM', ramTxt, s.ram, const [Color(0xFF5DE0D8)],
-                      const Color(0xFF5DE0D8)),
-                  _bar('VRAM', '—', 0.0, const [Color(0xFFE08A5D)],
-                      const Color(0xFFE08A5D)),
+                  _bar(context, 'CPU',
+                      active ? '${(s.cpu * 100).round()}%' : '—', s.cpu,
+                      [_accent(context)], _accent(context)),
+                  _bar(context, 'RAM', ramTxt, s.ram,
+                      const [Color(0xFF5DE0D8)], const Color(0xFF3BA79E)),
+                  _bar(context, 'VRAM', '—', 0.0, const [Color(0xFFE08A5D)],
+                      const Color(0xFFC2703B)),
                 ],
               );
             },
@@ -13351,7 +13394,7 @@ class _DesktopMicWidgetState extends State<_DesktopMicWidget>
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: _overlayFill(context, 0.042),
-        border: Border.all(color: _evsStroke),
+        border: Border.all(color: _stroke(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -13360,7 +13403,7 @@ class _DesktopMicWidgetState extends State<_DesktopMicWidget>
             padding: const EdgeInsets.only(bottom: 10),
             child: Row(
               children: [
-                const Icon(Icons.mic_none, size: 13, color: Color(0xFF6E7280)),
+                Icon(Icons.mic_none, size: 13, color: _sub(context)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(app.t('microphone'),
@@ -17525,6 +17568,7 @@ class _DesktopSettingsState extends State<DesktopSettings> {
                 (AppThemeMode.steam, app.t('themeSteam')),
                 (AppThemeMode.apple, app.t('themeApple')),
                 (AppThemeMode.claude, app.t('themeClaude')),
+                (AppThemeMode.claudeDark, app.t('themeClaudeDark')),
                 (AppThemeMode.discord, app.t('themeDiscord')),
               ],
               app.themeMode,
@@ -21149,7 +21193,7 @@ class _ChatScreenState extends State<ChatScreen> {
               VaState.armed => (app.t('vaArmed'), const Color(0xFF4FC3F7)),
               VaState.thinking => (app.t('vaThinking'), _success(context)),
               VaState.running => (app.t('vaRunning'), const Color(0xFFE0C07A)),
-              _ => (app.t('vaListening'), const Color(0xFF8A7BE0)),
+              _ => (app.t('vaListening'), _accent(context)),
             };
             if (s == VaState.listening || s == VaState.idle) {
               // Flash a bright "wake word heard!" state for ~2.5 s so the
@@ -24620,6 +24664,7 @@ class SettingsSheet extends StatelessWidget {
                 (AppThemeMode.steam, app.t('themeSteam')),
                 (AppThemeMode.apple, app.t('themeApple')),
                 (AppThemeMode.claude, app.t('themeClaude')),
+                (AppThemeMode.claudeDark, app.t('themeClaudeDark')),
                 (AppThemeMode.discord, app.t('themeDiscord')),
               ])
                 RadioListTile<AppThemeMode>(
