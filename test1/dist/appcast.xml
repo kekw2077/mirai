@@ -27,6 +27,37 @@
     <language>ru</language>
 
     <!-- Newest release first. Duplicate this block for each new version. -->
+    <!-- BRIDGE: EVS moved to its own repo (kekw2077/enhanced-voice-system). This
+         item stays on the OLD desktop-branch feed so installs on <=2.3.0 update
+         once to 2.3.1 (hosted on the new repo, same signing key), after which
+         they follow the new repo's feed. Keep this feed alive until installs have
+         migrated; only then delete the `desktop` branch. -->
+    <item>
+      <title>EVS 2.3.1</title>
+      <description><![CDATA[
+        <style>
+          html,body{background:#262624;color:#F2F0E9;margin:0;padding:14px 18px;
+            font-family:'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;}
+          h1,h2,h3,b,strong{color:#FFFFFF;}
+          a{color:#D97757;}
+          ul{margin:6px 0;padding-left:20px;}
+          li{margin:5px 0;}
+        </style>
+        <ul>
+          <li>EVS переехал в собственный репозиторий проекта. Это обновление переносит вас на новый канал — дальше автообновления будут приходить оттуда. Для вас ничего не меняется: обновление скачается и применится как обычно.</li>
+        </ul>
+      ]]></description>
+      <pubDate>Sun, 19 Jul 2026 14:00:00 +0000</pubDate>
+      <enclosure
+        url="https://github.com/kekw2077/enhanced-voice-system/releases/download/desktop-v2.3.1/EVS-Setup-2.3.1.exe"
+        sparkle:version="2.3.1"
+        sparkle:os="windows"
+        sparkle:dsaSignature="MDwCHGoP9qeco/wwfMTDDMdmPh6yrmKYpNOMQJpjby0CHBX50I45ppMBQrlGiSLHx/8NS7JPtFSNeWedfOM="
+        evs:sha256="c72999359d0627898f2168f4cba6b72ec4c23176349e75ea3bfaaf62ba11ef18"
+        length="16554165"
+        type="application/octet-stream" />
+    </item>
+
     <item>
       <title>EVS 2.3.0</title>
       <description><![CDATA[
