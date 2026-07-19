@@ -41,7 +41,17 @@ import 'wave_field_flat.dart';
 
 // --- Library split into physical part-files under lib/src/ (one library, so all
 // private `_` visibility is preserved). See CLAUDE.md for the class→file map. ---
+part 'src/bootstrap.dart';
+part 'src/i18n.dart';
+part 'src/models.dart';
+part 'src/llm_services.dart';
 part 'src/app_state.dart';
+part 'src/theme_widgets.dart';
+part 'src/desktop_integration.dart';
+part 'src/updater_and_web.dart';
+part 'src/sidecar_client.dart';
+part 'src/desktop_home.dart';
+part 'src/remote_input.dart';
 part 'src/voice_viz.dart';
 part 'src/desktop_settings.dart';
 part 'src/chat_screen.dart';
