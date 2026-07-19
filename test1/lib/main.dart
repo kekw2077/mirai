@@ -39,6 +39,15 @@ import 'siri_orb.dart';
 import 'wave_field_3d.dart';
 import 'wave_field_flat.dart';
 
+// --- Library split into physical part-files under lib/src/ (one library, so all
+// private `_` visibility is preserved). See CLAUDE.md for the class→file map. ---
+part 'src/app_state.dart';
+part 'src/voice_viz.dart';
+part 'src/desktop_settings.dart';
+part 'src/chat_screen.dart';
+part 'src/voice_screen.dart';
+part 'src/settings_screens.dart';
+
 // Kept short now that the animated ImmersiveSplash provides the real
 // startup dwell — otherwise boot would be this delay plus the ~1.5s
 // animation stacked back to back.
